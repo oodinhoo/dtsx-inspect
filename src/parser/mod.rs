@@ -2,11 +2,16 @@
 
 pub mod secrets;
 
+use std::collections::BTreeMap;
+
 use quick_xml::escape::resolve_predefined_entity;
 use quick_xml::events::{BytesRef, BytesStart, Event};
 use quick_xml::{Reader, XmlVersion};
 
-use crate::model::{Component, ConnectionManager, ConnectionRef, Executable, Package, Role, Scope};
+use crate::model::{
+    Component, ConnectionManager, ConnectionRef, DataPath, Executable, Package, Role, Scope,
+    SqlOrigin, SqlStatement,
+};
 use secrets::summarize_connection_string;
 
 /// Premier format SSIS 2012 (attributs `DTS:` au lieu d'éléments `DTS:Property`).
@@ -79,13 +84,33 @@ struct ConnectionDraft {
     depth: usize,
 }
 
+/// Propriétés de composant utiles au lignage ; les autres ne sont pas lues.
+const COMPONENT_PROPERTIES: [&str; 8] = [
+    "AccessMode",
+    "FetchXML",
+    "OpenRowset",
+    "SourceEntity",
+    "SourceType",
+    "SqlCommand",
+    "TableOrViewName",
+    "UserComponentTypeName",
+];
+
+/// Hôte des composants .NET (ADO.NET, Script, KingswaySoft…) : la vraie classe
+/// est dans la propriété `UserComponentTypeName`.
+const MANAGED_HOST: &str = "Microsoft.ManagedComponentHost";
+
 struct ComponentDraft {
     ref_id: String,
     name: String,
     class_id: String,
     connections: Vec<ConnectionRef>,
+    properties: BTreeMap<String, String>,
     has_input: bool,
     has_output: bool,
+    /// Profondeur sous `<component>` : 2 = `<properties><property>` du composant
+    /// (les propriétés de colonnes sont plus profondes).
+    depth: usize,
 }
 
 impl ComponentDraft {
@@ -96,14 +121,21 @@ impl ComponentDraft {
             (true, false) => Role::Destination,
             (true, true) => Role::Transform,
         };
+        let class_id = match self.properties.get("UserComponentTypeName") {
+            Some(user) if self.class_id == MANAGED_HOST => {
+                user.split(',').next().unwrap_or(user).trim().to_owned()
+            }
+            _ => self.class_id,
+        };
         Component {
             ref_id: self.ref_id,
             name: self.name,
             // ponytail: « connu » = composant Microsoft ; un enum par classe viendra avec le lignage.
-            known: self.class_id.starts_with("Microsoft."),
-            class_id: self.class_id,
+            known: class_id.starts_with("Microsoft."),
+            class_id,
             role,
             connections: self.connections,
+            properties: self.properties,
         }
     }
 }
@@ -122,7 +154,7 @@ fn read(xml: &str) -> Result<Document, ParseError> {
             Event::GeneralRef(r) if state.capture.is_some() => {
                 state.captured.push_str(&entity(&r)?)
             }
-            Event::Eof => return Ok(state.doc),
+            Event::Eof => return Ok(state.into_document()),
             _ => {}
         }
     }
@@ -144,6 +176,7 @@ enum Capture {
     FormatVersion,
     CalledPackage,
     PackageConnection,
+    ComponentProperty(&'static str),
 }
 
 // ponytail: éléments repérés par nom local, sans résolution de namespace :
@@ -157,22 +190,28 @@ struct Reading {
     in_execute_package: bool,
     capture: Option<Capture>,
     captured: String,
+    /// Tâches dont `SqlStatementSource` est défini par une expression.
+    sql_expressions: Vec<usize>,
 }
 
 impl Reading {
     fn start(&mut self, e: &BytesStart) -> Result<(), ParseError> {
-        let local = e.local_name();
+        let name = e.local_name();
+        let local = name.as_ref();
         if self.doc.root.is_none() {
             self.doc.root = Some(Root {
-                element: local.as_ref().to_owned(),
+                element: local.to_owned(),
                 executable_type: attr(e, "ExecutableType")?.unwrap_or_default(),
                 name: attr(e, "ObjectName")?.unwrap_or_default(),
             });
-            if local.as_ref() == "Executable" {
+            if local == "Executable" {
                 return Ok(());
             }
         }
-        match local.as_ref() {
+        if self.component.is_some() {
+            return self.start_in_component(e, local);
+        }
+        match local {
             "Executable" => self.start_executable(e)?,
             "ConnectionManager" => self.start_connection(e)?,
             "Property"
@@ -181,36 +220,99 @@ impl Reading {
             {
                 self.begin(Capture::FormatVersion)
             }
+            "PropertyExpression"
+                if self.connection.is_none()
+                    && attr(e, "Name")?.as_deref() == Some("SqlStatementSource") =>
+            {
+                self.sql_expressions.extend(self.open_executables.last());
+            }
             "ExecutePackageTask" => self.in_execute_package = true,
             "PackageName" if self.in_execute_package => self.begin(Capture::CalledPackage),
             // Référence externe : connexion FILE (ou OLE DB pour msdb) vers le package.
             "Connection" if self.in_execute_package => self.begin(Capture::PackageConnection),
-            "SqlTaskData" => {
-                let reference = attr(e, "Connection")?;
-                if let (Some(&i), Some(r)) = (self.open_executables.last(), reference) {
-                    self.doc.executables[i]
-                        .connections
-                        .extend(connection_ref(r));
-                }
-            }
+            "SqlTaskData" => self.start_sql_task(e)?,
             "component" => self.component = Some(start_component(e)?),
+            "path" => self.start_path(e)?,
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn start_in_component(&mut self, e: &BytesStart, local: &str) -> Result<(), ParseError> {
+        let Some(c) = self.component.as_mut() else {
+            return Ok(());
+        };
+        c.depth += 1;
+        match local {
             "connection" => {
                 // Le GUID fait foi (c'est lui que SSIS résout) ; le nom de
                 // `connectionManagerRefId` reste figé après un renommage.
                 let reference = attr(e, "connectionManagerID")?
                     .filter(|r| !r.is_empty())
                     .or(attr(e, "connectionManagerRefId")?);
-                if let (Some(c), Some(r)) = (self.component.as_mut(), reference) {
-                    c.connections.extend(connection_ref(r));
-                }
+                c.connections.extend(reference.and_then(connection_ref));
             }
-            "input" => self.component.iter_mut().for_each(|c| c.has_input = true),
-            "output" if attr(e, "isErrorOut")?.as_deref() != Some("true") => {
-                self.component.iter_mut().for_each(|c| c.has_output = true);
+            "input" => c.has_input = true,
+            "output" if attr(e, "isErrorOut")?.as_deref() != Some("true") => c.has_output = true,
+            "property" if c.depth == 2 => {
+                let name = attr(e, "name")?;
+                if let Some(known) = COMPONENT_PROPERTIES
+                    .iter()
+                    .find(|p| Some(**p) == name.as_deref())
+                {
+                    self.begin(Capture::ComponentProperty(known));
+                }
             }
             _ => {}
         }
         Ok(())
+    }
+
+    fn start_sql_task(&mut self, e: &BytesStart) -> Result<(), ParseError> {
+        let Some(&i) = self.open_executables.last() else {
+            return Ok(());
+        };
+        let origin = match attr(e, "SqlStatementSourceType")?.as_deref() {
+            Some("Variable") => SqlOrigin::Variable,
+            Some("FileConnection") => SqlOrigin::File,
+            _ => SqlOrigin::Direct,
+        };
+        let task = &mut self.doc.executables[i];
+        task.connections
+            .extend(attr(e, "Connection")?.and_then(connection_ref));
+        task.sql = attr(e, "SqlStatementSource")?
+            .filter(|text| !text.trim().is_empty())
+            .map(|text| SqlStatement { text, origin });
+        Ok(())
+    }
+
+    fn start_path(&mut self, e: &BytesStart) -> Result<(), ParseError> {
+        let (Some(start), Some(end)) = (attr(e, "startId")?, attr(e, "endId")?) else {
+            return Ok(());
+        };
+        if let (Some(&i), Some(from), Some(to)) =
+            (self.open_executables.last(), owner(&start), owner(&end))
+        {
+            self.doc.executables[i].paths.push(DataPath {
+                from: from.to_owned(),
+                to: to.to_owned(),
+            });
+        }
+        Ok(())
+    }
+
+    fn into_document(self) -> Document {
+        let mut doc = self.doc;
+        for i in self.sql_expressions {
+            let direct = doc.executables[i]
+                .sql
+                .as_mut()
+                .filter(|s| s.origin == SqlOrigin::Direct);
+            if let Some(sql) = direct {
+                sql.origin = SqlOrigin::Expression;
+            }
+        }
+        doc
     }
 
     fn start_executable(&mut self, e: &BytesStart) -> Result<(), ParseError> {
@@ -222,6 +324,8 @@ impl Reading {
             connections: Vec::new(),
             called_package: None,
             components: Vec::new(),
+            paths: Vec::new(),
+            sql: None,
         });
         self.open_executables.push(self.doc.executables.len() - 1);
         Ok(())
@@ -252,6 +356,11 @@ impl Reading {
     }
 
     fn end(&mut self, local: &str) {
+        if local != "component" {
+            if let Some(c) = self.component.as_mut() {
+                c.depth = c.depth.saturating_sub(1);
+            }
+        }
         match local {
             "Executable" => {
                 self.open_executables.pop();
@@ -265,7 +374,7 @@ impl Reading {
                     self.doc.connections.push(draft.manager);
                 }
             }
-            "Property" | "PackageName" | "Connection" => self.finish_capture(),
+            "Property" | "PackageName" | "Connection" | "property" => self.finish_capture(),
             "ExecutePackageTask" => self.in_execute_package = false,
             "component" => {
                 if let (Some(c), Some(&i)) = (self.component.take(), self.open_executables.last()) {
@@ -287,6 +396,11 @@ impl Reading {
         };
         let value = std::mem::take(&mut self.captured).trim().to_owned();
         match (capture, self.open_executables.last().copied()) {
+            (Capture::ComponentProperty(name), _) => {
+                if let Some(c) = self.component.as_mut() {
+                    c.properties.insert(name.to_owned(), value);
+                }
+            }
             (Capture::FormatVersion, _) => self.doc.format_version = value.parse().ok(),
             (Capture::CalledPackage, Some(i)) => {
                 self.doc.executables[i].called_package = Some(value).filter(|v| !v.is_empty());
@@ -307,9 +421,19 @@ fn start_component(e: &BytesStart) -> Result<ComponentDraft, ParseError> {
         name: attr(e, "name")?.unwrap_or_default(),
         class_id: attr(e, "componentClassID")?.unwrap_or_default(),
         connections: Vec::new(),
+        properties: BTreeMap::new(),
         has_input: false,
         has_output: false,
+        depth: 0,
     })
+}
+
+/// Composant d'une extrémité de lien : `Package\DFT\Comp.Outputs[Sortie]` -> `Package\DFT\Comp`.
+fn owner(endpoint: &str) -> Option<&str> {
+    endpoint
+        .rfind(".Outputs[")
+        .or_else(|| endpoint.rfind(".Inputs["))
+        .map(|i| &endpoint[..i])
 }
 
 fn connection_ref(reference: String) -> Option<ConnectionRef> {
@@ -320,7 +444,7 @@ fn connection_ref(reference: String) -> Option<ConnectionRef> {
 }
 
 /// Valeur d'un attribut repéré par son nom local (`DTS:ObjectName` -> `ObjectName`).
-fn attr(e: &BytesStart, local: &str) -> Result<Option<String>, ParseError> {
+pub(crate) fn attr(e: &BytesStart, local: &str) -> Result<Option<String>, ParseError> {
     for a in e.attributes() {
         let a = a?;
         if a.key.local_name().as_ref() == local {
@@ -335,7 +459,6 @@ fn attr(e: &BytesStart, local: &str) -> Result<Option<String>, ParseError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{Role, Scope};
 
     const MINIMAL: &str = include_str!("../../tests/fixtures/minimal.dtsx");
 
@@ -590,6 +713,142 @@ mod tests {
                 ),
             }
         );
+    }
+
+    const CHARGEMENT: &str = include_str!("../../tests/fixtures/lineage/Chargement.dtsx");
+    const EXPORT: &str = include_str!("../../tests/fixtures/lineage/Export.dtsx");
+
+    #[test]
+    fn managed_components_take_their_class_from_user_component_type_name() {
+        let p = parse_package(EXPORT).expect("export");
+        let classes: Vec<_> = p
+            .executables
+            .iter()
+            .flat_map(|e| &e.components)
+            .map(|c| (c.name.as_str(), c.class_id.as_str(), c.known))
+            .collect();
+        let crm = "KingswaySoft.IntegrationToolkit.DynamicsCrm.CrmSourceComponent";
+        assert_eq!(
+            classes,
+            vec![
+                ("ADO Clients", "Microsoft.DataReaderSourceAdapter", true),
+                ("FFD Export", "Microsoft.FlatFileDestination", true),
+                ("SCR Source", "Microsoft.ScriptComponentHost", true),
+                ("CRM Comptes", crm, false),
+                ("CRM Prospects", crm, false),
+                ("UNI Fusion", "Microsoft.UnionAll", true),
+                ("DST Comptes", "Microsoft.OLEDBDestination", true),
+            ]
+        );
+    }
+
+    #[test]
+    fn keeps_only_allowlisted_component_level_properties() {
+        let p = parse_package(CHARGEMENT).expect("chargement");
+        let props: Vec<Vec<String>> = p.executables[0]
+            .components
+            .iter()
+            .map(|c| {
+                c.properties
+                    .iter()
+                    .map(|(k, v)| format!("{k}={v}"))
+                    .collect()
+            })
+            .collect();
+        assert_eq!(
+            props,
+            vec![
+                vec![],
+                vec!["SqlCommand=select * from [ref].[Pays]".to_owned()],
+                vec![
+                    "AccessMode=3".to_owned(),
+                    "OpenRowset=[stg].[Clients]".to_owned(),
+                    "SqlCommand=".to_owned(),
+                ],
+            ]
+        );
+    }
+
+    #[test]
+    fn decodes_fetch_xml_property() {
+        let p = parse_package(EXPORT).expect("export");
+        let fetch = &p.executables[1].components[0].properties["FetchXML"];
+        assert!(fetch.starts_with("<fetch mapping=\"logical\""), "{fetch}");
+        assert!(fetch.contains("<link-entity name=\"contact\""), "{fetch}");
+    }
+
+    #[test]
+    fn reads_data_flow_paths_between_components() {
+        let p = parse_package(EXPORT).expect("export");
+        let paths: Vec<_> = p.executables[1]
+            .paths
+            .iter()
+            .map(|d| (d.from.as_str(), d.to.as_str()))
+            .collect();
+        assert_eq!(
+            paths,
+            vec![
+                (
+                    "Package\\DFT CRM\\CRM Comptes",
+                    "Package\\DFT CRM\\UNI Fusion"
+                ),
+                (
+                    "Package\\DFT CRM\\CRM Prospects",
+                    "Package\\DFT CRM\\UNI Fusion"
+                ),
+                (
+                    "Package\\DFT CRM\\UNI Fusion",
+                    "Package\\DFT CRM\\DST Comptes"
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn reads_sql_statement_and_its_origin() {
+        let p = parse_package(CHARGEMENT).expect("chargement");
+        let sql: Vec<_> = p
+            .executables
+            .iter()
+            .filter_map(|e| {
+                let s = e.sql.as_ref()?;
+                let start: Vec<_> = s.text.split_whitespace().take(3).collect();
+                Some((e.name.as_str(), s.origin, start.join(" ")))
+            })
+            .collect();
+        let expected = [
+            (
+                "SQL Alimenter Clients",
+                SqlOrigin::Direct,
+                "INSERT INTO dbo.Clients",
+            ),
+            (
+                "SQL Historiser",
+                SqlOrigin::Expression,
+                "INSERT INTO dbo.Historique",
+            ),
+            (
+                "SQL Purger staging",
+                SqlOrigin::Direct,
+                "TRUNCATE TABLE stg.Clients",
+            ),
+            (
+                "SQL Import brut",
+                SqlOrigin::Direct,
+                "BULK INSERT dbo.Import",
+            ),
+            ("SQL Depuis variable", SqlOrigin::Variable, "User::Requete"),
+            (
+                "SQL Procedure",
+                SqlOrigin::Direct,
+                "EXEC dbo.ChargerClients @mode",
+            ),
+        ];
+        let expected: Vec<_> = expected
+            .iter()
+            .map(|(n, o, s)| (*n, *o, (*s).to_owned()))
+            .collect();
+        assert_eq!(sql, expected);
     }
 
     #[test]

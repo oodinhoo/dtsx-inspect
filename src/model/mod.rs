@@ -1,5 +1,7 @@
 //! Types du domaine SSIS, sans logique.
 
+use std::collections::BTreeMap;
+
 use serde::Serialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -45,6 +47,36 @@ pub struct Component {
     pub known: bool,
     pub role: Role,
     pub connections: Vec<ConnectionRef>,
+    /// Propriétés utiles au lignage (liste blanche du parseur). Jamais affichées :
+    /// elles peuvent contenir du SQL.
+    #[serde(skip)]
+    pub properties: BTreeMap<String, String>,
+}
+
+/// Lien du Data Flow entre deux composants (`ref_id`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DataPath {
+    pub from: String,
+    pub to: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SqlOrigin {
+    /// Saisie directe.
+    Direct,
+    /// Construite par une expression : `text` est la valeur évaluée à la conception.
+    Expression,
+    /// Lue dans une variable : `text` est le nom de la variable.
+    Variable,
+    /// Lue dans un fichier : `text` est la connexion du fichier.
+    File,
+}
+
+/// Requête d'une Execute SQL Task.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SqlStatement {
+    pub text: String,
+    pub origin: SqlOrigin,
 }
 
 /// Tâche ou conteneur. La hiérarchie se lit dans `ref_id`.
@@ -60,6 +92,10 @@ pub struct Executable {
     pub called_package: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub components: Vec<Component>,
+    #[serde(skip)]
+    pub paths: Vec<DataPath>,
+    #[serde(skip)]
+    pub sql: Option<SqlStatement>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

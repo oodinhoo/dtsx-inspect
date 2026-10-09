@@ -1,0 +1,245 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:ObjectName="Export">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:ConnectionManagers>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[Export CSV]"
+      DTS:CreationName="FLATFILE"
+      DTS:DTSID="{F0000000-0000-0000-0000-000000000010}"
+      DTS:ObjectName="Export CSV">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:Format="Delimited"
+          DTS:ConnectionString="D:\demo\export.csv" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+  </DTS:ConnectionManagers>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\DFT Export"
+      DTS:CreationName="Microsoft.Pipeline"
+      DTS:ExecutableType="Microsoft.Pipeline"
+      DTS:ObjectName="DFT Export">
+      <DTS:ObjectData>
+        <pipeline
+          version="1">
+          <components>
+            <component
+              refId="Package\DFT Export\ADO Clients"
+              componentClassID="Microsoft.ManagedComponentHost"
+              name="ADO Clients">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="SqlCommand">SELECT id FROM Entrepot.dbo.Clients</property>
+                <property
+                  dataType="System.String"
+                  name="TableOrViewName"></property>
+                <property
+                  dataType="System.Int32"
+                  name="AccessMode"
+                  typeConverter="Microsoft.SqlServer.Dts.Pipeline.DataReaderSourceAdapter+EnumToStringConverter">2</property>
+                <property
+                  dataType="System.String"
+                  name="UserComponentTypeName">Microsoft.DataReaderSourceAdapter, Microsoft.SqlServer.ADONETSrc, Version=16.0.0.0, Culture=neutral, PublicKeyToken=89845dcd8080cc91</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Export\ADO Clients.Connections[IDbConnection]"
+                  connectionManagerID="{F0000000-0000-0000-0000-000000000001}:external"
+                  connectionManagerRefId="Project.ConnectionManagers[Entrepot]"
+                  name="IDbConnection" />
+              </connections>
+              <outputs>
+                <output
+                  refId="Package\DFT Export\ADO Clients.Outputs[Sortie ADO NET]"
+                  name="Sortie ADO NET" />
+                <output
+                  refId="Package\DFT Export\ADO Clients.Outputs[Erreur]"
+                  isErrorOut="true"
+                  name="Erreur" />
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Export\FFD Export"
+              componentClassID="Microsoft.FlatFileDestination"
+              name="FFD Export">
+              <connections>
+                <connection
+                  refId="Package\DFT Export\FFD Export.Connections[FlatFileConnection]"
+                  connectionManagerID="{F0000000-0000-0000-0000-000000000010}"
+                  connectionManagerRefId="Package.ConnectionManagers[Export CSV]"
+                  name="FlatFileConnection" />
+              </connections>
+              <inputs>
+                <input
+                  refId="Package\DFT Export\FFD Export.Inputs[Entree]"
+                  name="Entree" />
+              </inputs>
+            </component>
+            <component
+              refId="Package\DFT Export\SCR Source"
+              componentClassID="Microsoft.ManagedComponentHost"
+              name="SCR Source">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="UserComponentTypeName">Microsoft.ScriptComponentHost, Microsoft.SqlServer.TxScript, Version=16.0.0.0, Culture=neutral, PublicKeyToken=89845dcd8080cc91</property>
+              </properties>
+              <outputs>
+                <output
+                  refId="Package\DFT Export\SCR Source.Outputs[Sortie]"
+                  name="Sortie" />
+              </outputs>
+            </component>
+          </components>
+          <paths>
+            <path
+              refId="Package\DFT Export.Paths[Sortie ADO NET]"
+              endId="Package\DFT Export\FFD Export.Inputs[Entree]"
+              name="Sortie ADO NET"
+              startId="Package\DFT Export\ADO Clients.Outputs[Sortie ADO NET]" />
+          </paths>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\DFT CRM"
+      DTS:CreationName="Microsoft.Pipeline"
+      DTS:ExecutableType="Microsoft.Pipeline"
+      DTS:ObjectName="DFT CRM">
+      <DTS:ObjectData>
+        <pipeline
+          version="1">
+          <components>
+            <component
+              refId="Package\DFT CRM\CRM Comptes"
+              componentClassID="Microsoft.ManagedComponentHost"
+              name="CRM Comptes">
+              <properties>
+                <property
+                  dataType="System.Int32"
+                  name="SourceType">1</property>
+                <property
+                  dataType="System.String"
+                  name="SourceEntity"></property>
+                <property
+                  dataType="System.String"
+                  name="FetchXML">&lt;fetch mapping="logical" version="1.0"&gt;&#xA;  &lt;entity name="account"&gt;&#xA;    &lt;attribute name="name" /&gt;&#xA;    &lt;link-entity name="contact" from="parentcustomerid" to="accountid" /&gt;&#xA;  &lt;/entity&gt;&#xA;&lt;/fetch&gt;</property>
+                <property
+                  dataType="System.String"
+                  name="UserComponentTypeName">KingswaySoft.IntegrationToolkit.DynamicsCrm.CrmSourceComponent, KingswaySoft.IntegrationToolkit.DynamicsCrm, Version=1.0.0.0, Culture=neutral, PublicKeyToken=0000000000000000</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT CRM\CRM Comptes.Connections[CrmConnection]"
+                  connectionManagerID="{F0000000-0000-0000-0000-000000000003}:external"
+                  connectionManagerRefId="Project.ConnectionManagers[CRM]"
+                  name="CrmConnection" />
+              </connections>
+              <outputs>
+                <output
+                  refId="Package\DFT CRM\CRM Comptes.Outputs[Sortie]"
+                  name="Sortie" />
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT CRM\CRM Prospects"
+              componentClassID="Microsoft.ManagedComponentHost"
+              name="CRM Prospects">
+              <properties>
+                <property
+                  dataType="System.Int32"
+                  name="SourceType">0</property>
+                <property
+                  dataType="System.String"
+                  name="SourceEntity">lead</property>
+                <property
+                  dataType="System.String"
+                  name="UserComponentTypeName">KingswaySoft.IntegrationToolkit.DynamicsCrm.CrmSourceComponent, KingswaySoft.IntegrationToolkit.DynamicsCrm, Version=1.0.0.0, Culture=neutral, PublicKeyToken=0000000000000000</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT CRM\CRM Prospects.Connections[CrmConnection]"
+                  connectionManagerID="{F0000000-0000-0000-0000-000000000003}:external"
+                  connectionManagerRefId="Project.ConnectionManagers[CRM]"
+                  name="CrmConnection" />
+              </connections>
+              <outputs>
+                <output
+                  refId="Package\DFT CRM\CRM Prospects.Outputs[Sortie]"
+                  name="Sortie" />
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT CRM\UNI Fusion"
+              componentClassID="Microsoft.UnionAll"
+              name="UNI Fusion">
+              <inputs>
+                <input
+                  refId="Package\DFT CRM\UNI Fusion.Inputs[Entree 1]"
+                  name="Entree 1" />
+                <input
+                  refId="Package\DFT CRM\UNI Fusion.Inputs[Entree 2]"
+                  name="Entree 2" />
+              </inputs>
+              <outputs>
+                <output
+                  refId="Package\DFT CRM\UNI Fusion.Outputs[Sortie]"
+                  name="Sortie" />
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT CRM\DST Comptes"
+              componentClassID="Microsoft.OLEDBDestination"
+              name="DST Comptes">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="OpenRowset">[stg].[Comptes]</property>
+                <property
+                  dataType="System.Int32"
+                  name="AccessMode"
+                  typeConverter="AccessMode">3</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT CRM\DST Comptes.Connections[OleDbConnection]"
+                  connectionManagerID="{F0000000-0000-0000-0000-000000000001}:external"
+                  connectionManagerRefId="Project.ConnectionManagers[Entrepot]"
+                  name="OleDbConnection" />
+              </connections>
+              <inputs>
+                <input
+                  refId="Package\DFT CRM\DST Comptes.Inputs[Entree]"
+                  name="Entree" />
+              </inputs>
+            </component>
+          </components>
+          <paths>
+            <path
+              refId="Package\DFT CRM.Paths[Comptes]"
+              endId="Package\DFT CRM\UNI Fusion.Inputs[Entree 1]"
+              name="Comptes"
+              startId="Package\DFT CRM\CRM Comptes.Outputs[Sortie]" />
+            <path
+              refId="Package\DFT CRM.Paths[Prospects]"
+              endId="Package\DFT CRM\UNI Fusion.Inputs[Entree 2]"
+              name="Prospects"
+              startId="Package\DFT CRM\CRM Prospects.Outputs[Sortie]" />
+            <path
+              refId="Package\DFT CRM.Paths[Fusion]"
+              endId="Package\DFT CRM\DST Comptes.Inputs[Entree]"
+              name="Fusion"
+              startId="Package\DFT CRM\UNI Fusion.Outputs[Sortie]" />
+          </paths>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+</DTS:Executable>

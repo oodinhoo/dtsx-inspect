@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand, ValueEnum};
+use dtsx_inspect::lineage::lineage;
 use dtsx_inspect::{inventory, render};
 
 #[derive(Parser)]
@@ -25,6 +26,11 @@ enum Command {
         #[arg(long, value_enum, default_value_t = Format::Md)]
         format: Format,
     },
+    /// Lignage en Mermaid : fichiers, tables et entités -> composants et tâches SQL
+    Lineage {
+        /// Fichier .dtsx ou dossier (parcouru récursivement)
+        path: PathBuf,
+    },
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -34,11 +40,19 @@ enum Format {
 }
 
 fn main() -> anyhow::Result<ExitCode> {
-    let Command::Inventory { path, format } = Cli::parse().command;
-    let (inventory, errors) = inventory(&path);
-    let output = match format {
-        Format::Md => render::markdown(&inventory),
-        Format::Json => render::json(&inventory)?,
+    let (output, errors) = match Cli::parse().command {
+        Command::Inventory { path, format } => {
+            let (inventory, errors) = inventory(&path);
+            let output = match format {
+                Format::Md => render::markdown(&inventory),
+                Format::Json => render::json(&inventory)?,
+            };
+            (output, errors)
+        }
+        Command::Lineage { path } => {
+            let (inventory, errors) = inventory(&path);
+            (render::mermaid(&lineage(&inventory)), errors)
+        }
     };
     std::io::stdout().lock().write_all(output.as_bytes())?;
     for error in &errors {

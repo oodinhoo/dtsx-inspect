@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<DTS:ConnectionManager xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:ObjectName="CRM"
+  DTS:DTSID="{F0000000-0000-0000-0000-000000000003}"
+  DTS:CreationName="DynamicsCRM">
+  <DTS:ObjectData>
+    <DTS:ConnectionManager
+      DTS:ConnectionString="ServerType=Online;OrganizationService=https://demo.crm.example;UserName=svc;Password=s3cr3t;" />
+  </DTS:ObjectData>
+</DTS:ConnectionManager>

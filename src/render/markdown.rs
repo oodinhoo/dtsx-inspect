@@ -165,7 +165,10 @@ mod tests {
                 known: true,
                 role: Role::Transform,
                 connections: Vec::new(),
+                properties: Default::default(),
             }],
+            paths: Vec::new(),
+            sql: None,
         };
         let inventory = Inventory {
             project_connections: Vec::new(),

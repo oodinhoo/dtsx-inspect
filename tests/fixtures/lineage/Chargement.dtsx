@@ -1,0 +1,220 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:ObjectName="Chargement">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:Variables />
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\DFT Clients"
+      DTS:CreationName="Microsoft.Pipeline"
+      DTS:ExecutableType="Microsoft.Pipeline"
+      DTS:ObjectName="DFT Clients">
+      <DTS:Variables />
+      <DTS:ObjectData>
+        <pipeline
+          version="1">
+          <components>
+            <component
+              refId="Package\DFT Clients\FF Clients"
+              componentClassID="Microsoft.FlatFileSource"
+              name="FF Clients">
+              <properties>
+                <property
+                  dataType="System.Boolean"
+                  name="RetainNulls">false</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Clients\FF Clients.Connections[FlatFileConnection]"
+                  connectionManagerID="{F0000000-0000-0000-0000-000000000002}:external"
+                  connectionManagerRefId="Project.ConnectionManagers[Fichier clients]"
+                  name="FlatFileConnection" />
+              </connections>
+              <outputs>
+                <output
+                  refId="Package\DFT Clients\FF Clients.Outputs[Sortie]"
+                  name="Sortie" />
+                <output
+                  refId="Package\DFT Clients\FF Clients.Outputs[Erreur]"
+                  isErrorOut="true"
+                  name="Erreur" />
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Clients\LKP Pays"
+              componentClassID="Microsoft.Lookup"
+              name="LKP Pays">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="SqlCommand">select * from [ref].[Pays]</property>
+                <property
+                  dataType="System.Int32"
+                  name="CacheType">0</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Clients\LKP Pays.Connections[OleDbConnection]"
+                  connectionManagerID="{F0000000-0000-0000-0000-000000000001}:external"
+                  connectionManagerRefId="Project.ConnectionManagers[Entrepot]"
+                  name="OleDbConnection" />
+              </connections>
+              <inputs>
+                <input
+                  refId="Package\DFT Clients\LKP Pays.Inputs[Entree]"
+                  name="Entree" />
+              </inputs>
+              <outputs>
+                <output
+                  refId="Package\DFT Clients\LKP Pays.Outputs[Correspondance]"
+                  name="Correspondance">
+                  <outputColumns>
+                    <outputColumn
+                      refId="Package\DFT Clients\LKP Pays.Outputs[Correspondance].Columns[nom]"
+                      name="nom">
+                      <properties>
+                        <property
+                          dataType="System.String"
+                          name="OpenRowset">[piege].[Colonne]</property>
+                      </properties>
+                    </outputColumn>
+                  </outputColumns>
+                </output>
+                <output
+                  refId="Package\DFT Clients\LKP Pays.Outputs[Erreur]"
+                  isErrorOut="true"
+                  name="Erreur" />
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Clients\DST Staging"
+              componentClassID="Microsoft.OLEDBDestination"
+              name="DST Staging">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="OpenRowset">[stg].[Clients]</property>
+                <property
+                  dataType="System.String"
+                  name="SqlCommand"></property>
+                <property
+                  dataType="System.Int32"
+                  name="AccessMode"
+                  typeConverter="AccessMode">3</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Clients\DST Staging.Connections[OleDbConnection]"
+                  connectionManagerID="{F0000000-0000-0000-0000-000000000001}:external"
+                  connectionManagerRefId="Project.ConnectionManagers[Entrepot]"
+                  name="OleDbConnection" />
+              </connections>
+              <inputs>
+                <input
+                  refId="Package\DFT Clients\DST Staging.Inputs[Entree]"
+                  name="Entree" />
+              </inputs>
+              <outputs>
+                <output
+                  refId="Package\DFT Clients\DST Staging.Outputs[Erreur]"
+                  isErrorOut="true"
+                  name="Erreur" />
+              </outputs>
+            </component>
+          </components>
+          <paths>
+            <path
+              refId="Package\DFT Clients.Paths[Sortie]"
+              endId="Package\DFT Clients\LKP Pays.Inputs[Entree]"
+              name="Sortie"
+              startId="Package\DFT Clients\FF Clients.Outputs[Sortie]" />
+            <path
+              refId="Package\DFT Clients.Paths[Correspondance]"
+              endId="Package\DFT Clients\DST Staging.Inputs[Entree]"
+              name="Correspondance"
+              startId="Package\DFT Clients\LKP Pays.Outputs[Correspondance]" />
+          </paths>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\SQL Alimenter Clients"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="SQL Alimenter Clients">
+      <DTS:Variables />
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{F0000000-0000-0000-0000-000000000001}"
+          SQLTask:SqlStatementSource="INSERT INTO dbo.Clients (id, pays)&#xA;SELECT c.id, p.nom&#xA;FROM stg.Clients AS c&#xA;JOIN ref.Pays AS p ON p.code = c.pays" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\SQL Historiser"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="SQL Historiser">
+      <DTS:PropertyExpression
+        DTS:Name="SqlStatementSource">"INSERT INTO dbo." + @[User::TableHisto] + " SELECT * FROM dbo.Clients"</DTS:PropertyExpression>
+      <DTS:Variables />
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{F0000000-0000-0000-0000-000000000001}"
+          SQLTask:SqlStatementSource="INSERT INTO dbo.Historique SELECT * FROM dbo.Clients" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\SQL Purger staging"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="SQL Purger staging">
+      <DTS:Variables />
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{F0000000-0000-0000-0000-000000000001}"
+          SQLTask:SqlStatementSource="TRUNCATE TABLE stg.Clients" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\SQL Import brut"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="SQL Import brut">
+      <DTS:Variables />
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{F0000000-0000-0000-0000-000000000001}"
+          SQLTask:SqlStatementSource="BULK INSERT dbo.Import FROM 'D:\demo\import.csv' WITH (FIELDTERMINATOR = ';')" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\SQL Depuis variable"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="SQL Depuis variable">
+      <DTS:Variables />
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{F0000000-0000-0000-0000-000000000001}"
+          SQLTask:SqlStatementSourceType="Variable"
+          SQLTask:SqlStatementSource="User::Requete" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\SQL Procedure"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="SQL Procedure">
+      <DTS:Variables />
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{F0000000-0000-0000-0000-000000000001}"
+          SQLTask:SqlStatementSource="EXEC dbo.ChargerClients @mode = 1" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+</DTS:Executable>

@@ -70,3 +70,25 @@ fn missing_path_fails_the_run() {
 
     assert_eq!(out.status.code(), Some(1));
 }
+
+#[test]
+fn lineage_prints_mermaid_without_secrets_or_sql() {
+    let out = run(&["lineage", "tests/fixtures/lineage"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    assert!(text.starts_with("flowchart LR"), "{text}");
+    assert!(!text.contains("s3cr3t"), "fuite de secret");
+    assert!(
+        !text.contains("SELECT c.id"),
+        "le texte SQL ne doit pas être affiché"
+    );
+}
+
+#[test]
+fn lineage_reports_broken_files() {
+    let out = run(&["lineage", "tests/fixtures/broken"]);
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stderr(&out).contains("corrompu.dtsx"), "{}", stderr(&out));
+}

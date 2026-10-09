@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<DTS:ConnectionManager xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:ObjectName="Fichier clients"
+  DTS:DTSID="{F0000000-0000-0000-0000-000000000002}"
+  DTS:CreationName="FLATFILE">
+  <DTS:ObjectData>
+    <DTS:ConnectionManager
+      DTS:Format="Delimited"
+      DTS:ConnectionString="D:\demo\clients.csv" />
+  </DTS:ObjectData>
+</DTS:ConnectionManager>
