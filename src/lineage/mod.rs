@@ -324,7 +324,7 @@ fn dynamics(
         .collect())
 }
 
-/// OLE DB, ADO.NET, Lookup… : requête (`SqlCommand`) ou table (`OpenRowset`).
+/// OLE DB, ADO.NET, Lookup, OLE DB Command… : requête (`SqlCommand`) ou table (`OpenRowset`).
 fn table_or_query(
     c: &Component,
     connection: Option<&str>,
@@ -337,12 +337,14 @@ fn table_or_query(
         .and_then(|a| a.parse().ok())
         .unwrap_or(0);
     let command = props.get("SqlCommand").filter(|s| !s.trim().is_empty());
-    if let Some(command) = command.filter(|_| access == 2 || class == "Microsoft.Lookup") {
+    let always_sql = matches!(class, "Microsoft.Lookup" | "Microsoft.OLEDBCommand");
+    if let Some(command) = command.filter(|_| access == 2 || always_sql) {
         let found = sql::tables(command).map_err(|_| "SQL non analysé".to_owned())?;
+        // Destination en mode commande SQL : le SELECT désigne la table écrite.
         let reads = found
             .reads
             .iter()
-            .map(|t| (table(t, connection), Direction::Read));
+            .map(|t| (table(t, connection), direction));
         let writes = found
             .writes
             .iter()

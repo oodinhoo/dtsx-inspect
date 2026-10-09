@@ -216,5 +216,110 @@
           SQLTask:SqlStatementSource="EXEC dbo.ChargerClients @mode = 1" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
       </DTS:ObjectData>
     </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\DFT Corrections"
+      DTS:CreationName="Microsoft.Pipeline"
+      DTS:ExecutableType="Microsoft.Pipeline"
+      DTS:ObjectName="DFT Corrections">
+      <DTS:Variables />
+      <DTS:ObjectData>
+        <pipeline
+          version="1">
+          <components>
+            <component
+              refId="Package\DFT Corrections\SRC Delta"
+              componentClassID="Microsoft.OLEDBSource"
+              name="SRC Delta">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="OpenRowset">[stg].[Delta]</property>
+                <property
+                  dataType="System.Int32"
+                  name="AccessMode"
+                  typeConverter="AccessMode">0</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Corrections\SRC Delta.Connections[OleDbConnection]"
+                  connectionManagerID="{F0000000-0000-0000-0000-000000000001}:external"
+                  connectionManagerRefId="Project.ConnectionManagers[Entrepot]"
+                  name="OleDbConnection" />
+              </connections>
+              <outputs>
+                <output
+                  refId="Package\DFT Corrections\SRC Delta.Outputs[Sortie]"
+                  name="Sortie" />
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Corrections\CMD Adresses"
+              componentClassID="Microsoft.OLEDBCommand"
+              name="CMD Adresses">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="SqlCommand">UPDATE dbo.Adresses SET valide = 0 WHERE client_id = ?</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Corrections\CMD Adresses.Connections[OleDbConnection]"
+                  connectionManagerID="{F0000000-0000-0000-0000-000000000001}:external"
+                  connectionManagerRefId="Project.ConnectionManagers[Entrepot]"
+                  name="OleDbConnection" />
+              </connections>
+              <inputs>
+                <input
+                  refId="Package\DFT Corrections\CMD Adresses.Inputs[Entree]"
+                  name="Entree" />
+              </inputs>
+              <outputs>
+                <output
+                  refId="Package\DFT Corrections\CMD Adresses.Outputs[Sortie]"
+                  name="Sortie" />
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Corrections\DST Rejets"
+              componentClassID="Microsoft.OLEDBDestination"
+              name="DST Rejets">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="SqlCommand">SELECT * FROM stg.Rejets</property>
+                <property
+                  dataType="System.Int32"
+                  name="AccessMode"
+                  typeConverter="AccessMode">2</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Corrections\DST Rejets.Connections[OleDbConnection]"
+                  connectionManagerID="{F0000000-0000-0000-0000-000000000001}:external"
+                  connectionManagerRefId="Project.ConnectionManagers[Entrepot]"
+                  name="OleDbConnection" />
+              </connections>
+              <inputs>
+                <input
+                  refId="Package\DFT Corrections\DST Rejets.Inputs[Entree]"
+                  name="Entree" />
+              </inputs>
+            </component>
+          </components>
+          <paths>
+            <path
+              refId="Package\DFT Corrections.Paths[Delta]"
+              endId="Package\DFT Corrections\CMD Adresses.Inputs[Entree]"
+              name="Delta"
+              startId="Package\DFT Corrections\SRC Delta.Outputs[Sortie]" />
+            <path
+              refId="Package\DFT Corrections.Paths[Rejets]"
+              endId="Package\DFT Corrections\DST Rejets.Inputs[Entree]"
+              name="Rejets"
+              startId="Package\DFT Corrections\CMD Adresses.Outputs[Sortie]" />
+          </paths>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
   </DTS:Executables>
 </DTS:Executable>

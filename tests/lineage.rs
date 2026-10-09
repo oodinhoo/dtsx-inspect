@@ -42,6 +42,8 @@ fn edges(l: &Lineage) -> Vec<String> {
 fn follows_data_from_files_and_entities_to_tables_across_packages() {
     let expected = [
         "ADO Clients -> FFD Export",
+        "CMD Adresses -> DST Rejets",
+        "CMD Adresses -> Entrepot : dbo.Adresses",
         "CRM : account -> CRM Comptes",
         "CRM : contact -> CRM Comptes",
         "CRM : lead -> CRM Prospects",
@@ -49,21 +51,39 @@ fn follows_data_from_files_and_entities_to_tables_across_packages() {
         "CRM Prospects -> UNI Fusion",
         "D:\\demo\\clients.csv -> FF Clients",
         "DST Comptes -> Entrepot : stg.Comptes",
+        "DST Rejets -> Entrepot : stg.Rejets",
         "DST Staging -> Entrepot : stg.Clients",
         "Entrepot : dbo.Clients -.-> SQL Historiser",
         "Entrepot : dbo.Clients -> ADO Clients",
         "Entrepot : ref.Pays -> LKP Pays",
         "Entrepot : ref.Pays -> SQL Alimenter Clients",
         "Entrepot : stg.Clients -> SQL Alimenter Clients",
+        "Entrepot : stg.Delta -> SRC Delta",
         "FF Clients -> LKP Pays",
         "FFD Export -> D:\\demo\\export.csv",
         "LKP Pays -> DST Staging",
         "SQL Alimenter Clients -> Entrepot : dbo.Clients",
         "SQL Historiser -.-> Entrepot : dbo.Historique",
+        "SRC Delta -> CMD Adresses",
         "UNI Fusion -> DST Comptes",
     ];
 
     assert_eq!(edges(&build()), expected);
+}
+
+#[test]
+fn sql_command_destinations_and_ole_db_commands_write_their_table() {
+    let edges = edges(&build());
+
+    for expected in [
+        "DST Rejets -> Entrepot : stg.Rejets",
+        "CMD Adresses -> Entrepot : dbo.Adresses",
+    ] {
+        assert!(
+            edges.iter().any(|e| e == expected),
+            "{expected} : {edges:?}"
+        );
+    }
 }
 
 #[test]

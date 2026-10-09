@@ -1,6 +1,6 @@
 ---
 source: tests/lineage.rs
-assertion_line: 110
+assertion_line: 180
 expression: "render::mermaid(&build())"
 ---
 flowchart LR
@@ -10,31 +10,39 @@ flowchart LR
   n5[("Entrepot : stg.Clients")]
   n7[("Entrepot : dbo.Clients")]
   n9[("Entrepot : dbo.Historique")]
-  n13[/"D:\demo\export.csv"/]
-  n18[["CRM : account"]]
-  n19[["CRM : contact"]]
-  n20[["CRM : lead"]]
-  n21[("Entrepot : stg.Comptes")]
+  n13[("Entrepot : stg.Delta")]
+  n14[("Entrepot : dbo.Adresses")]
+  n15[("Entrepot : stg.Rejets")]
+  n19[/"D:\demo\export.csv"/]
+  n24[["CRM : account"]]
+  n25[["CRM : contact"]]
+  n26[["CRM : lead"]]
+  n27[("Entrepot : stg.Comptes")]
   subgraph p0["Chargement"]
     subgraph p0f0["DFT Clients"]
       n0["FF Clients"]
       n1["LKP Pays"]
       n2["DST Staging"]
     end
+    subgraph p0f1["DFT Corrections"]
+      n10["SRC Delta"]
+      n11["CMD Adresses"]
+      n12["DST Rejets"]
+    end
     n6{{"SQL Alimenter Clients"}}
     n8{{"SQL Historiser"}}
   end
   subgraph p1["Export"]
     subgraph p1f0["DFT Export"]
-      n10["ADO Clients"]
-      n11["FFD Export"]
-      n12["SCR Source"]
+      n16["ADO Clients"]
+      n17["FFD Export"]
+      n18["SCR Source"]
     end
     subgraph p1f1["DFT CRM"]
-      n14["CRM Comptes"]
-      n15["CRM Prospects"]
-      n16["UNI Fusion"]
-      n17["DST Comptes"]
+      n20["CRM Comptes"]
+      n21["CRM Prospects"]
+      n22["UNI Fusion"]
+      n23["DST Comptes"]
     end
   end
   n0 --> n1
@@ -48,15 +56,20 @@ flowchart LR
   n7 -.-> n8
   n8 -.-> n9
   n10 --> n11
-  n7 --> n10
-  n11 --> n13
-  n14 --> n16
-  n15 --> n16
+  n11 --> n12
+  n13 --> n10
+  n11 --> n14
+  n12 --> n15
   n16 --> n17
-  n18 --> n14
-  n19 --> n14
-  n20 --> n15
-  n17 --> n21
+  n7 --> n16
+  n17 --> n19
+  n20 --> n22
+  n21 --> n22
+  n22 --> n23
+  n24 --> n20
+  n25 --> n20
+  n26 --> n21
+  n23 --> n27
   %% Non suivi : Chargement : SQL Import brut : SQL non analysé
   %% Non suivi : Chargement : SQL Depuis variable : requête dans la variable User::Requete, non suivie
   %% Non suivi : Chargement : SQL Procedure : procédure stockée dbo.ChargerClients, non suivie
