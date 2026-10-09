@@ -1,0 +1,61 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:ObjectName="Orchestrateur">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:ConnectionManagers>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[Fils externe]"
+      DTS:CreationName="FILE"
+      DTS:DTSID="{EEEEEEEE-0000-0000-0000-000000000001}"
+      DTS:ObjectName="Fils externe">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:ConnectionString="C:\demo\Fils externe.dtsx" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+  </DTS:ConnectionManagers>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\SEQ Enchainement"
+      DTS:CreationName="STOCK:SEQUENCE"
+      DTS:ExecutableType="STOCK:SEQUENCE"
+      DTS:ObjectName="SEQ Enchainement">
+      <DTS:Variables />
+      <DTS:Executables>
+        <DTS:Executable
+          DTS:refId="Package\SEQ Enchainement\PET Fils projet"
+          DTS:CreationName="Microsoft.ExecutePackageTask"
+          DTS:ExecutableType="Microsoft.ExecutePackageTask"
+          DTS:ObjectName="PET Fils projet">
+          <DTS:Variables />
+          <DTS:ObjectData>
+            <ExecutePackageTask>
+              <UseProjectReference>True</UseProjectReference>
+              <PackageName>01_R&#xE9;cup&#233;ration &amp; contrôle.dtsx</PackageName>
+              <ParameterAssignment>
+                <ParameterName>Dossier</ParameterName>
+                <BindedVariableOrParameterName>$Project::CheminCSV</BindedVariableOrParameterName>
+              </ParameterAssignment>
+            </ExecutePackageTask>
+          </DTS:ObjectData>
+        </DTS:Executable>
+        <DTS:Executable
+          DTS:refId="Package\SEQ Enchainement\PET Fils externe"
+          DTS:CreationName="Microsoft.ExecutePackageTask"
+          DTS:ExecutableType="Microsoft.ExecutePackageTask"
+          DTS:ObjectName="PET Fils externe">
+          <DTS:Variables />
+          <DTS:ObjectData>
+            <ExecutePackageTask>
+              <Connection>{EEEEEEEE-0000-0000-0000-000000000001}</Connection>
+            </ExecutePackageTask>
+          </DTS:ObjectData>
+        </DTS:Executable>
+      </DTS:Executables>
+    </DTS:Executable>
+  </DTS:Executables>
+</DTS:Executable>

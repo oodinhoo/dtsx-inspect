@@ -55,6 +55,9 @@ pub struct Executable {
     pub executable_type: String,
     pub disabled: bool,
     pub connections: Vec<ConnectionRef>,
+    /// Execute Package Task : package du projet appelé (`<PackageName>`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub called_package: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub components: Vec<Component>,
 }

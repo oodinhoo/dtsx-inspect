@@ -149,6 +149,13 @@ fn markdown_minimal() {
 }
 
 #[test]
+fn markdown_orchestrateur() {
+    insta::assert_snapshot!(render::markdown(
+        &inventory(&fixture("orchestrateur.dtsx")).0
+    ));
+}
+
+#[test]
 fn markdown_project() {
     insta::assert_snapshot!(render::markdown(&inventory(&fixture("project")).0));
 }

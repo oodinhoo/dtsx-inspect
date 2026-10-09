@@ -47,19 +47,32 @@ fn connections(p: &Package) -> Vec<String> {
 }
 
 fn tasks(p: &Package) -> Vec<String> {
+    // Colonne « Package appelé » seulement pour les orchestrateurs.
+    let calls = p.executables.iter().any(|e| e.called_package.is_some());
+    let headers = [
+        "Chemin",
+        "Type",
+        "Connexion",
+        "Désactivée",
+        "Package appelé",
+    ];
+    let width = if calls {
+        headers.len()
+    } else {
+        headers.len() - 1
+    };
     let rows = p
         .executables
         .iter()
         .map(|e| {
             let disabled = if e.disabled { "oui" } else { "" };
-            row(&[path(e), &e.executable_type, &refs(&e.connections), disabled])
+            let connections = refs(&e.connections);
+            let called = e.called_package.as_deref().unwrap_or("");
+            let cells = [path(e), &e.executable_type, &connections, disabled, called];
+            row(&cells[..width])
         })
         .collect();
-    section(
-        "## Tâches",
-        &["Chemin", "Type", "Connexion", "Désactivée"],
-        rows,
-    )
+    section("## Tâches", &headers[..width], rows)
 }
 
 fn data_flow(e: &Executable) -> Vec<String> {
@@ -144,6 +157,7 @@ mod tests {
             executable_type: "Microsoft.Pipeline".into(),
             disabled: false,
             connections: Vec::new(),
+            called_package: None,
             components: vec![Component {
                 ref_id: "c".into(),
                 name: "c".into(),

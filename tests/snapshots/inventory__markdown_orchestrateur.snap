@@ -1,0 +1,19 @@
+---
+source: tests/inventory.rs
+expression: "render::markdown(&inventory(&fixture(\"orchestrateur.dtsx\")).0)"
+---
+# Orchestrateur (orchestrateur.dtsx, format 8)
+
+## Connexions
+
+| Nom | Type | Portée | Cible |
+| --- | --- | --- | --- |
+| Fils externe | FILE | Package | C:\demo\Fils externe.dtsx |
+
+## Tâches
+
+| Chemin | Type | Connexion | Désactivée | Package appelé |
+| --- | --- | --- | --- | --- |
+| SEQ Enchainement | STOCK:SEQUENCE |  |  |  |
+| SEQ Enchainement\PET Fils projet | Microsoft.ExecutePackageTask |  |  | 01_Récupération & contrôle.dtsx |
+| SEQ Enchainement\PET Fils externe | Microsoft.ExecutePackageTask | Fils externe |  |  |

@@ -2,7 +2,8 @@
 
 pub mod secrets;
 
-use quick_xml::events::{BytesStart, Event};
+use quick_xml::escape::resolve_predefined_entity;
+use quick_xml::events::{BytesRef, BytesStart, Event};
 use quick_xml::{Reader, XmlVersion};
 
 use crate::model::{Component, ConnectionManager, ConnectionRef, Executable, Package, Role, Scope};
@@ -115,13 +116,34 @@ fn read(xml: &str) -> Result<Document, ParseError> {
         match reader.read_event()? {
             Event::Start(e) => state.start(&e)?,
             Event::End(e) => state.end(e.local_name().as_ref()),
-            Event::Text(t) if state.in_format_version => {
-                state.doc.format_version = t.xml10_content().trim().parse().ok();
+            Event::Text(t) if state.capture.is_some() => {
+                state.captured.push_str(&t.xml10_content())
+            }
+            Event::GeneralRef(r) if state.capture.is_some() => {
+                state.captured.push_str(&entity(&r)?)
             }
             Event::Eof => return Ok(state.doc),
             _ => {}
         }
     }
+}
+
+/// `&amp;` -> `&`, `&#xE9;` -> `é` ; une entité inconnue reste telle quelle.
+fn entity(r: &BytesRef) -> Result<String, ParseError> {
+    if let Some(c) = r.resolve_char_ref()? {
+        return Ok(c.to_string());
+    }
+    let name = r.xml10_content();
+    Ok(resolve_predefined_entity(&name).map_or_else(|| format!("&{name};"), str::to_owned))
+}
+
+/// Élément dont on lit le texte. Le texte arrive en plusieurs morceaux
+/// (`Text`, `GeneralRef`) dès qu'il contient une entité.
+#[derive(Clone, Copy)]
+enum Capture {
+    FormatVersion,
+    CalledPackage,
+    PackageConnection,
 }
 
 // ponytail: éléments repérés par nom local, sans résolution de namespace :
@@ -132,7 +154,9 @@ struct Reading {
     open_executables: Vec<usize>,
     connection: Option<ConnectionDraft>,
     component: Option<ComponentDraft>,
-    in_format_version: bool,
+    in_execute_package: bool,
+    capture: Option<Capture>,
+    captured: String,
 }
 
 impl Reading {
@@ -151,10 +175,16 @@ impl Reading {
         match local.as_ref() {
             "Executable" => self.start_executable(e)?,
             "ConnectionManager" => self.start_connection(e)?,
-            "Property" => {
-                self.in_format_version = self.open_executables.is_empty()
-                    && attr(e, "Name")?.as_deref() == Some("PackageFormatVersion");
+            "Property"
+                if self.open_executables.is_empty()
+                    && attr(e, "Name")?.as_deref() == Some("PackageFormatVersion") =>
+            {
+                self.begin(Capture::FormatVersion)
             }
+            "ExecutePackageTask" => self.in_execute_package = true,
+            "PackageName" if self.in_execute_package => self.begin(Capture::CalledPackage),
+            // Référence externe : connexion FILE (ou OLE DB pour msdb) vers le package.
+            "Connection" if self.in_execute_package => self.begin(Capture::PackageConnection),
             "SqlTaskData" => {
                 let reference = attr(e, "Connection")?;
                 if let (Some(&i), Some(r)) = (self.open_executables.last(), reference) {
@@ -190,6 +220,7 @@ impl Reading {
             executable_type: attr(e, "ExecutableType")?.unwrap_or_default(),
             disabled: attr(e, "Disabled")?.is_some_and(|d| d.eq_ignore_ascii_case("true")),
             connections: Vec::new(),
+            called_package: None,
             components: Vec::new(),
         });
         self.open_executables.push(self.doc.executables.len() - 1);
@@ -234,13 +265,38 @@ impl Reading {
                     self.doc.connections.push(draft.manager);
                 }
             }
-            "Property" => self.in_format_version = false,
+            "Property" | "PackageName" | "Connection" => self.finish_capture(),
+            "ExecutePackageTask" => self.in_execute_package = false,
             "component" => {
                 if let (Some(c), Some(&i)) = (self.component.take(), self.open_executables.last()) {
                     self.doc.executables[i].components.push(c.finish());
                 }
             }
             _ => {}
+        }
+    }
+
+    fn begin(&mut self, capture: Capture) {
+        self.capture = Some(capture);
+        self.captured.clear();
+    }
+
+    fn finish_capture(&mut self) {
+        let Some(capture) = self.capture.take() else {
+            return;
+        };
+        let value = std::mem::take(&mut self.captured).trim().to_owned();
+        match (capture, self.open_executables.last().copied()) {
+            (Capture::FormatVersion, _) => self.doc.format_version = value.parse().ok(),
+            (Capture::CalledPackage, Some(i)) => {
+                self.doc.executables[i].called_package = Some(value).filter(|v| !v.is_empty());
+            }
+            (Capture::PackageConnection, Some(i)) => {
+                self.doc.executables[i]
+                    .connections
+                    .extend(connection_ref(value));
+            }
+            (_, None) => {}
         }
     }
 }
@@ -467,6 +523,25 @@ mod tests {
         assert_eq!(
             refs(&crm.connections),
             vec!["Package.ConnectionManagers[CRM]"]
+        );
+    }
+
+    #[test]
+    fn reads_package_called_by_execute_package_tasks() {
+        let p = parse_package(include_str!("../../tests/fixtures/orchestrateur.dtsx"))
+            .expect("orchestrateur");
+        let calls: Vec<_> = p
+            .executables
+            .iter()
+            .map(|e| (e.called_package.as_deref(), refs(&e.connections)))
+            .collect();
+        assert_eq!(
+            calls,
+            vec![
+                (None, vec![]),
+                (Some("01_Récupération & contrôle.dtsx"), vec![]),
+                (None, vec!["{EEEEEEEE-0000-0000-0000-000000000001}"]),
+            ]
         );
     }
 
