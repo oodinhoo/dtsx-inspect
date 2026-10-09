@@ -1,6 +1,6 @@
 ---
 source: tests/lineage.rs
-assertion_line: 180
+assertion_line: 201
 expression: "render::mermaid(&build())"
 ---
 flowchart LR
@@ -61,7 +61,7 @@ flowchart LR
   n11 --> n14
   n12 --> n15
   n16 --> n17
-  n7 --> n16
+  n7 -.-> n16
   n17 --> n19
   n20 --> n22
   n21 --> n22

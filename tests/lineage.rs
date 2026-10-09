@@ -38,6 +38,14 @@ fn edges(l: &Lineage) -> Vec<String> {
     edges
 }
 
+/// Notes lisibles : `package : étape : raison`.
+fn notes(l: &Lineage) -> Vec<String> {
+    l.notes
+        .iter()
+        .map(|n| format!("{} : {}", l.packages[n.package], n.text))
+        .collect()
+}
+
 #[test]
 fn follows_data_from_files_and_entities_to_tables_across_packages() {
     let expected = [
@@ -53,8 +61,8 @@ fn follows_data_from_files_and_entities_to_tables_across_packages() {
         "DST Comptes -> Entrepot : stg.Comptes",
         "DST Rejets -> Entrepot : stg.Rejets",
         "DST Staging -> Entrepot : stg.Clients",
+        "Entrepot : dbo.Clients -.-> ADO Clients",
         "Entrepot : dbo.Clients -.-> SQL Historiser",
-        "Entrepot : dbo.Clients -> ADO Clients",
         "Entrepot : ref.Pays -> LKP Pays",
         "Entrepot : ref.Pays -> SQL Alimenter Clients",
         "Entrepot : stg.Clients -> SQL Alimenter Clients",
@@ -115,7 +123,7 @@ fn tasks_without_data_movement_are_left_out() {
 #[test]
 fn reports_what_could_not_be_followed() {
     assert_eq!(
-        build().notes,
+        notes(&build()),
         vec![
             "Chargement : SQL Import brut : SQL non analysé",
             "Chargement : SQL Depuis variable : requête dans la variable User::Requete, non suivie",
@@ -133,8 +141,8 @@ fn focus_keeps_what_feeds_and_what_reads_a_table() {
         "ADO Clients -> FFD Export",
         "D:\\demo\\clients.csv -> FF Clients",
         "DST Staging -> Entrepot : stg.Clients",
+        "Entrepot : dbo.Clients -.-> ADO Clients",
         "Entrepot : dbo.Clients -.-> SQL Historiser",
-        "Entrepot : dbo.Clients -> ADO Clients",
         "Entrepot : ref.Pays -> LKP Pays",
         "Entrepot : ref.Pays -> SQL Alimenter Clients",
         "Entrepot : stg.Clients -> SQL Alimenter Clients",
@@ -165,8 +173,21 @@ fn focus_keeps_only_notes_of_the_packages_shown() {
     let focused = focus(&build(), "stg.Comptes").expect("table trouvée");
 
     assert_eq!(
-        focused.notes,
+        notes(&focused),
         vec!["Export : SCR Source : source sans jeu de données identifié"]
+    );
+}
+
+#[test]
+fn focus_tells_homonymous_packages_apart() {
+    let (inv, errors) = inventory(&fixture("homonymes"));
+    assert!(errors.is_empty(), "{errors:?}");
+
+    let focused = focus(&lineage(&inv), "dbo.A").expect("table trouvée");
+
+    assert_eq!(
+        notes(&focused),
+        vec!["Chargement : SQL Procedure A : procédure stockée dbo.ProcA, non suivie"]
     );
 }
 

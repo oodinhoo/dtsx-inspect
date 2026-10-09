@@ -25,6 +25,10 @@
       DTS:CreationName="Microsoft.Pipeline"
       DTS:ExecutableType="Microsoft.Pipeline"
       DTS:ObjectName="DFT Export">
+      <DTS:PropertyExpression
+        DTS:Name="[ADO Clients].[SqlCommand]">"SELECT id FROM Entrepot.dbo." + @[User::TableClients]</DTS:PropertyExpression>
+      <DTS:PropertyExpression
+        DTS:Name="[FFD Export].[Header]">"Export du " + (DT_WSTR, 30) GETDATE()</DTS:PropertyExpression>
       <DTS:ObjectData>
         <pipeline
           version="1">

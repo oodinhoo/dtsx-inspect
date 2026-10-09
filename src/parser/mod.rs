@@ -136,6 +136,7 @@ impl ComponentDraft {
             role,
             connections: self.connections,
             properties: self.properties,
+            expressions: Vec::new(),
         }
     }
 }
@@ -190,8 +191,9 @@ struct Reading {
     in_execute_package: bool,
     capture: Option<Capture>,
     captured: String,
-    /// Tâches dont `SqlStatementSource` est défini par une expression.
-    sql_expressions: Vec<usize>,
+    /// Propriétés définies par une expression : (tâche, `DTS:Name`), résolues à la
+    /// fin car les composants d'un Data Flow sont lus après ses expressions.
+    expressions: Vec<(usize, String)>,
 }
 
 impl Reading {
@@ -220,11 +222,10 @@ impl Reading {
             {
                 self.begin(Capture::FormatVersion)
             }
-            "PropertyExpression"
-                if self.connection.is_none()
-                    && attr(e, "Name")?.as_deref() == Some("SqlStatementSource") =>
-            {
-                self.sql_expressions.extend(self.open_executables.last());
+            "PropertyExpression" if self.connection.is_none() => {
+                if let (Some(&i), Some(name)) = (self.open_executables.last(), attr(e, "Name")?) {
+                    self.expressions.push((i, name));
+                }
             }
             "ExecutePackageTask" => self.in_execute_package = true,
             "PackageName" if self.in_execute_package => self.begin(Capture::CalledPackage),
@@ -303,13 +304,16 @@ impl Reading {
 
     fn into_document(self) -> Document {
         let mut doc = self.doc;
-        for i in self.sql_expressions {
-            let direct = doc.executables[i]
-                .sql
-                .as_mut()
-                .filter(|s| s.origin == SqlOrigin::Direct);
-            if let Some(sql) = direct {
-                sql.origin = SqlOrigin::Expression;
+        for (i, name) in self.expressions {
+            let task = &mut doc.executables[i];
+            if let Some((component, property)) = component_property(&name) {
+                let named = task.components.iter_mut().filter(|c| c.name == component);
+                named.for_each(|c| c.expressions.push(property.to_owned()));
+            } else if name == "SqlStatementSource" {
+                let direct = task.sql.as_mut().filter(|s| s.origin == SqlOrigin::Direct);
+                if let Some(sql) = direct {
+                    sql.origin = SqlOrigin::Expression;
+                }
             }
         }
         doc
@@ -426,6 +430,17 @@ fn start_component(e: &BytesStart) -> Result<ComponentDraft, ParseError> {
         has_output: false,
         depth: 0,
     })
+}
+
+/// Expression de Data Flow `[Composant].[Propriété]`, si la propriété est dans
+/// la liste blanche.
+fn component_property(name: &str) -> Option<(&str, &'static str)> {
+    let (component, property) = name
+        .strip_prefix('[')?
+        .strip_suffix(']')?
+        .split_once("].[")?;
+    let known = COMPONENT_PROPERTIES.iter().find(|p| **p == property)?;
+    Some((component, known))
 }
 
 /// Composant d'une extrémité de lien : `Package\DFT\Comp.Outputs[Sortie]` -> `Package\DFT\Comp`.
@@ -800,6 +815,24 @@ mod tests {
                     "Package\\DFT CRM\\UNI Fusion",
                     "Package\\DFT CRM\\DST Comptes"
                 ),
+            ]
+        );
+    }
+
+    #[test]
+    fn reads_data_flow_expressions_of_allowlisted_properties() {
+        let p = parse_package(EXPORT).expect("export");
+        let expressions: Vec<_> = p.executables[0]
+            .components
+            .iter()
+            .map(|c| (c.name.as_str(), c.expressions.clone()))
+            .collect();
+        assert_eq!(
+            expressions,
+            vec![
+                ("ADO Clients", vec!["SqlCommand".to_owned()]),
+                ("FFD Export", vec![]),
+                ("SCR Source", vec![]),
             ]
         );
     }

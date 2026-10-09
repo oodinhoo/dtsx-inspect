@@ -51,6 +51,10 @@ pub struct Component {
     /// elles peuvent contenir du SQL.
     #[serde(skip)]
     pub properties: BTreeMap<String, String>,
+    /// Propriétés de la liste blanche définies par une expression du Data Flow
+    /// (`[Composant].[SqlCommand]`) : leur valeur est celle de la conception.
+    #[serde(skip)]
+    pub expressions: Vec<String>,
 }
 
 /// Lien du Data Flow entre deux composants (`ref_id`).

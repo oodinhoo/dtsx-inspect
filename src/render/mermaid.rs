@@ -32,7 +32,12 @@ pub fn mermaid(lineage: &Lineage) -> String {
         ));
     }
     for note in &lineage.notes {
-        lines.push(format!("  %% Non suivi : {}", clean(note)));
+        let package = lineage
+            .packages
+            .get(note.package)
+            .map_or("?", String::as_str);
+        let note = format!("{package} : {}", note.text);
+        lines.push(format!("  %% Non suivi : {}", clean(&note)));
     }
     lines.join("\n") + "\n"
 }

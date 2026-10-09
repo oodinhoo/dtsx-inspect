@@ -64,13 +64,21 @@ pub struct Edge {
     pub from_expression: bool,
 }
 
+/// Ce qui n'a pas pu être suivi (SQL non analysé, requête en variable…).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Note {
+    /// Index dans `Lineage::packages` : deux packages peuvent porter le même nom.
+    pub package: usize,
+    /// `étape : raison`.
+    pub text: String,
+}
+
 #[derive(Debug, Default)]
 pub struct Lineage {
     pub graph: DiGraph<Node, Edge>,
     /// Noms des packages, indexés comme `Node::*::package`.
     pub packages: Vec<String>,
-    /// Ce qui n'a pas pu être suivi (SQL non analysé, requête en variable…).
-    pub notes: Vec<String>,
+    pub notes: Vec<Note>,
 }
 
 pub fn lineage(inventory: &Inventory) -> Lineage {
@@ -82,7 +90,7 @@ pub fn lineage(inventory: &Inventory) -> Lineage {
                 builder.data_flow(index, package, e);
             }
             if let Some(sql) = &e.sql {
-                builder.sql_task(index, package, e, sql);
+                builder.sql_task(index, e, sql);
             }
         }
     }
@@ -119,10 +127,7 @@ pub fn focus(lineage: &Lineage, needle: &str) -> Option<Lineage> {
     let notes = lineage
         .notes
         .iter()
-        .filter(|note| {
-            let mut packages = lineage.packages.iter().enumerate();
-            packages.any(|(p, name)| shown.contains(&p) && note.starts_with(&format!("{name} : ")))
-        })
+        .filter(|note| shown.contains(&note.package))
         .cloned()
         .collect();
     Some(Lineage {
@@ -211,25 +216,22 @@ impl Builder {
                         "destination"
                     };
                     let note = format!("{role} sans jeu de données identifié");
-                    self.note(package, &c.name, &note);
+                    self.note(package_index, &c.name, &note);
                 }
                 Ok(found) => {
+                    // ponytail: une expression sur une propriété que le mode d'accès
+                    // ne lit pas compte aussi ; suivre la propriété lue si ça gêne.
+                    let from_expression = !c.expressions.is_empty();
                     for (d, direction) in found {
-                        self.link(d, node, direction, false);
+                        self.link(d, node, direction, from_expression);
                     }
                 }
-                Err(note) => self.note(package, &c.name, &note),
+                Err(note) => self.note(package_index, &c.name, &note),
             }
         }
     }
 
-    fn sql_task(
-        &mut self,
-        package_index: usize,
-        package: &Package,
-        task: &Executable,
-        sql: &SqlStatement,
-    ) {
+    fn sql_task(&mut self, package: usize, task: &Executable, sql: &SqlStatement) {
         match sql.origin {
             SqlOrigin::Variable => {
                 let note = format!("requête dans la variable {}, non suivie", sql.text);
@@ -252,7 +254,7 @@ impl Builder {
         }
         let connection = task.connections.first().and_then(|r| r.resolved.as_deref());
         let node = self.lineage.graph.add_node(Node::SqlTask {
-            package: package_index,
+            package,
             name: task.name.clone(),
         });
         let from_expression = sql.origin == SqlOrigin::Expression;
@@ -262,10 +264,9 @@ impl Builder {
         }
     }
 
-    fn note(&mut self, package: &Package, step: &str, note: &str) {
-        self.lineage
-            .notes
-            .push(format!("{} : {step} : {note}", package.name));
+    fn note(&mut self, package: usize, step: &str, note: &str) {
+        let text = format!("{step} : {note}");
+        self.lineage.notes.push(Note { package, text });
     }
 }
 

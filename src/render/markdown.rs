@@ -166,6 +166,7 @@ mod tests {
                 role: Role::Transform,
                 connections: Vec::new(),
                 properties: Default::default(),
+                expressions: Vec::new(),
             }],
             paths: Vec::new(),
             sql: None,
