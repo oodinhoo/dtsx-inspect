@@ -2,9 +2,10 @@
 
 pub mod sql;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use petgraph::graph::{DiGraph, NodeIndex};
+use petgraph::visit::{Dfs, Reversed};
 use quick_xml::events::Event;
 use quick_xml::Reader;
 
@@ -47,6 +48,14 @@ impl Node {
             Node::Component { name, .. } | Node::SqlTask { name, .. } => name,
         }
     }
+
+    /// Package d'un composant ou d'une tâche ; un jeu de données n'en a pas.
+    pub fn package(&self) -> Option<usize> {
+        match self {
+            Node::Component { package, .. } | Node::SqlTask { package, .. } => Some(*package),
+            Node::Dataset { .. } => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -78,6 +87,49 @@ pub fn lineage(inventory: &Inventory) -> Lineage {
         }
     }
     builder.lineage
+}
+
+/// Ne garde que ce qui alimente ou consomme les jeux de données dont le libellé
+/// contient `needle` (sans casse). `None` si aucun ne correspond.
+pub fn focus(lineage: &Lineage, needle: &str) -> Option<Lineage> {
+    let g = &lineage.graph;
+    let needle = needle.to_lowercase();
+    let starts: Vec<NodeIndex> = g
+        .node_indices()
+        .filter(|&i| matches!(g[i], Node::Dataset { .. }))
+        .filter(|&i| g[i].label().to_lowercase().contains(&needle))
+        .collect();
+    if starts.is_empty() {
+        return None;
+    }
+    let mut keep = HashSet::new();
+    for &start in &starts {
+        let mut downstream = Dfs::new(g, start);
+        while let Some(i) = downstream.next(g) {
+            keep.insert(i);
+        }
+        let reversed = Reversed(g);
+        let mut upstream = Dfs::new(reversed, start);
+        while let Some(i) = upstream.next(reversed) {
+            keep.insert(i);
+        }
+    }
+    let graph = g.filter_map(|i, n| keep.contains(&i).then(|| n.clone()), |_, e| Some(*e));
+    let shown: HashSet<usize> = graph.node_weights().filter_map(Node::package).collect();
+    let notes = lineage
+        .notes
+        .iter()
+        .filter(|note| {
+            let mut packages = lineage.packages.iter().enumerate();
+            packages.any(|(p, name)| shown.contains(&p) && note.starts_with(&format!("{name} : ")))
+        })
+        .cloned()
+        .collect();
+    Some(Lineage {
+        graph,
+        packages: lineage.packages.clone(),
+        notes,
+    })
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

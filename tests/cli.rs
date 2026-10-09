@@ -86,6 +86,34 @@ fn lineage_prints_mermaid_without_secrets_or_sql() {
 }
 
 #[test]
+fn lineage_focus_shows_only_the_chain_of_a_table() {
+    let out = run(&[
+        "lineage",
+        "tests/fixtures/lineage",
+        "--focus",
+        "dbo.Historique",
+    ]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    assert!(text.contains("SQL Historiser"), "{text}");
+    assert!(!text.contains("CRM Comptes"), "{text}");
+}
+
+#[test]
+fn lineage_focus_without_match_fails() {
+    let out = run(&[
+        "lineage",
+        "tests/fixtures/lineage",
+        "--focus",
+        "inexistante",
+    ]);
+
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stderr(&out).contains("inexistante"), "{}", stderr(&out));
+}
+
+#[test]
 fn lineage_reports_broken_files() {
     let out = run(&["lineage", "tests/fixtures/broken"]);
 

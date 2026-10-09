@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use dtsx_inspect::lineage::{lineage, Lineage, Node};
+use dtsx_inspect::lineage::{focus, lineage, Lineage, Node};
 use dtsx_inspect::{inventory, render};
 
 fn fixture(relative: &str) -> PathBuf {
@@ -103,6 +103,56 @@ fn reports_what_could_not_be_followed() {
             "Export : SCR Source : source sans jeu de données identifié",
         ]
     );
+}
+
+#[test]
+fn focus_keeps_what_feeds_and_what_reads_a_table() {
+    let focused = focus(&build(), "dbo.Clients").expect("table trouvée");
+
+    let expected = [
+        "ADO Clients -> FFD Export",
+        "D:\\demo\\clients.csv -> FF Clients",
+        "DST Staging -> Entrepot : stg.Clients",
+        "Entrepot : dbo.Clients -.-> SQL Historiser",
+        "Entrepot : dbo.Clients -> ADO Clients",
+        "Entrepot : ref.Pays -> LKP Pays",
+        "Entrepot : ref.Pays -> SQL Alimenter Clients",
+        "Entrepot : stg.Clients -> SQL Alimenter Clients",
+        "FF Clients -> LKP Pays",
+        "FFD Export -> D:\\demo\\export.csv",
+        "LKP Pays -> DST Staging",
+        "SQL Alimenter Clients -> Entrepot : dbo.Clients",
+        "SQL Historiser -.-> Entrepot : dbo.Historique",
+    ];
+    assert_eq!(edges(&focused), expected);
+}
+
+#[test]
+fn focus_ignores_case_and_other_branches_of_the_ancestors() {
+    let focused = focus(&build(), "DBO.HISTORIQUE").expect("table trouvée");
+
+    let edges = edges(&focused);
+    assert!(edges.contains(&"SQL Historiser -.-> Entrepot : dbo.Historique".to_owned()));
+    assert!(edges.contains(&"D:\\demo\\clients.csv -> FF Clients".to_owned()));
+    assert!(
+        !edges.iter().any(|e| e.contains("ADO Clients")),
+        "{edges:?}"
+    );
+}
+
+#[test]
+fn focus_keeps_only_notes_of_the_packages_shown() {
+    let focused = focus(&build(), "stg.Comptes").expect("table trouvée");
+
+    assert_eq!(
+        focused.notes,
+        vec!["Export : SCR Source : source sans jeu de données identifié"]
+    );
+}
+
+#[test]
+fn focus_without_match_is_none() {
+    assert!(focus(&build(), "inexistante").is_none());
 }
 
 #[test]

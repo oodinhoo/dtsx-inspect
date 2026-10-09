@@ -41,10 +41,7 @@ fn package(lineage: &Lineage, p: usize, name: &str) -> Vec<String> {
     let g = &lineage.graph;
     let members: Vec<NodeIndex> = g
         .node_indices()
-        .filter(|&i| match &g[i] {
-            Node::Component { package, .. } | Node::SqlTask { package, .. } => *package == p,
-            Node::Dataset { .. } => false,
-        })
+        .filter(|&i| g[i].package() == Some(p))
         .collect();
     if members.is_empty() {
         return Vec::new();
