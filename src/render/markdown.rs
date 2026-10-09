@@ -1,0 +1,172 @@
+use crate::inventory::Inventory;
+use crate::model::{Component, ConnectionRef, Executable, Package, Role, Scope};
+
+pub fn markdown(inventory: &Inventory) -> String {
+    inventory
+        .packages
+        .iter()
+        .map(package)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn package(p: &Package) -> String {
+    let header = vec![
+        clean(&format!(
+            "# {} ({}, format {})",
+            p.name, p.file, p.format_version
+        )),
+        String::new(),
+    ];
+    let flows = p
+        .executables
+        .iter()
+        .filter(|e| !e.components.is_empty())
+        .flat_map(data_flow);
+    [header, connections(p), tasks(p)]
+        .concat()
+        .into_iter()
+        .chain(flows)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn connections(p: &Package) -> Vec<String> {
+    let rows = p
+        .connections
+        .iter()
+        .map(|c| {
+            let scope = match c.scope {
+                Scope::Package => "Package",
+                Scope::Project => "Projet",
+            };
+            row(&[&c.name, &c.kind, scope, c.target.as_deref().unwrap_or("")])
+        })
+        .collect();
+    section("## Connexions", &["Nom", "Type", "Portée", "Cible"], rows)
+}
+
+fn tasks(p: &Package) -> Vec<String> {
+    let rows = p
+        .executables
+        .iter()
+        .map(|e| {
+            let disabled = if e.disabled { "oui" } else { "" };
+            row(&[path(e), &e.executable_type, &refs(&e.connections), disabled])
+        })
+        .collect();
+    section(
+        "## Tâches",
+        &["Chemin", "Type", "Connexion", "Désactivée"],
+        rows,
+    )
+}
+
+fn data_flow(e: &Executable) -> Vec<String> {
+    let rows = e.components.iter().map(component).collect();
+    section(
+        &clean(&format!("### Data Flow {}", path(e))),
+        &["Composant", "Classe", "Rôle", "Connexion"],
+        rows,
+    )
+}
+
+fn component(c: &Component) -> String {
+    let class = if c.known {
+        c.class_id.clone()
+    } else {
+        format!("Unknown ({})", c.class_id)
+    };
+    let role = match c.role {
+        Role::Source => "Source",
+        Role::Transform => "Transformation",
+        Role::Destination => "Destination",
+    };
+    row(&[&c.name, &class, role, &refs(&c.connections)])
+}
+
+fn section(title: &str, headers: &[&str], rows: Vec<String>) -> Vec<String> {
+    let table = if rows.is_empty() {
+        vec!["_Aucune._".to_owned()]
+    } else {
+        let separator = row(&vec!["---"; headers.len()]);
+        [vec![row(headers), separator], rows].concat()
+    };
+    [
+        vec![title.to_owned(), String::new()],
+        table,
+        vec![String::new()],
+    ]
+    .concat()
+}
+
+fn row(cells: &[&str]) -> String {
+    let cells: Vec<String> = cells
+        .iter()
+        .map(|c| clean(&c.replace('|', "\\|")))
+        .collect();
+    format!("| {} |", cells.join(" | "))
+}
+
+/// Une ligne Markdown ne doit pas pouvoir en ouvrir une autre.
+fn clean(text: &str) -> String {
+    text.replace(['\r', '\n'], " ")
+}
+
+fn refs(connections: &[ConnectionRef]) -> String {
+    connections
+        .iter()
+        .map(|r| match &r.resolved {
+            Some(name) => name.clone(),
+            None => format!("{} (non résolue)", r.reference),
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// Chemin lisible : `Package\SEQ\Tâche` -> `SEQ\Tâche`.
+fn path(e: &Executable) -> &str {
+    e.ref_id
+        .strip_prefix("Package\\")
+        .or_else(|| e.ref_id.strip_prefix("Package."))
+        .unwrap_or(&e.ref_id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn names_cannot_inject_markdown_headings() {
+        let flow = Executable {
+            ref_id: "Package\\DFT\n## injecté".into(),
+            name: "DFT".into(),
+            executable_type: "Microsoft.Pipeline".into(),
+            disabled: false,
+            connections: Vec::new(),
+            components: vec![Component {
+                ref_id: "c".into(),
+                name: "c".into(),
+                class_id: "Microsoft.RowCount".into(),
+                known: true,
+                role: Role::Transform,
+                connections: Vec::new(),
+            }],
+        };
+        let inventory = Inventory {
+            project_connections: Vec::new(),
+            packages: vec![Package {
+                file: "p.dtsx".into(),
+                name: "P\r\n# injecté".into(),
+                format_version: 8,
+                connections: Vec::new(),
+                executables: vec![flow],
+            }],
+        };
+
+        let md = markdown(&inventory);
+
+        assert!(!md.contains("\n# injecté"), "{md}");
+        assert!(!md.contains("\n## injecté"), "{md}");
+    }
+}

@@ -1,0 +1,32 @@
+---
+source: tests/inventory.rs
+expression: "render::markdown(&inventory(&fixture(\"minimal.dtsx\")).0)"
+---
+# Demo_Minimal (minimal.dtsx, format 8)
+
+## Connexions
+
+| Nom | Type | Portée | Cible |
+| --- | --- | --- | --- |
+| Entrepot | OLEDB | Package | Data Source=srv-demo;Initial Catalog=Entrepot;Provider=SQLNCLI11.1 |
+| Fichier clients | FLATFILE | Package | C:\demo\clients.csv |
+| CRM | DynamicsCRM | Package |  |
+
+## Tâches
+
+| Chemin | Type | Connexion | Désactivée |
+| --- | --- | --- | --- |
+| SEQ Chargement | STOCK:SEQUENCE |  |  |
+| SEQ Chargement\SQL Vider staging | Microsoft.ExecuteSQLTask | Entrepot |  |
+| SEQ Chargement\DFT Clients | Microsoft.Pipeline |  |  |
+| SQL Ancienne purge | Microsoft.ExecuteSQLTask | {BBBBBBBB-0000-0000-0000-00000000DEAD} (non résolue) | oui |
+| EventHandlers[OnError]\SQL Journaliser erreur | Microsoft.ExecuteSQLTask | Entrepot |  |
+
+### Data Flow SEQ Chargement\DFT Clients
+
+| Composant | Classe | Rôle | Connexion |
+| --- | --- | --- | --- |
+| FF Clients | Microsoft.FlatFileSource | Source | Fichier clients |
+| DER Ajout date | Microsoft.DerivedColumn | Transformation |  |
+| DST Clients | Microsoft.OLEDBDestination | Destination | Entrepot |
+| CRM Comptes | Unknown (KingswaySoft.IntegrationToolkit.DynamicsCrm.CrmDestination, KingswaySoft.IntegrationToolkit.DynamicsCrm, Version=1.0.0.0, Culture=neutral, PublicKeyToken=0000000000000000) | Destination | CRM |

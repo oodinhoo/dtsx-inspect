@@ -1,0 +1,95 @@
+---
+source: tests/inventory.rs
+assertion_line: 156
+expression: json
+---
+{
+  "project_connections": [
+    {
+      "id": "{CCCCCCCC-0000-0000-0000-000000000001}",
+      "name": "Cible",
+      "kind": "OLEDB",
+      "scope": "project",
+      "target": "Data Source=srv-demo;Initial Catalog=Cible;Provider=SQLNCLI11.1"
+    },
+    {
+      "id": "{CCCCCCCC-0000-0000-0000-000000000002}",
+      "name": "Source CSV",
+      "kind": "FLATFILE",
+      "scope": "project",
+      "target": "D:\\demo\\entree.csv"
+    }
+  ],
+  "packages": [
+    {
+      "file": "Chargement.dtsx",
+      "name": "Chargement",
+      "format_version": 8,
+      "connections": [
+        {
+          "id": "{CCCCCCCC-0000-0000-0000-000000000001}",
+          "name": "Cible",
+          "kind": "OLEDB",
+          "scope": "project",
+          "target": "Data Source=srv-demo;Initial Catalog=Cible;Provider=SQLNCLI11.1"
+        },
+        {
+          "id": "{CCCCCCCC-0000-0000-0000-000000000002}",
+          "name": "Source CSV",
+          "kind": "FLATFILE",
+          "scope": "project",
+          "target": "D:\\demo\\entree.csv"
+        }
+      ],
+      "executables": [
+        {
+          "ref_id": "Package\\SQL Creer table",
+          "name": "SQL Creer table",
+          "executable_type": "Microsoft.ExecuteSQLTask",
+          "disabled": false,
+          "connections": [
+            {
+              "reference": "{CCCCCCCC-0000-0000-0000-000000000001}",
+              "resolved": "Cible"
+            }
+          ]
+        },
+        {
+          "ref_id": "Package\\DFT Alimentation",
+          "name": "DFT Alimentation",
+          "executable_type": "Microsoft.Pipeline",
+          "disabled": false,
+          "connections": [],
+          "components": [
+            {
+              "ref_id": "Package\\DFT Alimentation\\SRC Fichier",
+              "name": "SRC Fichier",
+              "class_id": "Microsoft.FlatFileSource",
+              "known": true,
+              "role": "source",
+              "connections": [
+                {
+                  "reference": "{CCCCCCCC-0000-0000-0000-000000000002}:external",
+                  "resolved": "Source CSV"
+                }
+              ]
+            },
+            {
+              "ref_id": "Package\\DFT Alimentation\\DST Cible",
+              "name": "DST Cible",
+              "class_id": "Microsoft.OLEDBDestination",
+              "known": true,
+              "role": "destination",
+              "connections": [
+                {
+                  "reference": "{cccccccc-0000-0000-0000-000000000001}:external",
+                  "resolved": "Cible"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+---
+source: tests/inventory.rs
+expression: "render::markdown(&inventory(&fixture(\"project\")).0)"
+---
+# Chargement (Chargement.dtsx, format 8)
+
+## Connexions
+
+| Nom | Type | Portée | Cible |
+| --- | --- | --- | --- |
+| Cible | OLEDB | Projet | Data Source=srv-demo;Initial Catalog=Cible;Provider=SQLNCLI11.1 |
+| Source CSV | FLATFILE | Projet | D:\demo\entree.csv |
+
+## Tâches
+
+| Chemin | Type | Connexion | Désactivée |
+| --- | --- | --- | --- |
+| SQL Creer table | Microsoft.ExecuteSQLTask | Cible |  |
+| DFT Alimentation | Microsoft.Pipeline |  |  |
+
+### Data Flow DFT Alimentation
+
+| Composant | Classe | Rôle | Connexion |
+| --- | --- | --- | --- |
+| SRC Fichier | Microsoft.FlatFileSource | Source | Source CSV |
+| DST Cible | Microsoft.OLEDBDestination | Destination | Cible |

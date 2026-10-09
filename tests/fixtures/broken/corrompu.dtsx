@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:ObjectName="Corrompu">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\Tache"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="Tache">
+  </DTS:Executables>

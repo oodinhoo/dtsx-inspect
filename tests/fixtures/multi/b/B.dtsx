@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:ObjectName="B">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\DFT B"
+      DTS:CreationName="Microsoft.Pipeline"
+      DTS:ExecutableType="Microsoft.Pipeline"
+      DTS:ObjectName="DFT B">
+      <DTS:ObjectData>
+        <pipeline
+          version="1">
+          <components>
+            <component
+              refId="Package\DFT B\DST B"
+              componentClassID="Microsoft.OLEDBDestination"
+              name="DST B">
+              <connections>
+                <connection
+                  refId="Package\DFT B\DST B.Connections[OleDbConnection]"
+                  connectionManagerRefId="Project.ConnectionManagers[Cible]"
+                  name="OleDbConnection" />
+              </connections>
+              <inputs>
+                <input
+                  refId="Package\DFT B\DST B.Inputs[Entree]"
+                  name="Entree" />
+              </inputs>
+            </component>
+          </components>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+</DTS:Executable>

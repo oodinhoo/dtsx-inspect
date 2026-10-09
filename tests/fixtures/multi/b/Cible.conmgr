@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<DTS:ConnectionManager xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:ObjectName="Cible"
+  DTS:DTSID="{DDDDDDDD-0000-0000-0000-00000000000B}"
+  DTS:CreationName="OLEDB">
+  <DTS:ObjectData>
+    <DTS:ConnectionManager
+      DTS:ConnectionString="Data Source=srv-b;Initial Catalog=Cible;" />
+  </DTS:ObjectData>
+</DTS:ConnectionManager>

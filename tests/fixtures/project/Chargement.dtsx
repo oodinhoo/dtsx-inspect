@@ -1,0 +1,81 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:DTSID="{00000000-0000-0000-0000-00000000C001}"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:ObjectName="Chargement">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:Variables />
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\SQL Creer table"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:DTSID="{00000000-0000-0000-0000-00000000C101}"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="SQL Creer table">
+      <DTS:Variables />
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{CCCCCCCC-0000-0000-0000-000000000001}"
+          SQLTask:SqlStatementSource="CREATE TABLE dbo.Cible (id INT)" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\DFT Alimentation"
+      DTS:CreationName="Microsoft.Pipeline"
+      DTS:DTSID="{00000000-0000-0000-0000-00000000C102}"
+      DTS:ExecutableType="Microsoft.Pipeline"
+      DTS:ObjectName="DFT Alimentation">
+      <DTS:Variables />
+      <DTS:ObjectData>
+        <pipeline
+          version="1">
+          <components>
+            <component
+              refId="Package\DFT Alimentation\SRC Fichier"
+              componentClassID="Microsoft.FlatFileSource"
+              name="SRC Fichier">
+              <connections>
+                <connection
+                  refId="Package\DFT Alimentation\SRC Fichier.Connections[FlatFileConnection]"
+                  connectionManagerID="{CCCCCCCC-0000-0000-0000-000000000002}:external"
+                  connectionManagerRefId="Project.ConnectionManagers[Ancien nom CSV]"
+                  name="FlatFileConnection" />
+              </connections>
+              <outputs>
+                <output
+                  refId="Package\DFT Alimentation\SRC Fichier.Outputs[Sortie]"
+                  name="Sortie" />
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Alimentation\DST Cible"
+              componentClassID="Microsoft.OLEDBDestination"
+              name="DST Cible">
+              <connections>
+                <connection
+                  refId="Package\DFT Alimentation\DST Cible.Connections[OleDbConnection]"
+                  connectionManagerID="{cccccccc-0000-0000-0000-000000000001}:external"
+                  name="OleDbConnection" />
+              </connections>
+              <inputs>
+                <input
+                  refId="Package\DFT Alimentation\DST Cible.Inputs[Entree]"
+                  name="Entree" />
+              </inputs>
+            </component>
+          </components>
+          <paths>
+            <path
+              refId="Package\DFT Alimentation.Paths[Sortie]"
+              endId="Package\DFT Alimentation\DST Cible.Inputs[Entree]"
+              name="Sortie"
+              startId="Package\DFT Alimentation\SRC Fichier.Outputs[Sortie]" />
+          </paths>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+</DTS:Executable>
