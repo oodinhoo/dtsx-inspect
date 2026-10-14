@@ -2,6 +2,7 @@
 
 pub mod inventory;
 pub mod lineage;
+pub mod lint;
 pub mod model;
 pub mod parser;
 pub mod render;

@@ -4,6 +4,7 @@ use std::process::ExitCode;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use dtsx_inspect::lineage::{self, lineage};
+use dtsx_inspect::lint::{lint, Severity};
 use dtsx_inspect::{inventory, render};
 
 #[derive(Parser)]
@@ -34,6 +35,11 @@ enum Command {
         /// nom contient ce texte (sans casse), par exemple `dbo.Clients`
         #[arg(long)]
         focus: Option<String>,
+    },
+    /// Anti-patterns SSIS (code de sortie 1 si une erreur est trouvée)
+    Lint {
+        /// Fichier .dtsx ou dossier (parcouru récursivement)
+        path: PathBuf,
     },
 }
 
@@ -69,6 +75,16 @@ fn main() -> anyhow::Result<ExitCode> {
                     (String::new(), errors, Some(failure))
                 }
             }
+        }
+        Command::Lint { path } => {
+            let (inventory, errors) = inventory(&path);
+            let findings = lint(&inventory);
+            let blocking = findings
+                .iter()
+                .filter(|f| f.severity == Severity::Erreur)
+                .count();
+            let failure = (blocking > 0).then(|| format!("{blocking} erreur(s) de lint"));
+            (render::findings(&findings), errors, failure)
         }
     };
     std::io::stdout().lock().write_all(output.as_bytes())?;

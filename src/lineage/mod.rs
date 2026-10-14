@@ -185,10 +185,7 @@ impl Builder {
     }
 
     fn data_flow(&mut self, package_index: usize, package: &Package, flow: &Executable) {
-        let flow_path = flow
-            .ref_id
-            .strip_prefix("Package\\")
-            .unwrap_or(&flow.ref_id);
+        let flow_path = flow.path();
         let mut nodes = HashMap::new();
         for c in &flow.components {
             let node = self.lineage.graph.add_node(Node::Component {

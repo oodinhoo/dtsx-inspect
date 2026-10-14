@@ -5,7 +5,8 @@ use std::fmt;
 use std::ops::ControlFlow;
 
 use sqlparser::ast::{
-    Expr, ObjectName, Query, SetExpr, Statement, TableFactor, TableObject, Visit, Visitor,
+    Expr, ObjectName, Query, SelectItem, SetExpr, Statement, TableFactor, TableObject, Visit,
+    Visitor,
 };
 use sqlparser::dialect::{MsSqlDialect, MySqlDialect};
 use sqlparser::parser::{Parser, ParserError};
@@ -42,9 +43,7 @@ pub struct SqlError(#[from] ParserError);
 /// Tables lues (FROM, JOIN, sous-requêtes) et écrites (INSERT, UPDATE, MERGE,
 /// SELECT INTO). Le DDL, TRUNCATE et DELETE ne déplacent pas de données.
 pub fn tables(sql: &str) -> Result<Tables, SqlError> {
-    // Sources ADO.NET/ODBC : la requête peut viser MySQL (MyApp…) plutôt que SQL Server.
-    let statements = Parser::parse_sql(&MsSqlDialect {}, sql)
-        .or_else(|error| Parser::parse_sql(&MySqlDialect {}, sql).map_err(|_| error))?;
+    let statements = parse(sql)?;
     let mut found = Tables::default();
     for statement in statements {
         if let Statement::Execute {
@@ -79,6 +78,31 @@ pub fn tables(sql: &str) -> Result<Tables, SqlError> {
         }
     }
     Ok(found)
+}
+
+/// `INSERT … SELECT *` : les colonnes correspondent par leur ordre, fragile.
+pub fn inserts_select_star(sql: &str) -> bool {
+    let star = |query: &Query| match query.body.as_ref() {
+        SetExpr::Select(select) => select.projection.iter().any(|item| {
+            matches!(
+                item,
+                SelectItem::Wildcard(..) | SelectItem::QualifiedWildcard(..)
+            )
+        }),
+        _ => false,
+    };
+    parse(sql).is_ok_and(|statements| {
+        statements.iter().any(|s| match s {
+            Statement::Insert(insert) => insert.source.as_deref().is_some_and(star),
+            _ => false,
+        })
+    })
+}
+
+fn parse(sql: &str) -> Result<Vec<Statement>, SqlError> {
+    // Sources ADO.NET/ODBC : la requête peut viser MySQL (MyApp…) plutôt que SQL Server.
+    Ok(Parser::parse_sql(&MsSqlDialect {}, sql)
+        .or_else(|error| Parser::parse_sql(&MySqlDialect {}, sql).map_err(|_| error))?)
 }
 
 /// Nom d'objet seul, par exemple la propriété `OpenRowset` (`[dbo].[Table]`).
@@ -406,6 +430,17 @@ mod tests {
             read_write(sql),
             (strings(&["app_users", "app_profiles"]), vec![])
         );
+    }
+
+    #[test]
+    fn spots_insert_select_star() {
+        assert!(inserts_select_star("INSERT INTO a SELECT * FROM b"));
+        assert!(inserts_select_star(
+            "INSERT INTO a (x, y) SELECT t.* FROM b t"
+        ));
+        assert!(!inserts_select_star("INSERT INTO a SELECT x FROM b"));
+        assert!(!inserts_select_star("SELECT * FROM b"));
+        assert!(!inserts_select_star("BULK INSERT a FROM 'f'"));
     }
 
     #[test]

@@ -114,6 +114,27 @@ fn lineage_focus_without_match_fails() {
 }
 
 #[test]
+fn lint_fails_on_errors_and_prints_one_line_per_finding() {
+    let out = run(&["lint", "tests/fixtures/minimal.dtsx"]);
+
+    assert_eq!(out.status.code(), Some(1));
+    let text = stdout(&out);
+    assert!(
+        text.contains("erreur[connexion-non-resolue] minimal.dtsx : SQL Ancienne purge : "),
+        "{text}"
+    );
+    assert!(!text.contains("s3cr3t"), "fuite de secret");
+}
+
+#[test]
+fn lint_passes_on_a_clean_package() {
+    let out = run(&["lint", "tests/fixtures/broken/valide.dtsx"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "0 erreur(s), 0 avertissement(s), 0 info(s)\n");
+}
+
+#[test]
 fn lineage_reports_broken_files() {
     let out = run(&["lineage", "tests/fixtures/broken"]);
 

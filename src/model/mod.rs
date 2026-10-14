@@ -102,6 +102,16 @@ pub struct Executable {
     pub sql: Option<SqlStatement>,
 }
 
+impl Executable {
+    /// Chemin lisible : `Package\SEQ\Tâche` -> `SEQ\Tâche`.
+    pub fn path(&self) -> &str {
+        self.ref_id
+            .strip_prefix("Package\\")
+            .or_else(|| self.ref_id.strip_prefix("Package."))
+            .unwrap_or(&self.ref_id)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Package {
     pub file: String,

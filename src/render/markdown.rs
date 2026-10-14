@@ -68,7 +68,7 @@ fn tasks(p: &Package) -> Vec<String> {
             let disabled = if e.disabled { "oui" } else { "" };
             let connections = refs(&e.connections);
             let called = e.called_package.as_deref().unwrap_or("");
-            let cells = [path(e), &e.executable_type, &connections, disabled, called];
+            let cells = [e.path(), &e.executable_type, &connections, disabled, called];
             row(&cells[..width])
         })
         .collect();
@@ -78,7 +78,7 @@ fn tasks(p: &Package) -> Vec<String> {
 fn data_flow(e: &Executable) -> Vec<String> {
     let rows = e.components.iter().map(component).collect();
     section(
-        &clean(&format!("### Data Flow {}", path(e))),
+        &clean(&format!("### Data Flow {}", e.path())),
         &["Composant", "Classe", "Rôle", "Connexion"],
         rows,
     )
@@ -135,14 +135,6 @@ fn refs(connections: &[ConnectionRef]) -> String {
         })
         .collect::<Vec<_>>()
         .join(", ")
-}
-
-/// Chemin lisible : `Package\SEQ\Tâche` -> `SEQ\Tâche`.
-fn path(e: &Executable) -> &str {
-    e.ref_id
-        .strip_prefix("Package\\")
-        .or_else(|| e.ref_id.strip_prefix("Package."))
-        .unwrap_or(&e.ref_id)
 }
 
 #[cfg(test)]
