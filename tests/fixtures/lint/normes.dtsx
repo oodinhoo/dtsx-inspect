@@ -1,0 +1,156 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:ObjectName="Normes">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\Data Flow Task"
+      DTS:CreationName="Microsoft.Pipeline"
+      DTS:ExecutableType="Microsoft.Pipeline"
+      DTS:ObjectName="Data Flow Task">
+      <DTS:ObjectData>
+        <pipeline
+          version="1">
+          <components>
+            <component
+              refId="Package\Data Flow Task\SRC Table"
+              componentClassID="Microsoft.OLEDBSource"
+              name="SRC Table">
+              <properties>
+                <property
+                  name="OpenRowset">[dbo].[Clients]</property>
+                <property
+                  name="AccessMode">0</property>
+              </properties>
+              <outputs>
+                <output
+                  refId="Package\Data Flow Task\SRC Table.Outputs[Sortie]"
+                  name="Sortie" />
+              </outputs>
+            </component>
+            <component
+              refId="Package\Data Flow Task\SRC Requete"
+              componentClassID="Microsoft.OLEDBSource"
+              name="SRC Requete">
+              <properties>
+                <property
+                  name="SqlCommand">SELECT id, nom FROM dbo.Prospects</property>
+                <property
+                  name="AccessMode">2</property>
+              </properties>
+              <outputs>
+                <output
+                  refId="Package\Data Flow Task\SRC Requete.Outputs[Sortie]"
+                  name="Sortie" />
+              </outputs>
+            </component>
+            <component
+              refId="Package\Data Flow Task\LKP Pays"
+              componentClassID="Microsoft.Lookup"
+              name="LKP Pays">
+              <properties>
+                <property
+                  name="SqlCommand">select * from [ref].[Pays]</property>
+              </properties>
+              <inputs>
+                <input
+                  refId="Package\Data Flow Task\LKP Pays.Inputs[Entree]"
+                  name="Entree" />
+              </inputs>
+              <outputs>
+                <output
+                  refId="Package\Data Flow Task\LKP Pays.Outputs[Correspondance]"
+                  name="Correspondance" />
+              </outputs>
+            </component>
+            <component
+              refId="Package\Data Flow Task\Trier"
+              componentClassID="Microsoft.Sort"
+              name="Trier">
+              <inputs>
+                <input
+                  refId="Package\Data Flow Task\Trier.Inputs[Entree]"
+                  name="Entree" />
+              </inputs>
+              <outputs>
+                <output
+                  refId="Package\Data Flow Task\Trier.Outputs[Sortie]"
+                  name="Sortie" />
+              </outputs>
+            </component>
+            <component
+              refId="Package\Data Flow Task\Multidiffusion 1"
+              componentClassID="Microsoft.Multicast"
+              name="Multidiffusion 1">
+              <inputs>
+                <input
+                  refId="Package\Data Flow Task\Multidiffusion 1.Inputs[Entree]"
+                  name="Entree" />
+              </inputs>
+              <outputs>
+                <output
+                  refId="Package\Data Flow Task\Multidiffusion 1.Outputs[Sortie]"
+                  name="Sortie" />
+              </outputs>
+            </component>
+            <component
+              refId="Package\Data Flow Task\CMD Maj"
+              componentClassID="Microsoft.OLEDBCommand"
+              name="CMD Maj">
+              <properties>
+                <property
+                  name="SqlCommand">UPDATE dbo.Clients SET nom = ? WHERE id = ?</property>
+              </properties>
+              <inputs>
+                <input
+                  refId="Package\Data Flow Task\CMD Maj.Inputs[Entree]"
+                  name="Entree" />
+              </inputs>
+              <outputs>
+                <output
+                  refId="Package\Data Flow Task\CMD Maj.Outputs[Sortie]"
+                  name="Sortie" />
+              </outputs>
+            </component>
+            <component
+              refId="Package\Data Flow Task\DST Lent"
+              componentClassID="Microsoft.OLEDBDestination"
+              name="DST Lent">
+              <properties>
+                <property
+                  name="OpenRowset">[stg].[Clients]</property>
+                <property
+                  name="AccessMode">0</property>
+              </properties>
+              <inputs>
+                <input
+                  refId="Package\Data Flow Task\DST Lent.Inputs[Entree]"
+                  name="Entree" />
+              </inputs>
+            </component>
+            <component
+              refId="Package\Data Flow Task\DST Rapide"
+              componentClassID="Microsoft.OLEDBDestination"
+              name="DST Rapide">
+              <properties>
+                <property
+                  name="OpenRowset">[stg].[Prospects]</property>
+                <property
+                  name="AccessMode">3</property>
+              </properties>
+              <inputs>
+                <input
+                  refId="Package\Data Flow Task\DST Rapide.Inputs[Entree]"
+                  name="Entree" />
+              </inputs>
+            </component>
+          </components>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+</DTS:Executable>

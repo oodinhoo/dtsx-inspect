@@ -14,8 +14,9 @@ use dtsx_inspect::{inventory, render};
     about = "Analyse de packages SSIS (.dtsx)"
 )]
 struct Cli {
+    /// Sans commande : choix d'un dossier puis rapport HTML dans le navigateur
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 #[derive(Subcommand)]
@@ -49,8 +50,27 @@ enum Format {
     Json,
 }
 
+#[cfg(windows)]
+const OPENER: &str = "explorer";
+#[cfg(target_os = "macos")]
+const OPENER: &str = "open";
+#[cfg(not(any(windows, target_os = "macos")))]
+const OPENER: &str = "xdg-open";
+
 fn main() -> anyhow::Result<ExitCode> {
-    let (output, errors, failure) = match Cli::parse().command {
+    let Some(command) = Cli::parse().command else {
+        // Lancé par double-clic : la console se ferme aussitôt, l'erreur passe par une boîte.
+        if let Err(error) = report() {
+            rfd::MessageDialog::new()
+                .set_level(rfd::MessageLevel::Error)
+                .set_title("dtsx-inspect")
+                .set_description(error.to_string())
+                .show();
+            return Ok(ExitCode::FAILURE);
+        }
+        return Ok(ExitCode::SUCCESS);
+    };
+    let (output, errors, failure) = match command {
         Command::Inventory { path, format } => {
             let (inventory, errors) = inventory(&path);
             let output = match format {
@@ -62,18 +82,17 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::Lineage { path, focus } => {
             let (inventory, errors) = inventory(&path);
             let full = lineage(&inventory);
-            match focus
-                .as_deref()
-                .map(|needle| (needle, lineage::focus(&full, needle)))
-            {
+            match focus {
                 None => (render::mermaid(&full), errors, None),
-                Some((_, Some(focused))) => (render::mermaid(&focused), errors, None),
-                Some((needle, None)) => {
-                    let failure = format!(
-                        "aucune table, aucun fichier ni aucune entité ne contient « {needle} »"
-                    );
-                    (String::new(), errors, Some(failure))
-                }
+                Some(needle) => match lineage::focus(&full, &needle) {
+                    Some(focused) => (render::mermaid(&focused), errors, None),
+                    None => {
+                        let failure = format!(
+                            "aucune table, aucun fichier ni aucune entité ne contient « {needle} »"
+                        );
+                        (String::new(), errors, Some(failure))
+                    }
+                },
             }
         }
         Command::Lint { path } => {
@@ -100,4 +119,28 @@ fn main() -> anyhow::Result<ExitCode> {
     } else {
         ExitCode::FAILURE
     })
+}
+
+/// Choix d'un dossier, rapport HTML (lint, lignage, inventaire) ouvert dans le navigateur.
+fn report() -> anyhow::Result<()> {
+    let Some(dir) = rfd::FileDialog::new()
+        .set_title("Dossier de packages SSIS à analyser")
+        .pick_folder()
+    else {
+        return Ok(());
+    };
+    let (inventory, errors) = inventory(&dir);
+    let page = render::html(
+        &dir.display().to_string(),
+        &inventory,
+        &lineage(&inventory),
+        &lint(&inventory),
+        &errors,
+    );
+    // ponytail: un seul rapport, écrasé à chaque lancement ; « Enregistrer sous » du navigateur pour le garder.
+    let out = std::env::temp_dir().join("dtsx-inspect.html");
+    std::fs::write(&out, page)?;
+    // `spawn` et pas `status` : explorer.exe sort en code 1 même quand tout va bien.
+    std::process::Command::new(OPENER).arg(&out).spawn()?;
+    Ok(())
 }

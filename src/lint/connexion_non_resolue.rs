@@ -1,33 +1,41 @@
-//! Référence de connexion introuvable : connexion supprimée ou renommée
-//! (SSIS la marque `{GUID}:invalid`), le package échouera à l'exécution.
+//! Référence de connexion introuvable (connexion supprimée ou renommée), ou
+//! marquée `{GUID}:invalid` par SSDT : la connexion manquait à l'ouverture du
+//! package et la référence n'a pas été réassociée depuis.
 
-use super::{Finding, Rule, Severity};
+use super::{components, finding, tasks, Finding, Rule, Severity};
 use crate::inventory::Inventory;
+use crate::model::ConnectionRef;
 
 pub struct ConnexionNonResolue;
 
 impl Rule for ConnexionNonResolue {
     fn check(&self, inventory: &Inventory) -> Vec<Finding> {
-        let mut findings = Vec::new();
-        for p in &inventory.packages {
-            for e in &p.executables {
-                let task = e.connections.iter().map(|r| (e.path().to_owned(), r));
-                let components = e.components.iter().flat_map(|c| {
-                    let location = format!("{}\\{}", e.path(), c.name);
-                    c.connections.iter().map(move |r| (location.clone(), r))
-                });
-                let dead = task.chain(components).filter(|(_, r)| r.resolved.is_none());
-                for (location, r) in dead {
-                    findings.push(Finding {
-                        rule: "connexion-non-resolue",
-                        severity: Severity::Erreur,
-                        file: p.file.clone(),
-                        location,
-                        message: format!("connexion {} introuvable", r.reference),
-                    });
-                }
-            }
-        }
-        findings
+        let tasks = tasks(inventory).map(|(p, e)| (p, e.path().to_owned(), &e.connections));
+        let parts = components(inventory).map(|(p, location, c)| (p, location, &c.connections));
+        tasks
+            .chain(parts)
+            .flat_map(|(p, location, refs)| {
+                refs.iter().filter_map(move |r| {
+                    let message = message(r)?;
+                    Some(finding(
+                        "connexion-non-resolue",
+                        Severity::Erreur,
+                        &p.file,
+                        location.clone(),
+                        message,
+                    ))
+                })
+            })
+            .collect()
+    }
+}
+
+fn message(r: &ConnectionRef) -> Option<String> {
+    match &r.resolved {
+        None => Some(format!("connexion {} introuvable", r.reference)),
+        Some(name) if r.reference.ends_with(":invalid") => Some(format!(
+            "référence vers « {name} » marquée invalide : la réassocier dans SSDT"
+        )),
+        Some(_) => None,
     }
 }

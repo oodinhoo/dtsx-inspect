@@ -1,7 +1,7 @@
-//! Ce que le lignage n'a pas pu suivre (SQL non analysé, procédure stockée,
+//! Ce que le lignage n'a pas pu suivre (SQL non analysé,
 //! requête en variable…) : autant d'angles morts dans la documentation.
 
-use super::{Finding, Rule, Severity};
+use super::{finding, Finding, Rule, Severity};
 use crate::inventory::Inventory;
 use crate::lineage::lineage;
 
@@ -14,14 +14,13 @@ impl Rule for LignageIncomplet {
             .iter()
             .filter_map(|note| {
                 let package = inventory.packages.get(note.package)?;
-                let (step, reason) = note.text.split_once(" : ").unwrap_or((&note.text, ""));
-                Some(Finding {
-                    rule: "lignage-incomplet",
-                    severity: Severity::Info,
-                    file: package.file.clone(),
-                    location: step.to_owned(),
-                    message: reason.to_owned(),
-                })
+                Some(finding(
+                    "lignage-incomplet",
+                    Severity::Info,
+                    &package.file,
+                    note.step.clone(),
+                    note.reason.as_str(),
+                ))
             })
             .collect()
     }

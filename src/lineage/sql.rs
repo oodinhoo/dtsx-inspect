@@ -9,7 +9,9 @@ use sqlparser::ast::{
     Visitor,
 };
 use sqlparser::dialect::{MsSqlDialect, MySqlDialect};
+use sqlparser::keywords::Keyword;
 use sqlparser::parser::{Parser, ParserError};
+use sqlparser::tokenizer::Token;
 
 /// Nom de table tel qu'écrit (sans crochets ni guillemets).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,56 +35,194 @@ pub struct Tables {
     pub reads: Vec<TableName>,
     pub writes: Vec<TableName>,
     /// Procédures stockées appelées (`EXEC`) : leur contenu n'est pas visible.
-    pub procedures: Vec<String>,
+    pub procedures: Vec<TableName>,
+    /// Tables créées (`CREATE TABLE`) : aucune donnée déplacée, mais l'étape
+    /// qui prépare la table (souvent temporaire) d'une chaîne de chargement.
+    pub creates: Vec<TableName>,
 }
 
-#[derive(Debug, thiserror::Error)]
-#[error("SQL non analysable : {0}")]
-pub struct SqlError(#[from] ParserError);
-
-/// Tables lues (FROM, JOIN, sous-requêtes) et écrites (INSERT, UPDATE, MERGE,
-/// SELECT INTO). Le DDL, TRUNCATE et DELETE ne déplacent pas de données.
-pub fn tables(sql: &str) -> Result<Tables, SqlError> {
-    let statements = parse(sql)?;
+/// Tables lues (FROM, JOIN, sous-requêtes), écrites (INSERT, UPDATE, MERGE,
+/// SELECT INTO) et créées. TRUNCATE, DELETE et le reste du DDL ne déplacent pas
+/// de données. Les lots séparés par `GO` sont lus un par un.
+pub fn tables(sql: &str) -> Result<Tables, ParserError> {
     let mut found = Tables::default();
-    for statement in statements {
-        if let Statement::Execute {
-            name: Some(name), ..
-        } = &statement
-        {
-            let procedure = table_name(name).map_or_else(|| name.to_string(), |p| p.to_string());
-            found.procedures.push(procedure);
-            continue;
-        }
-        let Some(targets) = write_targets(&statement) else {
-            continue;
-        };
-        let mut seen = Relations::default();
-        // Le visiteur ne s'interrompt jamais (`Break = ()`).
-        let _ = statement.visit(&mut seen);
-        let writes: Vec<TableName> = targets
-            .iter()
-            .filter_map(|t| table_name(seen.unalias(t)))
-            .collect();
-        let reads = seen
-            .relations
-            .iter()
-            .filter(|r| !seen.is_cte(r) && !seen.is_alias(r))
-            .filter_map(table_name)
-            .filter(|t| !writes.iter().any(|w| same(w, t)));
-        for t in reads {
-            push_unique(&mut found.reads, t);
-        }
-        for t in writes {
-            push_unique(&mut found.writes, t);
+    for batch in batches(sql) {
+        match parse(&batch) {
+            Ok(statements) => statements.iter().for_each(|s| collect(s, &mut found)),
+            // Le parseur refuse certaines options de stockage (`ON [PRIMARY]`…) :
+            // pour une création, le nom de la table suffit.
+            Err(error) => push_unique(&mut found.creates, created_table(&batch).ok_or(error)?),
         }
     }
     Ok(found)
 }
 
+/// Objet défini par un script `.sql`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Defined {
+    Procedure,
+    View,
+}
+
+/// Procédures et vues définies (`CREATE [OR ALTER] PROC[EDURE] | VIEW`) et
+/// tables lues, écrites ou créées par leur corps.
+pub fn definitions(sql: &str) -> Vec<(Defined, TableName, Tables)> {
+    batches(sql).iter().filter_map(|b| definition(b)).collect()
+}
+
+/// Le T-SQL d'une procédure se passe de `;` et de parenthèses autour des
+/// paramètres, et une vue peut porter des options (`WITH SCHEMABINDING`) que le
+/// parseur refuse : l'en-tête est lu à la main, puis le corps instruction par
+/// instruction.
+// ponytail: une instruction refusée est sautée mot par mot jusqu'à la suivante ;
+// si l'erreur tombe au milieu d'un INSERT, la sous-requête qui suit compte comme
+// lecture et la cible est perdue. Passer à un vrai parseur T-SQL si ça gêne.
+fn definition(batch: &str) -> Option<(Defined, TableName, Tables)> {
+    let dialect = MsSqlDialect {};
+    let mut p = Parser::new(&dialect).try_with_sql(batch).ok()?;
+    if !p.parse_keyword(Keyword::CREATE) {
+        return None;
+    }
+    let _ = p.parse_keywords(&[Keyword::OR, Keyword::ALTER]);
+    let defined = match p.next_token().token {
+        Token::Word(w) if w.keyword == Keyword::VIEW => Defined::View,
+        Token::Word(w)
+            if w.keyword == Keyword::PROCEDURE || w.value.eq_ignore_ascii_case("proc") =>
+        {
+            Defined::Procedure
+        }
+        _ => return None,
+    };
+    let name = table_name(&p.parse_object_name(false).ok()?)?;
+    // Paramètres, colonnes et options jusqu'au `AS` qui ouvre le corps.
+    while !p.parse_keyword(Keyword::AS) {
+        if p.next_token().token == Token::EOF {
+            return None;
+        }
+    }
+    let mut body = Nested(Tables::default());
+    loop {
+        while p.consume_token(&Token::SemiColon) {}
+        if p.peek_token().token == Token::EOF {
+            break;
+        }
+        // Un bloc `BEGIN … END` ou `IF` refusé : on revient à son début et on ne
+        // saute que son premier mot, ses instructions sont lues une à une.
+        match p.try_parse(|p| p.parse_statement()) {
+            // Le visiteur ne s'interrompt jamais (`Break = ()`).
+            Ok(statement) => {
+                let _ = statement.visit(&mut body);
+            }
+            Err(_) => {
+                p.next_token();
+            }
+        }
+    }
+    Some((defined, name, body.0))
+}
+
+/// Lit chaque instruction, imbriquée ou non.
+struct Nested(Tables);
+
+impl Visitor for Nested {
+    type Break = ();
+
+    fn pre_visit_statement(&mut self, statement: &Statement) -> ControlFlow<()> {
+        collect(statement, &mut self.0);
+        ControlFlow::Continue(())
+    }
+}
+
+fn collect(statement: &Statement, found: &mut Tables) {
+    if let Statement::Execute {
+        name: Some(name), ..
+    } = statement
+    {
+        // ponytail: `EXEC @nom` (procédure dans une variable) est ignoré, comme une table `@t`.
+        if let Some(procedure) = table_name(name) {
+            push_unique(&mut found.procedures, procedure);
+        }
+        return;
+    }
+    if let Statement::CreateTable(create) = statement {
+        if let Some(t) = table_name(&create.name) {
+            push_unique(&mut found.creates, t);
+        }
+        return;
+    }
+    let Some(targets) = write_targets(statement) else {
+        return;
+    };
+    let mut seen = Relations::default();
+    // Le visiteur ne s'interrompt jamais (`Break = ()`).
+    let _ = statement.visit(&mut seen);
+    let writes: Vec<TableName> = targets
+        .iter()
+        .filter_map(|t| table_name(seen.unalias(t)))
+        .collect();
+    let reads = seen
+        .relations
+        .iter()
+        .filter(|r| !seen.is_cte(r) && !seen.is_alias(r))
+        .filter_map(table_name)
+        .filter(|t| !writes.iter().any(|w| same(w, t)));
+    for t in reads {
+        push_unique(&mut found.reads, t);
+    }
+    for t in writes {
+        push_unique(&mut found.writes, t);
+    }
+}
+
+/// Lots séparés par une ligne `GO` : séparateur de SSMS et de la tâche SQL de
+/// SSIS, pas du T-SQL.
+fn batches(sql: &str) -> Vec<String> {
+    let mut batches = Vec::new();
+    let mut current = String::new();
+    for line in sql.lines() {
+        if line.trim().eq_ignore_ascii_case("go") {
+            batches.push(std::mem::take(&mut current));
+        } else {
+            current.push_str(line);
+            current.push('\n');
+        }
+    }
+    batches.push(current);
+    batches.retain(|b| !b.trim().is_empty());
+    batches
+}
+
+/// `CREATE TABLE nom (…` que le parseur refuse : le nom, lu avant la parenthèse.
+fn created_table(batch: &str) -> Option<TableName> {
+    const KEYWORD: &str = "create table";
+    let batch = batch.trim_start();
+    if !batch.get(..KEYWORD.len())?.eq_ignore_ascii_case(KEYWORD) {
+        return None;
+    }
+    object_name(batch[KEYWORD.len()..].split('(').next()?)
+}
+
 /// `INSERT … SELECT *` : les colonnes correspondent par leur ordre, fragile.
 pub fn inserts_select_star(sql: &str) -> bool {
-    let star = |query: &Query| match query.body.as_ref() {
+    any_statement(sql, |s| match s {
+        Statement::Insert(insert) => insert.source.as_deref().is_some_and(selects_star),
+        _ => false,
+    })
+}
+
+/// Requête `SELECT *` (source, Lookup) : toutes les colonnes passent dans le flux.
+pub fn query_selects_star(sql: &str) -> bool {
+    any_statement(sql, |s| matches!(s, Statement::Query(q) if selects_star(q)))
+}
+
+fn any_statement(sql: &str, test: impl Fn(&Statement) -> bool) -> bool {
+    batches(sql)
+        .iter()
+        .any(|batch| parse(batch).is_ok_and(|statements| statements.iter().any(&test)))
+}
+
+fn selects_star(query: &Query) -> bool {
+    match query.body.as_ref() {
         SetExpr::Select(select) => select.projection.iter().any(|item| {
             matches!(
                 item,
@@ -90,19 +230,13 @@ pub fn inserts_select_star(sql: &str) -> bool {
             )
         }),
         _ => false,
-    };
-    parse(sql).is_ok_and(|statements| {
-        statements.iter().any(|s| match s {
-            Statement::Insert(insert) => insert.source.as_deref().is_some_and(star),
-            _ => false,
-        })
-    })
+    }
 }
 
-fn parse(sql: &str) -> Result<Vec<Statement>, SqlError> {
+fn parse(sql: &str) -> Result<Vec<Statement>, ParserError> {
     // Sources ADO.NET/ODBC : la requête peut viser MySQL (MyApp…) plutôt que SQL Server.
-    Ok(Parser::parse_sql(&MsSqlDialect {}, sql)
-        .or_else(|error| Parser::parse_sql(&MySqlDialect {}, sql).map_err(|_| error))?)
+    Parser::parse_sql(&MsSqlDialect {}, sql)
+        .or_else(|error| Parser::parse_sql(&MySqlDialect {}, sql).map_err(|_| error))
 }
 
 /// Nom d'objet seul, par exemple la propriété `OpenRowset` (`[dbo].[Table]`).
@@ -266,7 +400,7 @@ fn from_parts(mut parts: Vec<String>) -> Option<TableName> {
 
 /// Même table pour SQL Server : casse ignorée (collation par défaut), schéma
 /// `dbo` par défaut, base comparée seulement si les deux la précisent.
-fn same(a: &TableName, b: &TableName) -> bool {
+pub(crate) fn same(a: &TableName, b: &TableName) -> bool {
     let schema = |t: &TableName| t.schema.as_deref().unwrap_or("dbo").to_lowercase();
     let same_database = match (&a.database, &b.database) {
         (Some(x), Some(y)) => x.eq_ignore_ascii_case(y),
@@ -414,9 +548,51 @@ mod tests {
     }
 
     #[test]
+    fn procedure_bodies_are_read_through_nested_blocks() {
+        let sql = "IF EXISTS (SELECT * FROM sys.objects WHERE name = 'P') DROP PROCEDURE [dbo].[P]
+                   GO
+                   CREATE PROCEDURE [dbo].[P] @mode int AS
+                   BEGIN
+                   SET NOCOUNT ON;
+                   IF @mode = 1
+                   BEGIN
+                   INSERT INTO dbo.Cible SELECT s.id FROM stg.Source s
+                   END
+                   EXEC dbo.Autre
+                   END
+                   GO";
+        let found = definitions(sql);
+
+        let names = |v: &[TableName]| v.iter().map(ToString::to_string).collect::<Vec<_>>();
+        assert_eq!(found.len(), 1);
+        let (defined, name, t) = &found[0];
+        assert_eq!(*defined, Defined::Procedure);
+        assert_eq!(name.to_string(), "dbo.P");
+        assert_eq!(names(&t.reads), ["stg.Source"]);
+        assert_eq!(names(&t.writes), ["dbo.Cible"]);
+        assert_eq!(names(&t.procedures), ["dbo.Autre"]);
+    }
+
+    #[test]
+    fn view_definitions_list_the_tables_they_read() {
+        let sql = "CREATE VIEW [dbo].[V] (id, nom) WITH SCHEMABINDING AS
+                   WITH c AS (SELECT id FROM dbo.X)
+                   SELECT c.id, y.nom AS nom FROM c JOIN dbo.Y y ON y.id = c.id";
+        let found = definitions(sql);
+
+        let names = |v: &[TableName]| v.iter().map(ToString::to_string).collect::<Vec<_>>();
+        assert_eq!(found.len(), 1);
+        let (defined, name, t) = &found[0];
+        assert_eq!(*defined, Defined::View);
+        assert_eq!(name.to_string(), "dbo.V");
+        assert_eq!(names(&t.reads), ["dbo.X", "dbo.Y"]);
+    }
+
+    #[test]
     fn stored_procedures_are_listed() {
         let t = tables("EXEC dbo.ChargerClients @mode = 1").expect("EXEC analysable");
-        assert_eq!(t.procedures, vec!["dbo.ChargerClients"]);
+        let names: Vec<String> = t.procedures.iter().map(ToString::to_string).collect();
+        assert_eq!(names, ["dbo.ChargerClients"]);
         assert!(t.reads.is_empty() && t.writes.is_empty());
     }
 
@@ -441,6 +617,28 @@ mod tests {
         assert!(!inserts_select_star("INSERT INTO a SELECT x FROM b"));
         assert!(!inserts_select_star("SELECT * FROM b"));
         assert!(!inserts_select_star("BULK INSERT a FROM 'f'"));
+    }
+
+    #[test]
+    fn go_separated_batches_are_read_one_by_one() {
+        let sql =
+            "INSERT INTO dbo.A SELECT x FROM stg.A\n  go  \nINSERT INTO dbo.B SELECT y FROM stg.B";
+        assert_eq!(
+            read_write(sql),
+            (strings(&["stg.A", "stg.B"]), strings(&["dbo.A", "dbo.B"]))
+        );
+    }
+
+    #[test]
+    fn created_tables_are_listed_even_with_storage_options() {
+        let sql = "IF EXISTS (SELECT * FROM sys.objects WHERE name = 'T') DROP TABLE [dbo].[T]\n\
+                   GO\nSET ANSI_NULLS ON\nGO\n\
+                   CREATE TABLE [dbo].[T]([id] [int] NULL) ON [PRIMARY]\nGO\n\
+                   CREATE TABLE dbo.U (id INT)";
+        let t = tables(sql).expect("lots analysables");
+        let created: Vec<String> = t.creates.iter().map(ToString::to_string).collect();
+        assert_eq!(created, strings(&["dbo.T", "dbo.U"]));
+        assert!(t.reads.is_empty() && t.writes.is_empty());
     }
 
     #[test]

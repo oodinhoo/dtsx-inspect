@@ -130,7 +130,7 @@ impl ComponentDraft {
         Component {
             ref_id: self.ref_id,
             name: self.name,
-            // ponytail: « connu » = composant Microsoft ; un enum par classe viendra avec le lignage.
+            // ponytail: « connu » = composant Microsoft ; une liste par classe si un tiers doit compter.
             known: class_id.starts_with("Microsoft."),
             class_id,
             role,

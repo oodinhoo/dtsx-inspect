@@ -1,13 +1,21 @@
 //! Sorties de l'inventaire.
 
+mod graph;
+mod html;
 mod markdown;
 mod mermaid;
 
+pub use html::html;
 pub use markdown::markdown;
 pub use mermaid::mermaid;
 
 use crate::inventory::Inventory;
 use crate::lint::{Finding, Severity};
+
+/// Une ligne de sortie ne doit pas pouvoir en ouvrir une autre.
+fn clean(text: &str) -> String {
+    text.replace(['\r', '\n'], " ")
+}
 
 pub fn json(inventory: &Inventory) -> Result<String, serde_json::Error> {
     serde_json::to_string_pretty(inventory)
@@ -23,7 +31,7 @@ pub fn findings(findings: &[Finding]) -> String {
                 "{}[{}] {} : {} : {}",
                 f.severity, f.rule, f.file, f.location, f.message
             );
-            line.replace(['\r', '\n'], " ") + "\n"
+            clean(&line) + "\n"
         })
         .collect();
     format!(

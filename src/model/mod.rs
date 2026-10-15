@@ -47,8 +47,8 @@ pub struct Component {
     pub known: bool,
     pub role: Role,
     pub connections: Vec<ConnectionRef>,
-    /// Propriétés utiles au lignage (liste blanche du parseur). Jamais affichées :
-    /// elles peuvent contenir du SQL.
+    /// Propriétés utiles au lignage (liste blanche du parseur). Hors du JSON : seul
+    /// le panneau de détails du rapport HTML les montre, mots de passe masqués.
     #[serde(skip)]
     pub properties: BTreeMap<String, String>,
     /// Propriétés de la liste blanche définies par une expression du Data Flow

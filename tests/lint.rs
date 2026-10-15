@@ -58,7 +58,6 @@ fn flags_insert_select_star_and_incomplete_lineage() {
         &[
             "insert-select-etoile|Chargement.dtsx|SQL Historiser",
             "lignage-incomplet|Chargement.dtsx|SQL Import brut",
-            "lignage-incomplet|Chargement.dtsx|SQL Procedure",
             "lignage-incomplet|Export.dtsx|SCR Source",
         ],
     );
@@ -75,4 +74,29 @@ fn flags_package_left_with_default_name() {
 #[test]
 fn clean_package_has_no_finding() {
     assert!(findings("broken/valide.dtsx").is_empty());
+}
+
+#[test]
+fn flags_ssis_design_rules_from_microsoft_guidance() {
+    let found = findings("lint/normes.dtsx");
+    assert_contains(
+        &found,
+        &[
+            r"colonnes-inutiles|normes.dtsx|Data Flow Task\SRC Table",
+            r"colonnes-inutiles|normes.dtsx|Data Flow Task\LKP Pays",
+            r"tri-dans-le-flux|normes.dtsx|Data Flow Task\Trier",
+            r"commande-ligne-a-ligne|normes.dtsx|Data Flow Task\CMD Maj",
+            r"chargement-sans-fast-load|normes.dtsx|Data Flow Task\DST Lent",
+            "nom-par-defaut|normes.dtsx|Data Flow Task",
+            r"nom-par-defaut|normes.dtsx|Data Flow Task\Trier",
+            r"nom-par-defaut|normes.dtsx|Data Flow Task\Multidiffusion 1",
+        ],
+    );
+    // Requête explicite et chargement rapide : rien à signaler.
+    for clean in ["SRC Requete", "DST Rapide"] {
+        assert!(
+            !found.iter().any(|f| f.ends_with(clean)),
+            "{clean} : {found:?}"
+        );
+    }
 }

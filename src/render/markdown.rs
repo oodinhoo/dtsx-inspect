@@ -1,3 +1,4 @@
+use super::clean;
 use crate::inventory::Inventory;
 use crate::model::{Component, ConnectionRef, Executable, Package, Role, Scope};
 
@@ -10,7 +11,7 @@ pub fn markdown(inventory: &Inventory) -> String {
         .join("\n")
 }
 
-fn package(p: &Package) -> String {
+pub(super) fn package(p: &Package) -> String {
     let header = vec![
         clean(&format!(
             "# {} ({}, format {})",
@@ -114,16 +115,26 @@ fn section(title: &str, headers: &[&str], rows: Vec<String>) -> Vec<String> {
 }
 
 fn row(cells: &[&str]) -> String {
-    let cells: Vec<String> = cells
-        .iter()
-        .map(|c| clean(&c.replace('|', "\\|")))
-        .collect();
+    let cells: Vec<String> = cells.iter().map(|c| clean(&escape_cell(c))).collect();
     format!("| {} |", cells.join(" | "))
 }
 
-/// Une ligne Markdown ne doit pas pouvoir en ouvrir une autre.
-fn clean(text: &str) -> String {
-    text.replace(['\r', '\n'], " ")
+/// `|` ne coupe pas la cellule ; `[` et `]` échappés, un nom ne devient ni lien ni
+/// image ; un `\` devant une ponctuation (lu comme échappement) est doublé.
+fn escape_cell(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' if chars.peek().is_some_and(char::is_ascii_punctuation) => out.push_str("\\\\"),
+            '|' | '[' | ']' => {
+                out.push('\\');
+                out.push(c);
+            }
+            _ => out.push(c),
+        }
+    }
+    out
 }
 
 fn refs(connections: &[ConnectionRef]) -> String {
@@ -172,11 +183,28 @@ mod tests {
                 connections: Vec::new(),
                 executables: vec![flow],
             }],
+            sql_scripts: Vec::new(),
         };
 
         let md = markdown(&inventory);
 
         assert!(!md.contains("\n# injecté"), "{md}");
         assert!(!md.contains("\n## injecté"), "{md}");
+    }
+
+    #[test]
+    fn names_cannot_become_links_or_images() {
+        // Le rapport HTML passe ce Markdown à `marked`, qui ne filtre pas les URL.
+        let cell = row(&["[ouvrir](javascript:alert(1))", "![](http://pisteur/p.png)"]);
+
+        assert_eq!(
+            cell,
+            r"| \[ouvrir\](javascript:alert(1)) | !\[\](http://pisteur/p.png) |"
+        );
+        // Un `\` déjà présent ne doit pas annuler l'échappement ; ailleurs il reste tel quel.
+        assert_eq!(
+            row(&[r"\[x\](javascript:alert(1))", r"Package\DFT"]),
+            r"| \\\[x\\\](javascript:alert(1)) | Package\DFT |"
+        );
     }
 }

@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:ObjectName="Seul">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\SCR Rien"
+      DTS:CreationName="Microsoft.ScriptTask"
+      DTS:ExecutableType="Microsoft.ScriptTask"
+      DTS:ObjectName="SCR Rien" />
+  </DTS:Executables>
+</DTS:Executable>

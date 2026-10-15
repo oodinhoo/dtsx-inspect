@@ -1,6 +1,6 @@
 //! Fournisseur OLE DB abandonné : SQL Native Client (`SQLNCLI*`) et `SQLOLEDB`.
 
-use super::{Finding, Rule, Severity};
+use super::{finding, Finding, Rule, Severity};
 use crate::inventory::Inventory;
 use crate::model::{ConnectionManager, Scope};
 
@@ -21,12 +21,12 @@ impl Rule for FournisseurObsolete {
         });
         project
             .chain(local)
-            .filter_map(|(file, c)| finding(file, c))
+            .filter_map(|(file, c)| obsolete(file, c))
             .collect()
     }
 }
 
-fn finding(file: &str, c: &ConnectionManager) -> Option<Finding> {
+fn obsolete(file: &str, c: &ConnectionManager) -> Option<Finding> {
     let provider = c.target.as_deref()?.split(';').find_map(|pair| {
         let (key, value) = pair.split_once('=')?;
         key.trim()
@@ -34,14 +34,13 @@ fn finding(file: &str, c: &ConnectionManager) -> Option<Finding> {
             .then(|| value.trim())
     })?;
     let lower = provider.to_lowercase();
-    OBSOLETE
-        .iter()
-        .any(|o| lower.starts_with(o))
-        .then(|| Finding {
-            rule: "fournisseur-obsolete",
-            severity: Severity::Avertissement,
-            file: file.to_owned(),
-            location: format!("connexion {}", c.name),
-            message: format!("fournisseur {provider} abandonné par Microsoft, passer à MSOLEDBSQL"),
-        })
+    OBSOLETE.iter().any(|o| lower.starts_with(o)).then(|| {
+        finding(
+            "fournisseur-obsolete",
+            Severity::Avertissement,
+            file,
+            format!("connexion {}", c.name),
+            format!("fournisseur {provider} abandonné par Microsoft, passer à MSOLEDBSQL"),
+        )
+    })
 }

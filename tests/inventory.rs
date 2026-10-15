@@ -165,3 +165,38 @@ fn json_project() {
     let json = render::json(&inventory(&fixture("project")).0).expect("json");
     insta::assert_snapshot!(json);
 }
+
+#[test]
+fn skips_build_copies_when_sources_are_next_to_them() {
+    // `obj\Development` est recopié par Visual Studio : sans les ignorer, chaque
+    // package compterait deux fois. Un projet sans sources garde sa copie.
+    let (inv, errors) = inventory(&fixture("build_copy"));
+    assert!(errors.is_empty(), "{errors:?}");
+    let files: Vec<&str> = inv.packages.iter().map(|p| p.file.as_str()).collect();
+    assert_eq!(
+        files,
+        vec!["Projet/Paquet.dtsx", "Seul/obj/Development/Seul.dtsx"]
+    );
+}
+
+#[test]
+fn reads_procedures_and_views_of_sql_scripts_whatever_their_encoding() {
+    // Charger.sql : UTF-8 avec BOM ; Purger.sql : UTF-16 (fréquent sous SSDT).
+    let (inv, errors) = inventory(&fixture("procedures"));
+    assert!(errors.is_empty(), "{errors:?}");
+    let scripts: Vec<(&str, String)> = inv
+        .sql_scripts
+        .iter()
+        .map(|d| (d.file.as_str(), d.name.to_string()))
+        .collect();
+    assert_eq!(
+        scripts,
+        vec![
+            ("Archive/dbo/Doublon.sql", "dbo.Doublon".to_owned()),
+            ("Base/dbo/Charger.sql", "dbo.Charger".to_owned()),
+            ("Base/dbo/Doublon.sql", "dbo.Doublon".to_owned()),
+            ("Base/dbo/Purger.sql", "dbo.Purger".to_owned()),
+            ("Base/dbo/VClients.sql", "dbo.VClients".to_owned()),
+        ]
+    );
+}

@@ -1,6 +1,6 @@
 ---
 source: tests/lineage.rs
-assertion_line: 201
+assertion_line: 263
 expression: "render::mermaid(&build())"
 ---
 flowchart LR
@@ -10,14 +10,19 @@ flowchart LR
   n5[("Entrepot : stg.Clients")]
   n7[("Entrepot : dbo.Clients")]
   n9[("Entrepot : dbo.Historique")]
-  n13[("Entrepot : stg.Delta")]
-  n14[("Entrepot : dbo.Adresses")]
-  n15[("Entrepot : stg.Rejets")]
-  n19[/"D:\demo\export.csv"/]
-  n24[["CRM : account"]]
-  n25[["CRM : contact"]]
-  n26[["CRM : lead"]]
-  n27[("Entrepot : stg.Comptes")]
+  n11>"Entrepot : dbo.ChargerClients"]
+  n16[("Entrepot : stg.Delta")]
+  n17[("Entrepot : dbo.Adresses")]
+  n18[("Entrepot : stg.Rejets")]
+  n19>"Entrepot : dbo.PurgerAdresse"]
+  n23[/"D:\demo\export.csv"/]
+  n28[["CRM : account"]]
+  n29[["CRM : contact"]]
+  n30[["CRM : lead"]]
+  n31[("Entrepot : stg.Comptes")]
+  n32[("Entrepot : dbo.Synthese")]
+  n33>"Entrepot : dbo.Journaliser"]
+  n34[("Entrepot : dbo.Journal")]
   subgraph p0["Chargement"]
     subgraph p0f0["DFT Clients"]
       n0["FF Clients"]
@@ -25,24 +30,26 @@ flowchart LR
       n2["DST Staging"]
     end
     subgraph p0f1["DFT Corrections"]
-      n10["SRC Delta"]
-      n11["CMD Adresses"]
-      n12["DST Rejets"]
+      n12["SRC Delta"]
+      n13["CMD Adresses"]
+      n14["DST Rejets"]
+      n15["CMD Purge"]
     end
     n6{{"SQL Alimenter Clients"}}
     n8{{"SQL Historiser"}}
+    n10{{"SQL Procedure"}}
   end
   subgraph p1["Export"]
     subgraph p1f0["DFT Export"]
-      n16["ADO Clients"]
-      n17["FFD Export"]
-      n18["SCR Source"]
+      n20["ADO Clients"]
+      n21["FFD Export"]
+      n22["SCR Source"]
     end
     subgraph p1f1["DFT CRM"]
-      n20["CRM Comptes"]
-      n21["CRM Prospects"]
-      n22["UNI Fusion"]
-      n23["DST Comptes"]
+      n24["CRM Comptes"]
+      n25["CRM Prospects"]
+      n26["UNI Fusion"]
+      n27["DST Comptes"]
     end
   end
   n0 --> n1
@@ -56,21 +63,27 @@ flowchart LR
   n7 -.-> n8
   n8 -.-> n9
   n10 --> n11
-  n11 --> n12
-  n13 --> n10
-  n11 --> n14
   n12 --> n15
-  n16 --> n17
-  n7 -.-> n16
-  n17 --> n19
-  n20 --> n22
-  n21 --> n22
-  n22 --> n23
-  n24 --> n20
-  n25 --> n20
-  n26 --> n21
-  n23 --> n27
+  n12 --> n13
+  n13 --> n14
+  n16 --> n12
+  n13 --> n17
+  n14 --> n18
+  n15 --> n19
+  n20 --> n21
+  n7 -.-> n20
+  n21 --> n23
+  n24 --> n26
+  n25 --> n26
+  n26 --> n27
+  n28 --> n24
+  n29 --> n24
+  n30 --> n25
+  n27 --> n31
+  n16 --> n11
+  n11 --> n32
+  n11 --> n33
+  n33 --> n34
   %% Non suivi : Chargement : SQL Import brut : SQL non analysé
   %% Non suivi : Chargement : SQL Depuis variable : requête dans la variable User::Requete, non suivie
-  %% Non suivi : Chargement : SQL Procedure : procédure stockée dbo.ChargerClients, non suivie
   %% Non suivi : Export : SCR Source : source sans jeu de données identifié

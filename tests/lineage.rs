@@ -42,7 +42,7 @@ fn edges(l: &Lineage) -> Vec<String> {
 fn notes(l: &Lineage) -> Vec<String> {
     l.notes
         .iter()
-        .map(|n| format!("{} : {}", l.packages[n.package], n.text))
+        .map(|n| format!("{} : {} : {}", l.packages[n.package], n.step, n.reason))
         .collect()
 }
 
@@ -52,6 +52,7 @@ fn follows_data_from_files_and_entities_to_tables_across_packages() {
         "ADO Clients -> FFD Export",
         "CMD Adresses -> DST Rejets",
         "CMD Adresses -> Entrepot : dbo.Adresses",
+        "CMD Purge -> Entrepot : dbo.PurgerAdresse",
         "CRM : account -> CRM Comptes",
         "CRM : contact -> CRM Comptes",
         "CRM : lead -> CRM Prospects",
@@ -61,18 +62,24 @@ fn follows_data_from_files_and_entities_to_tables_across_packages() {
         "DST Comptes -> Entrepot : stg.Comptes",
         "DST Rejets -> Entrepot : stg.Rejets",
         "DST Staging -> Entrepot : stg.Clients",
+        "Entrepot : dbo.ChargerClients -> Entrepot : dbo.Journaliser",
+        "Entrepot : dbo.ChargerClients -> Entrepot : dbo.Synthese",
         "Entrepot : dbo.Clients -.-> ADO Clients",
         "Entrepot : dbo.Clients -.-> SQL Historiser",
+        "Entrepot : dbo.Journaliser -> Entrepot : dbo.Journal",
         "Entrepot : ref.Pays -> LKP Pays",
         "Entrepot : ref.Pays -> SQL Alimenter Clients",
         "Entrepot : stg.Clients -> SQL Alimenter Clients",
+        "Entrepot : stg.Delta -> Entrepot : dbo.ChargerClients",
         "Entrepot : stg.Delta -> SRC Delta",
         "FF Clients -> LKP Pays",
         "FFD Export -> D:\\demo\\export.csv",
         "LKP Pays -> DST Staging",
         "SQL Alimenter Clients -> Entrepot : dbo.Clients",
         "SQL Historiser -.-> Entrepot : dbo.Historique",
+        "SQL Procedure -> Entrepot : dbo.ChargerClients",
         "SRC Delta -> CMD Adresses",
+        "SRC Delta -> CMD Purge",
         "UNI Fusion -> DST Comptes",
     ];
 
@@ -117,7 +124,11 @@ fn tasks_without_data_movement_are_left_out() {
         .filter(|n| matches!(n, Node::SqlTask { .. }))
         .map(Node::label)
         .collect();
-    assert_eq!(tasks, vec!["SQL Alimenter Clients", "SQL Historiser"]);
+    // `SQL Procedure` reste : elle appelle une procédure, nœud du lignage.
+    assert_eq!(
+        tasks,
+        vec!["SQL Alimenter Clients", "SQL Historiser", "SQL Procedure"]
+    );
 }
 
 #[test]
@@ -127,7 +138,6 @@ fn reports_what_could_not_be_followed() {
         vec![
             "Chargement : SQL Import brut : SQL non analysé",
             "Chargement : SQL Depuis variable : requête dans la variable User::Requete, non suivie",
-            "Chargement : SQL Procedure : procédure stockée dbo.ChargerClients, non suivie",
             "Export : SCR Source : source sans jeu de données identifié",
         ]
     );
@@ -199,4 +209,64 @@ fn focus_without_match_is_none() {
 #[test]
 fn mermaid_lineage() {
     insta::assert_snapshot!(render::mermaid(&build()));
+}
+
+#[test]
+fn table_creation_links_the_task_to_the_created_table() {
+    let (inv, _) = inventory(&fixture("project"));
+    let l = lineage(&inv);
+    let created: Vec<String> = l
+        .graph
+        .edge_indices()
+        .filter(|&e| l.graph[e].creates)
+        .filter_map(|e| {
+            let (from, to) = l.graph.edge_endpoints(e)?;
+            Some(format!(
+                "{} -> {}",
+                l.graph[from].label(),
+                l.graph[to].label()
+            ))
+        })
+        .collect();
+    assert_eq!(created.len(), 1, "{created:?}");
+    assert!(created[0].ends_with(": dbo.Cible"), "{created:?}");
+}
+
+#[test]
+fn procedures_defined_in_sql_scripts_are_followed() {
+    let (inv, errors) = inventory(&fixture("procedures"));
+    assert!(errors.is_empty(), "{errors:?}");
+
+    let l = lineage(&inv);
+
+    // Une procédure est un nœud : ses lectures y entrent, ses écritures et les
+    // procédures qu'elle appelle en sortent. Une vue est alimentée par ses tables.
+    // `dbo.Doublon`, défini deux fois, n'est pas développé : on ne devine pas.
+    assert_eq!(
+        edges(&l),
+        vec![
+            "Entrepot : dbo.Charger -> Entrepot : dbo.Clients",
+            "Entrepot : dbo.Charger -> Entrepot : dbo.Journaliser",
+            "Entrepot : dbo.Clients -> Entrepot : dbo.Purger",
+            "Entrepot : dbo.Clients -> Entrepot : dbo.VClients",
+            "Entrepot : dbo.Purger -> Entrepot : dbo.Archive",
+            "Entrepot : dbo.VClients -> SQL Lire vue",
+            "Entrepot : stg.Clients -> Entrepot : dbo.Charger",
+            "SQL Charger -> Entrepot : dbo.Charger",
+            "SQL Doublon -> Entrepot : dbo.Doublon",
+            "SQL Inconnue -> Entrepot : dbo.Inconnue",
+            "SQL Lire vue -> Entrepot : dbo.Rapport",
+            "SQL Purger -> Entrepot : dbo.Purger",
+        ]
+    );
+    // Seul l'appel d'un package est signalé : `dbo.Journaliser`, appelée par une
+    // procédure, n'a pas de package auquel rattacher la note.
+    assert_eq!(
+        notes(&l),
+        vec![
+            "Appel : SQL Inconnue : procédure stockée dbo.Inconnue, non suivie",
+            "Appel : SQL Doublon : procédure stockée dbo.Doublon définie dans plusieurs \
+             scripts (Archive/dbo/Doublon.sql, Base/dbo/Doublon.sql), non suivie",
+        ]
+    );
 }

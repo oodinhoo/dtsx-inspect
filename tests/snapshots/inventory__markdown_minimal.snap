@@ -20,7 +20,7 @@ expression: "render::markdown(&inventory(&fixture(\"minimal.dtsx\")).0)"
 | SEQ Chargement\SQL Vider staging | Microsoft.ExecuteSQLTask | Entrepot |  |
 | SEQ Chargement\DFT Clients | Microsoft.Pipeline |  |  |
 | SQL Ancienne purge | Microsoft.ExecuteSQLTask | {BBBBBBBB-0000-0000-0000-00000000DEAD} (non résolue) | oui |
-| EventHandlers[OnError]\SQL Journaliser erreur | Microsoft.ExecuteSQLTask | Entrepot |  |
+| EventHandlers\[OnError\]\SQL Journaliser erreur | Microsoft.ExecuteSQLTask | Entrepot |  |
 
 ### Data Flow SEQ Chargement\DFT Clients
 

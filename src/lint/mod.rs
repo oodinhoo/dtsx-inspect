@@ -1,31 +1,47 @@
 //! Règles de lint (anti-patterns SSIS) : une règle = un fichier, trait `Rule`.
 
+mod chargement_sans_fast_load;
+mod colonnes_inutiles;
+mod commande_ligne_a_ligne;
 mod connexion_non_resolue;
 mod fournisseur_obsolete;
 mod insert_select_etoile;
 mod lignage_incomplet;
+mod nom_par_defaut;
 mod package_non_renomme;
 mod tache_desactivee;
+mod tri_dans_le_flux;
 
 use std::fmt;
 
 use crate::inventory::Inventory;
+use crate::model::{Component, Executable, Package};
+use chargement_sans_fast_load::ChargementSansFastLoad;
+use colonnes_inutiles::ColonnesInutiles;
+use commande_ligne_a_ligne::CommandeLigneALigne;
 use connexion_non_resolue::ConnexionNonResolue;
 use fournisseur_obsolete::FournisseurObsolete;
 use insert_select_etoile::InsertSelectEtoile;
 use lignage_incomplet::LignageIncomplet;
+use nom_par_defaut::NomParDefaut;
 use package_non_renomme::PackageNonRenomme;
 use tache_desactivee::TacheDesactivee;
+use tri_dans_le_flux::TriDansLeFlux;
 
 // ponytail: toutes les règles toujours actives ; un `--rules regles.toml`
 // (activation, gravité) viendra quand une règle gênera quelqu'un.
-const RULES: [&dyn Rule; 6] = [
+const RULES: [&dyn Rule; 11] = [
+    &ChargementSansFastLoad,
+    &ColonnesInutiles,
+    &CommandeLigneALigne,
     &ConnexionNonResolue,
     &FournisseurObsolete,
     &InsertSelectEtoile,
     &LignageIncomplet,
+    &NomParDefaut,
     &PackageNonRenomme,
     &TacheDesactivee,
+    &TriDansLeFlux,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,6 +75,42 @@ pub struct Finding {
 
 pub trait Rule {
     fn check(&self, inventory: &Inventory) -> Vec<Finding>;
+}
+
+/// Tâches et conteneurs de tous les packages.
+fn tasks(inventory: &Inventory) -> impl Iterator<Item = (&Package, &Executable)> {
+    inventory
+        .packages
+        .iter()
+        .flat_map(|p| p.executables.iter().map(move |e| (p, e)))
+}
+
+/// Composants de Data Flow de tous les packages, avec leur emplacement
+/// (`Data Flow\Composant`), pour les règles qui portent sur un composant.
+fn components(inventory: &Inventory) -> impl Iterator<Item = (&Package, String, &Component)> {
+    inventory.packages.iter().flat_map(|p| {
+        p.executables.iter().flat_map(move |e| {
+            e.components
+                .iter()
+                .map(move |c| (p, format!("{}\\{}", e.path(), c.name), c))
+        })
+    })
+}
+
+fn finding(
+    rule: &'static str,
+    severity: Severity,
+    file: &str,
+    location: String,
+    message: impl Into<String>,
+) -> Finding {
+    Finding {
+        rule,
+        severity,
+        file: file.to_owned(),
+        location,
+        message: message.into(),
+    }
 }
 
 /// Toutes les règles, triées par fichier puis emplacement.

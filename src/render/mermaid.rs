@@ -1,6 +1,7 @@
 use petgraph::graph::NodeIndex;
 use petgraph::visit::EdgeRef;
 
+use super::clean;
 use crate::lineage::{DatasetKind, Lineage, Node};
 
 /// `flowchart LR` : jeux de données à part (partagés entre packages), un
@@ -20,10 +21,10 @@ pub fn mermaid(lineage: &Lineage) -> String {
         lines.extend(package(lineage, p, name));
     }
     for e in g.edge_references() {
-        let arrow = if e.weight().from_expression {
-            "-.->"
-        } else {
-            "-->"
+        let arrow = match e.weight() {
+            w if w.creates => "-. crée .->",
+            w if w.from_expression => "-.->",
+            _ => "-->",
         };
         lines.push(format!(
             "  n{} {arrow} n{}",
@@ -36,7 +37,7 @@ pub fn mermaid(lineage: &Lineage) -> String {
             .packages
             .get(note.package)
             .map_or("?", String::as_str);
-        let note = format!("{package} : {}", note.text);
+        let note = format!("{package} : {} : {}", note.step, note.reason);
         lines.push(format!("  %% Non suivi : {}", clean(&note)));
     }
     lines.join("\n") + "\n"
@@ -97,6 +98,10 @@ fn node(i: NodeIndex, n: &Node) -> String {
             kind: DatasetKind::Entity,
             ..
         } => format!("n{id}[[\"{label}\"]]"),
+        Node::Dataset {
+            kind: DatasetKind::Procedure,
+            ..
+        } => format!("n{id}>\"{label}\"]"),
         Node::Component { .. } => format!("n{id}[\"{label}\"]"),
         Node::SqlTask { .. } => format!("n{id}{{{{\"{label}\"}}}}"),
     }
@@ -109,10 +114,6 @@ fn escape(text: &str) -> String {
         .replace('"', "#quot;")
         .replace('<', "#lt;")
         .replace('>', "#gt;")
-}
-
-fn clean(text: &str) -> String {
-    text.replace(['\r', '\n'], " ")
 }
 
 #[cfg(test)]

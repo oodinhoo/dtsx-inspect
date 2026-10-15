@@ -27,6 +27,60 @@ pub fn summarize_connection_string(raw: &str) -> Option<String> {
     (!kept.is_empty()).then(|| kept.join(";"))
 }
 
+/// Clés dont la valeur est masquée dans un texte libre (SQL, FetchXML).
+const SECRET_KEYS: [&str; 2] = ["password", "pwd"];
+
+/// Masque la valeur de `password=` / `pwd=` (casse ignorée) dans un texte libre :
+/// `OPENROWSET(…, 'Server=x;Pwd=secret')`, `CREATE LOGIN … PASSWORD = 'x'`.
+// ponytail: repère les clés connues seulement ; un secret sous un autre nom passe.
+pub fn redact_secrets(text: &str) -> String {
+    // `to_ascii_lowercase` garde les positions d'octets : on cherche dans `lower`
+    // et on découpe `text` aux mêmes indices.
+    let lower = text.to_ascii_lowercase();
+    let mut out = String::with_capacity(text.len());
+    let mut copied = 0;
+    let mut from = 0;
+    while let Some((at, key)) = SECRET_KEYS
+        .iter()
+        .filter_map(|k| lower[from..].find(k).map(|i| (from + i, k.len())))
+        .min()
+    {
+        from = at + key;
+        let Some(value) = text[from..].trim_start().strip_prefix('=') else {
+            continue;
+        };
+        let value = value.trim_start();
+        let start = text.len() - value.len();
+        let len = match value.chars().next() {
+            Some(q @ ('\'' | '"')) => quoted_len(value, q),
+            Some('{') => value.find('}').map_or(value.len(), |end| end + 1),
+            _ => value
+                .find(|c: char| matches!(c, ';' | '\'' | '"' | ')' | ',') || c.is_whitespace())
+                .unwrap_or(value.len()),
+        };
+        out.push_str(&text[copied..start]);
+        out.push_str("***");
+        copied = start + len;
+        from = copied;
+    }
+    out.push_str(&text[copied..]);
+    out
+}
+
+/// Longueur d'une valeur entre guillemets, guillemet doublé (`''` en SQL) compris.
+fn quoted_len(value: &str, quote: char) -> usize {
+    let mut chars = value.char_indices().skip(1).peekable();
+    while let Some((i, c)) = chars.next() {
+        if c != quote {
+            continue;
+        }
+        if chars.next_if(|&(_, next)| next == quote).is_none() {
+            return i + 1;
+        }
+    }
+    value.len()
+}
+
 /// Retire d'une URL les identifiants (`user:pw@`) et la requête (`?sig=…`).
 fn redact_url(value: &str) -> String {
     if !value.contains("://") {
@@ -49,6 +103,7 @@ fn redact_url(value: &str) -> String {
 /// accolades (ODBC), pour qu'un `;` dans un mot de passe ne crée pas une
 /// fausse clé affichable.
 fn pairs(raw: &str) -> Vec<(&str, &str)> {
+    let closing = |open: char| if open == '{' { '}' } else { open };
     let mut found = Vec::new();
     let mut rest = raw;
     loop {
@@ -70,14 +125,6 @@ fn pairs(raw: &str) -> Vec<(&str, &str)> {
         };
         found.push((key, value));
         rest = tail;
-    }
-}
-
-fn closing(open: char) -> char {
-    if open == '{' {
-        '}'
-    } else {
-        open
     }
 }
 
@@ -138,6 +185,27 @@ mod tests {
         assert_eq!(
             summarize("Data Source=https://acct.example/c?sv=1&sig=TOKEN").as_deref(),
             Some("Data Source=https://acct.example/c")
+        );
+    }
+
+    #[test]
+    fn masks_passwords_in_free_text() {
+        use super::redact_secrets as redact;
+        assert_eq!(
+            redact("SELECT * FROM OPENROWSET('SQLNCLI', 'Server=s;Uid=u;Pwd=s3cr3t;', 'q')"),
+            "SELECT * FROM OPENROWSET('SQLNCLI', 'Server=s;Uid=u;Pwd=***;', 'q')"
+        );
+        assert_eq!(
+            redact("CREATE LOGIN l WITH PASSWORD = 'a b''c', CHECK_POLICY = OFF"),
+            "CREATE LOGIN l WITH PASSWORD = ***, CHECK_POLICY = OFF"
+        );
+        assert_eq!(
+            redact("password={x;y} et pwd = \"z\""),
+            "password=*** et pwd = ***"
+        );
+        assert_eq!(
+            redact("SELECT PasswordHash FROM t"),
+            "SELECT PasswordHash FROM t"
         );
     }
 
