@@ -233,10 +233,10 @@ button:hover { border-color: var(--accent); color: var(--accent); }
 .canvas .empty { padding: 4rem 1rem 1rem; }
 .world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .wires { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
-.wires path { fill: none; stroke: var(--wire); stroke-width: 1.5; transition: opacity .2s; }
-.wires path.dashed { stroke-dasharray: 5 4; }
-.wires path.creates { stroke-dasharray: 1 4; stroke-linecap: round; stroke-width: 2; }
-.wires path.hot { stroke: var(--accent); stroke-width: 2.25; }
+.wires path, .wire-sample path { fill: none; stroke: var(--wire); stroke-width: 1.5; transition: opacity .2s; }
+.wires path.dashed, .wire-sample path.dashed { stroke-dasharray: 5 4; }
+.wires path.creates, .wire-sample path.creates { stroke-dasharray: 1 4; stroke-linecap: round; stroke-width: 2; }
+.wires path.hot, .wire-sample path.hot { stroke: var(--accent); stroke-width: 2.25; }
 .wires path.dim { opacity: .15; }
 
 .group {
@@ -294,10 +294,69 @@ button:hover { border-color: var(--accent); color: var(--accent); }
 }
 .zoom button { width: 34px; height: 34px; padding: 0; border: 0; border-radius: 0; font-size: 16px; }
 .zoom button + button { border-top: 1px solid var(--border); }
-.hint {
-  position: absolute; left: 56px; bottom: 12px; padding: 6px 10px; border-radius: 6px;
-  background: rgba(36,36,36,.78); color: #fff; font-size: 12px; pointer-events: none;
+/* Légende : panneau repliable à côté du zoom, limité à ce que la vue contient. */
+.legend {
+  position: absolute; left: 56px; bottom: 12px; z-index: 1; width: 16.5rem; max-height: calc(100% - 72px);
+  overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.1); font-size: 12.5px;
 }
+.legend:not([open]) { width: auto; }
+.legend summary {
+  position: sticky; top: 0; display: flex; align-items: center; gap: .4rem; padding: 7px 12px;
+  background: var(--surface); font-weight: 600; cursor: pointer; list-style: none; user-select: none;
+}
+.legend summary::-webkit-details-marker { display: none; }
+.legend summary::before { content: "›"; color: var(--muted); transition: transform .15s; }
+.legend[open] summary::before { transform: rotate(90deg); }
+.legend[open] summary { border-bottom: 1px solid var(--border); }
+.legend-body { padding: 2px 10px 10px; }
+.legend h4 {
+  margin: 9px 0 4px; color: var(--muted); font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase;
+}
+.legend ul { margin: 0; padding: 0; list-style: none; }
+.legend ul.two { display: grid; grid-template-columns: 1fr 1fr; column-gap: 4px; }
+.legend li {
+  display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 24px; padding: 1px 4px;
+  border-radius: 4px; line-height: 1.25;
+}
+.legend li > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.legend li[data-kind] { cursor: default; }
+.legend li[data-kind]:hover { background: var(--accent-soft); }
+.legend .tile { width: 20px; height: 20px; border-radius: 4px; font-size: 6.5px; }
+.legend .tile svg { width: 12px; height: 12px; }
+.wire-sample { flex: none; width: 30px; height: 10px; overflow: visible; }
+.frame-sample {
+  flex: none; width: 20px; height: 16px; border: 1px solid var(--border-strong); border-radius: 4px;
+  border-top: 5px solid var(--accent);
+}
+.flag-sample {
+  flex: none; padding: 0 5px; border-radius: 4px; font-size: 10.5px; line-height: 16px; white-space: nowrap;
+  color: var(--avertissement); background: var(--avertissement-bg); border: 1px solid var(--avertissement);
+}
+.keys { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 4px; margin: 0; color: var(--muted); }
+.keys span { white-space: nowrap; }
+kbd {
+  display: inline-block; min-width: 1.6em; padding: 0 5px; text-align: center; font: inherit; font-size: 11px;
+  border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 4px; background: var(--surface-2);
+}
+
+/* Règles de lint : une fiche par règle, soulignée quand on y arrive depuis un constat. */
+.rules { display: grid; grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr)); gap: 1rem; padding-bottom: 1.5rem; }
+.rule {
+  display: flex; flex-direction: column; gap: .6rem; padding: 1rem 1.1rem; scroll-margin: 1rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  transition: box-shadow .3s, border-color .3s;
+}
+.rule.focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.rule header { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .6rem; }
+.rule h3 { flex: 1 1 100%; order: -1; margin: 0; color: var(--text); font-size: .95rem; letter-spacing: 0; text-transform: none; }
+.rule code { color: var(--muted); font-family: var(--mono); font-size: .78rem; }
+.rule dl { display: grid; grid-template-columns: auto 1fr; gap: .4rem .8rem; margin: 0; font-size: .88rem; }
+.rule dt { color: var(--muted); font-weight: 600; }
+.rule dd { margin: 0; }
+.rule .action { align-self: flex-start; width: auto; }
+.lint td:nth-child(2) a { color: inherit; text-decoration-style: dotted; }
+.lint td:nth-child(2) a:hover { color: var(--accent); }
 
 .inspector {
   position: absolute; top: 0; right: 0; bottom: 0; width: 380px; max-width: 100%; overflow-y: auto;

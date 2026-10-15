@@ -73,8 +73,28 @@ pub struct Finding {
     pub message: String,
 }
 
+/// Fiche d'une règle, montrée dans la page « Règles de lint » du rapport. Ses
+/// constats en reprennent l'identifiant et la gravité.
+#[derive(Debug)]
+pub struct RuleDoc {
+    pub id: &'static str,
+    pub severity: Severity,
+    /// Ce que la règle signale.
+    pub title: &'static str,
+    /// Pourquoi c'est un problème.
+    pub why: &'static str,
+    /// Comment le corriger.
+    pub fix: &'static str,
+}
+
 pub trait Rule {
+    fn doc(&self) -> &'static RuleDoc;
     fn check(&self, inventory: &Inventory) -> Vec<Finding>;
+}
+
+/// Fiches de toutes les règles, dans l'ordre alphabétique de leur fichier.
+pub fn rules() -> impl Iterator<Item = &'static RuleDoc> {
+    RULES.iter().map(|r| r.doc())
 }
 
 /// Tâches et conteneurs de tous les packages.
@@ -97,16 +117,10 @@ fn components(inventory: &Inventory) -> impl Iterator<Item = (&Package, String, 
     })
 }
 
-fn finding(
-    rule: &'static str,
-    severity: Severity,
-    file: &str,
-    location: String,
-    message: impl Into<String>,
-) -> Finding {
+fn finding(doc: &RuleDoc, file: &str, location: String, message: impl Into<String>) -> Finding {
     Finding {
-        rule,
-        severity,
+        rule: doc.id,
+        severity: doc.severity,
         file: file.to_owned(),
         location,
         message: message.into(),

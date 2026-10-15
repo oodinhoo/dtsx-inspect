@@ -1,5 +1,5 @@
 // Navigation du rapport : arborescence projets → packages à gauche, vue à droite.
-// L'adresse décrit la vue (#vue, #carte/PROJET, #p/INDICE/flux|inventaire|lint) :
+// L'adresse décrit la vue (#vue, #carte/PROJET, #p/INDICE/flux|inventaire|lint, #regles/RÈGLE) :
 // liens partageables et bouton Précédent. Sans les scripts du CDN, tout marche
 // sauf le graphe et la mise en forme de l'inventaire.
 (() => {
@@ -12,7 +12,7 @@
 
   function route() {
     const [view, arg, sub] = location.hash.slice(1).split("/").map(decodeURIComponent);
-    const target = view === "p" ? "package" : view === "carte" ? "carte" : "vue";
+    const target = { p: "package", carte: "carte", regles: "regles" }[view] ?? "vue";
     views.forEach((v) => (v.hidden = v.id !== target));
     for (const a of treeLinks) {
       const active = a.dataset.pkg !== undefined ? view === "p" && a.dataset.pkg === arg : a.hash === `#${target}`;
@@ -24,8 +24,35 @@
       lineage?.map(arg);
     } else if (target === "package") {
       showPackage(Number(arg), SUBS.includes(sub) ? sub : "flux");
+    } else if (target === "regles") {
+      showRule(arg);
     }
   }
+
+  // Fiche d'une règle (lien depuis un constat) : amenée à l'écran et soulignée.
+  function showRule(id) {
+    const rule = id && document.getElementById(`regle-${id}`);
+    document.querySelectorAll(".rule.focus").forEach((r) => r.classList.remove("focus"));
+    if (!rule) return;
+    rule.classList.add("focus");
+    rule.scrollIntoView({ block: "center" });
+  }
+
+  // « Voir N constats » : la vue d'ensemble filtrée sur la règle, gravité affichée.
+  document.querySelectorAll("[data-show-rule]").forEach((button) =>
+    button.addEventListener("click", () => {
+      const box = document.querySelector(`[data-severity="${button.dataset.ruleSeverity}"]`);
+      if (box && !box.checked) {
+        box.checked = true;
+        box.dispatchEvent(new Event("change"));
+      }
+      const filter = document.querySelector("[data-filter='lint-rows']");
+      filter.value = button.dataset.showRule;
+      filter.dispatchEvent(new Event("input"));
+      location.hash = "#vue";
+      requestAnimationFrame(() => document.getElementById("lint-rows").scrollIntoView({ block: "start" }));
+    })
+  );
 
   function showPackage(index, sub) {
     const template = document.getElementById(`pkg-${index}`);

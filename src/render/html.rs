@@ -8,7 +8,7 @@ use super::graph::graph_json;
 use super::markdown;
 use crate::inventory::{is_build_dir, FileError, Inventory};
 use crate::lineage::Lineage;
-use crate::lint::{Finding, Severity};
+use crate::lint::{rules, Finding, RuleDoc, Severity};
 use crate::model::{Package, Scope};
 
 const STYLE: &str = include_str!("report.css");
@@ -33,8 +33,7 @@ chargée (poste sans internet ?).</p>\
 <div class=\"zoom\"><button data-zoom=\"in\" title=\"Zoomer\">+</button>\
 <button data-zoom=\"out\" title=\"Dézoomer\">−</button>\
 <button data-zoom=\"fit\" title=\"Ajuster à l'écran (F)\">⤢</button></div>\
-<div class=\"hint\">Clic maintenu : se déplacer · molette : zoomer · clic : détails · \
-tirets : requête par expression · points : création de table</div>\
+<details class=\"legend\" open><summary>Légende</summary><div class=\"legend-body\"></div></details>\
 <aside class=\"inspector\" aria-label=\"Détails\"></aside></div>";
 
 pub fn html(
@@ -61,14 +60,54 @@ pub fn html(
         "<!doctype html>\n<html lang=\"fr\"><head><meta charset=\"utf-8\">\
 <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\
 <title>dtsx-inspect : {title}</title><style>{STYLE}</style></head><body><div class=\"app\">\
-{}<main class=\"content\">{}{}{}</main></div>{templates}\
+{}<main class=\"content\">{}{}{}{}</main></div>{templates}\
 <script type=\"application/json\" id=\"lineage-data\">{}</script>\
 {LIBRARIES}<script>{LINEAGE}</script><script>{SCRIPT}</script></body></html>\n",
         sidebar(&title, inventory, lint),
         overview(inventory, lint, errors, &index),
         map_view(),
         package_view(),
+        rules_view(lint),
         graph_json(inventory, lineage),
+    )
+}
+
+/// Une fiche par règle, des erreurs aux infos, avec le nombre de constats du rapport.
+fn rules_view(lint: &[Finding]) -> String {
+    let mut docs: Vec<&RuleDoc> = rules().collect();
+    docs.sort_by_key(|d| (SEVERITIES.iter().position(|s| *s == d.severity), d.id));
+    let cards: String = docs
+        .iter()
+        .map(|d| {
+            let count = lint.iter().filter(|f| f.rule == d.id).count();
+            let found = if count == 0 {
+                "<span class=\"muted\">Aucun constat dans ce rapport</span>".to_owned()
+            } else {
+                format!(
+                    "<button class=\"action\" data-show-rule=\"{}\" data-rule-severity=\"{}\">\
+Voir {}</button>",
+                    escape(d.id),
+                    d.severity,
+                    plural(count, "constat")
+                )
+            };
+            format!(
+                "<article class=\"rule\" id=\"regle-{id}\"><header>\
+<span class=\"badge {s}\">{s}</span><h3>{}</h3><code>{id}</code></header>\
+<dl><dt>Pourquoi</dt><dd>{}</dd><dt>Corriger</dt><dd>{}</dd></dl>{found}</article>",
+                escape(d.title),
+                escape(d.why),
+                escape(d.fix),
+                id = escape(d.id),
+                s = d.severity,
+            )
+        })
+        .collect();
+    format!(
+        "<section id=\"regles\" class=\"view scroll\" hidden><h2>Règles de lint</h2>\
+<p class=\"muted\">Chaque constat du rapport vient d'une de ces règles. Erreur : le package \
+échouera ou fait autre chose que prévu. Avertissement : il marche, mais lentement ou de façon \
+fragile. Info : à savoir, sans urgence.</p><div class=\"rules\">{cards}</div></section>"
     )
 }
 
@@ -147,7 +186,8 @@ fn sidebar(title: &str, inventory: &Inventory, lint: &[Finding]) -> String {
 <input type=\"search\" class=\"tree-filter\" placeholder=\"Filtrer les packages… ( / )\">\
 <nav class=\"tree\" aria-label=\"Projets et packages\">\
 <a href=\"#vue\" class=\"nav-item\">Vue d'ensemble</a>\
-<a href=\"#carte\" class=\"nav-item\">Carte du lignage</a>{tree}</nav></aside>"
+<a href=\"#carte\" class=\"nav-item\">Carte du lignage</a>\
+<a href=\"#regles\" class=\"nav-item\">Règles de lint</a>{tree}</nav></aside>"
     )
 }
 
@@ -281,12 +321,12 @@ fn lint_table(lint: &[Finding], index: &HashMap<&str, usize>) -> String {
                 .map_or(String::new(), |i| format!(" data-pkg=\"{i}\""));
             format!(
                 "<tr class=\"{s}\"{pkg}><td><span class=\"badge {s}\">{s}</span></td>\
-<td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
-                escape(f.rule),
+<td><a href=\"#regles/{id}\" title=\"Voir la règle\">{id}</a></td><td>{}</td><td>{}</td><td>{}</td></tr>",
                 file_link(&f.file, index, "flux"),
                 breakable(&f.location),
                 escape(&f.message),
-                s = f.severity
+                s = f.severity,
+                id = escape(f.rule),
             )
         })
         .collect();
@@ -372,6 +412,42 @@ mod tests {
             &[],
         );
         assert!(!page.contains("<script>alert"), "{page}");
+    }
+
+    #[test]
+    fn the_rules_page_explains_every_rule() {
+        let page = html("x", &Inventory::default(), &Lineage::default(), &[], &[]);
+
+        assert!(
+            page.contains("href=\"#regles\""),
+            "lien manquant dans la barre latérale"
+        );
+        for doc in crate::lint::rules() {
+            assert!(
+                page.contains(&format!("id=\"regle-{}\"", doc.id)),
+                "{}",
+                doc.id
+            );
+            assert!(page.contains(&escape(doc.fix)), "{}", doc.id);
+        }
+    }
+
+    #[test]
+    fn each_finding_links_to_its_rule() {
+        let finding = Finding {
+            rule: "tri-dans-le-flux",
+            severity: Severity::Avertissement,
+            file: "p.dtsx".into(),
+            location: "DFT\\Trier".into(),
+            message: "m".into(),
+        };
+
+        let table = lint_table(&[finding], &HashMap::new());
+
+        assert!(
+            table.contains("href=\"#regles/tri-dans-le-flux\""),
+            "{table}"
+        );
     }
 
     #[test]

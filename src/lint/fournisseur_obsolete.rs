@@ -1,14 +1,26 @@
 //! Fournisseur OLE DB abandonné : SQL Native Client (`SQLNCLI*`) et `SQLOLEDB`.
 
-use super::{finding, Finding, Rule, Severity};
+use super::{finding, Finding, Rule, RuleDoc, Severity};
 use crate::inventory::Inventory;
 use crate::model::{ConnectionManager, Scope};
 
 pub struct FournisseurObsolete;
 
+const DOC: RuleDoc = RuleDoc {
+    id: "fournisseur-obsolete",
+    severity: Severity::Avertissement,
+    title: "Fournisseur OLE DB abandonné (SQLNCLI, SQLOLEDB)",
+    why: "SQL Server Native Client et SQLOLEDB ne sont plus maintenus par Microsoft : ni correctifs de sécurité, ni prise en charge garantie des versions récentes de TLS et de SQL Server.",
+    fix: "Passer la connexion au fournisseur MSOLEDBSQL (Microsoft OLE DB Driver for SQL Server).",
+};
+
 const OBSOLETE: [&str; 2] = ["sqlncli", "sqloledb"];
 
 impl Rule for FournisseurObsolete {
+    fn doc(&self) -> &'static RuleDoc {
+        &DOC
+    }
+
     fn check(&self, inventory: &Inventory) -> Vec<Finding> {
         let project = inventory.project_connections.iter().map(|c| ("projet", c));
         // Les connexions de projet utilisées sont recopiées dans chaque package :
@@ -36,8 +48,7 @@ fn obsolete(file: &str, c: &ConnectionManager) -> Option<Finding> {
     let lower = provider.to_lowercase();
     OBSOLETE.iter().any(|o| lower.starts_with(o)).then(|| {
         finding(
-            "fournisseur-obsolete",
-            Severity::Avertissement,
+            &DOC,
             file,
             format!("connexion {}", c.name),
             format!("fournisseur {provider} abandonné par Microsoft, passer à MSOLEDBSQL"),

@@ -2,10 +2,18 @@
 //! dans les journaux et le lignage. Convention de nommage de Jamie Thomson
 //! (préfixes DFT, SQL, SEQC, OLE_SRC, LKP…), reprise par la communauté SSIS.
 
-use super::{components, finding, tasks, Finding, Rule, Severity};
+use super::{components, finding, tasks, Finding, Rule, RuleDoc, Severity};
 use crate::inventory::Inventory;
 
 pub struct NomParDefaut;
+
+const DOC: RuleDoc = RuleDoc {
+    id: "nom-par-defaut",
+    severity: Severity::Info,
+    title: "Tâche ou composant resté sous le nom donné par le concepteur",
+    why: "« Data Flow Task 1 », « Derived Column »… : ces noms ne disent rien dans les journaux d'exécution, les messages d'erreur ni ce rapport.",
+    fix: "Renommer selon la convention de l'équipe : un préfixe de type (DFT_, SQL_, LKP_, DER_…) suivi de ce que fait l'étape.",
+};
 
 /// Noms par défaut de SSDT, en anglais et en français, sans le numéro ajouté aux
 /// suivants (`Multidiffusion 1`).
@@ -72,23 +80,17 @@ const MESSAGE: &str =
     "nom par défaut du concepteur : le renommer selon la convention (DFT_, SQL_, LKP_…)";
 
 impl Rule for NomParDefaut {
+    fn doc(&self) -> &'static RuleDoc {
+        &DOC
+    }
+
     fn check(&self, inventory: &Inventory) -> Vec<Finding> {
         let tasks = tasks(inventory)
             .filter(|(_, e)| is_default(&e.name))
-            .map(|(p, e)| {
-                finding(
-                    "nom-par-defaut",
-                    Severity::Info,
-                    &p.file,
-                    e.path().to_owned(),
-                    MESSAGE,
-                )
-            });
+            .map(|(p, e)| finding(&DOC, &p.file, e.path().to_owned(), MESSAGE));
         let parts = components(inventory)
             .filter(|(_, _, c)| is_default(&c.name))
-            .map(|(p, location, _)| {
-                finding("nom-par-defaut", Severity::Info, &p.file, location, MESSAGE)
-            });
+            .map(|(p, location, _)| finding(&DOC, &p.file, location, MESSAGE));
         tasks.chain(parts).collect()
     }
 }

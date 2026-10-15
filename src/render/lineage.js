@@ -251,6 +251,7 @@
       world.append(el);
     }
     drawWires();
+    drawLegend();
     canvas.querySelector(".no-block").hidden = nodes.length > 0;
     choose(select);
     fit(true);
@@ -306,20 +307,26 @@
   }
 
   let selected = null;
-  function choose(id) {
-    selected = id;
-    const keep = id == null ? null : chain(id);
+  // Met en avant les blocs de `keep` et estompe les autres (`null` : rien d'estompé).
+  // `hot` : liens internes en couleur, pour la chaîne du bloc sélectionné.
+  function emphasize(keep, hot = true) {
     world.querySelectorAll(".node").forEach((el) => {
-      el.classList.toggle("selected", Number(el.dataset.id) === id);
+      el.classList.toggle("selected", Number(el.dataset.id) === selected);
       el.classList.toggle("dim", !!keep && !keep.has(Number(el.dataset.id)));
     });
     world.querySelectorAll(".group").forEach((el) => el.classList.toggle("dim", !!keep));
     wires.querySelectorAll("path").forEach((p) => {
-      const hot = !!keep && keep.has(Number(p.dataset.from)) && keep.has(Number(p.dataset.to));
-      p.classList.toggle("hot", hot);
-      p.classList.toggle("dim", !!keep && !hot);
-      p.setAttribute("marker-end", hot ? "url(#lineage-arrow-hot)" : "url(#lineage-arrow)");
+      const inside = !!keep && keep.has(Number(p.dataset.from)) && keep.has(Number(p.dataset.to));
+      p.classList.toggle("hot", hot && inside);
+      p.classList.toggle("dim", !!keep && !inside);
+      p.setAttribute("marker-end", hot && inside ? "url(#lineage-arrow-hot)" : "url(#lineage-arrow)");
     });
+  }
+  const emphasizeSelection = () => emphasize(selected == null ? null : chain(selected));
+
+  function choose(id) {
+    selected = id;
+    emphasizeSelection();
     if (id == null) {
       inspector.classList.remove("open");
       return;
@@ -373,6 +380,72 @@
     }
   });
 
+  // ---------- Légende : seulement ce que la vue affichée contient ----------
+  const legend = stage.querySelector(".legend");
+  const legendBody = legend.querySelector(".legend-body");
+  // Repliée ou dépliée, d'un rapport à l'autre (stockage local indisponible : ouverte).
+  const LEGEND_KEY = "dtsx-inspect.legende";
+  try {
+    if (localStorage.getItem(LEGEND_KEY) === "repliee") legend.open = false;
+  } catch {}
+  legend.addEventListener("toggle", () => {
+    try {
+      localStorage.setItem(LEGEND_KEY, legend.open ? "depliee" : "repliee");
+    } catch {}
+  });
+  // Libellés courts : la légende tient sur deux colonnes à côté du graphe.
+  const SHORT = {
+    table: "Table", file: "Fichier", entity: "Entité", proc: "Procédure", source: "Source",
+    transform: "Transformation", dest: "Destination", sql: "Tâche SQL", untracked: "Non suivie",
+  };
+  const KEYS = [
+    ["Glisser", "déplacer"],
+    ["Molette", "zoomer"],
+    ["Clic", "détails"],
+    ["F", "tout voir"],
+    ["Échap", "fermer"],
+    ["Entrée", "chercher"],
+  ];
+  const wire = (cls, marker) =>
+    `<svg class="wire-sample" viewBox="0 0 40 10" aria-hidden="true"><path class="${cls}" d="M2 5H32" marker-end="url(#${marker})"/></svg>`;
+
+  function drawLegend() {
+    const kinds = Object.keys(KINDS).filter((k) => nodes.some((n) => n.kind === k));
+    const blocks = kinds.map((k) =>
+      `<li data-kind="${k}" title="${esc(KINDS[k])} : survoler pour les repérer">${tile(k)}<span>${SHORT[k]}</span></li>`);
+    if (groups.length) blocks.push('<li title="Cadre qui regroupe les composants d\'un Data Flow"><span class="frame-sample"></span><span>Data Flow</span></li>');
+    const marks = [
+      [nodes.some((n) => n.note), "non suivi", "lignage interrompu (raison au clic)"],
+      [nodes.some((n) => n.expression), "expression", "requête calculée par expression"],
+      [nodes.some((n) => n.shared), "N packages", "table partagée, une copie par package"],
+    ].filter(([shown]) => shown)
+      .map(([, flag, text]) => `<li><span class="flag-sample">${flag}</span><span>${text}</span></li>`);
+    const links = [
+      [true, wire("", "lineage-arrow"), "données"],
+      [edges.some((e) => e[2]), wire("dashed", "lineage-arrow"), "par expression"],
+      [edges.some((e) => e[3]), wire("creates", "lineage-arrow"), "création de table"],
+      [edges.length > 0, wire("hot", "lineage-arrow-hot"), "chaîne sélectionnée"],
+    ].filter(([shown]) => shown)
+      .map(([, sample, text]) => `<li>${sample}<span>${text}</span></li>`);
+    const section = (title, items, cls = "") =>
+      (items.length ? `<h4>${title}</h4><ul class="${cls}">${items.join("")}</ul>` : "");
+    legendBody.innerHTML = section("Blocs", blocks, "two") + section("Repères", marks)
+      + section("Liens", links)
+      + `<h4>Commandes</h4><p class="keys">${KEYS.map(([k, v]) => `<span><kbd>${k}</kbd> ${v}</span>`).join("")}</p>`;
+    legend.hidden = nodes.length === 0;
+  }
+
+  // Survol d'un genre de bloc : ses blocs restent nets, le reste s'estompe.
+  legendBody.addEventListener("pointerover", (event) => {
+    const kind = event.target.closest("[data-kind]")?.dataset.kind;
+    if (!kind) return;
+    emphasize(new Set(nodes.filter((n) => n.kind === kind).map((n) => n.id)), false);
+  });
+  legendBody.addEventListener("pointerout", (event) => {
+    const from = event.target.closest("[data-kind]");
+    if (from && !from.contains(event.relatedTarget)) emphasizeSelection();
+  });
+
   // ---------- Déplacement (clic maintenu) et zoom ----------
   function apply() {
     world.style.transform = `translate(${cam.x}px, ${cam.y}px) scale(${cam.k})`;
@@ -387,11 +460,13 @@
     if (!items.length) return;
     const x0 = Math.min(...items.map((i) => i.x)), y0 = Math.min(...items.map((i) => i.y));
     const x1 = Math.max(...items.map((i) => i.x + i.w)), y1 = Math.max(...items.map((i) => i.y + i.h));
-    const W = canvas.clientWidth, H = canvas.clientHeight;
+    // Légende dépliée : le graphe se cadre à sa droite pour ne rien cacher dessous.
+    const left = legend.open && !legend.hidden ? legend.offsetLeft + legend.offsetWidth : 0;
+    const W = canvas.clientWidth - left, H = canvas.clientHeight;
     const k = Math.max(0.1, Math.min(1, (W - 80) / (x1 - x0), (H - 80) / (y1 - y0)));
     cam = readable && k < READABLE_ZOOM
-      ? { k: 0.7, x: 20 - x0 * 0.7, y: 20 - y0 * 0.7 }
-      : { k, x: (W - (x1 - x0) * k) / 2 - x0 * k, y: Math.max(20, (H - (y1 - y0) * k) / 2) - y0 * k };
+      ? { k: 0.7, x: left + 20 - x0 * 0.7, y: 20 - y0 * 0.7 }
+      : { k, x: left + (W - (x1 - x0) * k) / 2 - x0 * k, y: Math.max(20, (H - (y1 - y0) * k) / 2) - y0 * k };
     apply();
   }
   function zoomAt(factor, px, py) {

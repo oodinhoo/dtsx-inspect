@@ -1,14 +1,26 @@
 //! `INSERT … SELECT *` : les colonnes correspondent par position, une colonne
 //! ajoutée ou réordonnée d'un côté casse le chargement sans prévenir.
 
-use super::{finding, tasks, Finding, Rule, Severity};
+use super::{finding, tasks, Finding, Rule, RuleDoc, Severity};
 use crate::inventory::Inventory;
 use crate::lineage::sql::inserts_select_star;
 use crate::model::SqlOrigin;
 
 pub struct InsertSelectEtoile;
 
+const DOC: RuleDoc = RuleDoc {
+    id: "insert-select-etoile",
+    severity: Severity::Avertissement,
+    title: "INSERT … SELECT * dans une tâche SQL",
+    why: "Les colonnes sont appariées par leur position : une colonne ajoutée ou réordonnée d'un côté décale les données ou fait échouer le chargement sans message clair.",
+    fix: "Lister les colonnes des deux côtés : INSERT INTO cible (a, b) SELECT a, b FROM source.",
+};
+
 impl Rule for InsertSelectEtoile {
+    fn doc(&self) -> &'static RuleDoc {
+        &DOC
+    }
+
     fn check(&self, inventory: &Inventory) -> Vec<Finding> {
         tasks(inventory)
             .filter(|(_, e)| {
@@ -19,8 +31,7 @@ impl Rule for InsertSelectEtoile {
             })
             .map(|(p, e)| {
                 finding(
-                    "insert-select-etoile",
-                    Severity::Avertissement,
+                    &DOC,
                     &p.file,
                     e.path().to_owned(),
                     "INSERT … SELECT * : lister les colonnes des deux côtés",
