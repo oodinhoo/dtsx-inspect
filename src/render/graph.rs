@@ -3,6 +3,7 @@
 use petgraph::visit::EdgeRef;
 use serde::Serialize;
 
+use super::html::project_of;
 use crate::inventory::Inventory;
 use crate::lineage::{sql_command, DatasetKind, Lineage, Node, Note};
 use crate::model::{Component, ConnectionRef, Executable, Package, Role, SqlOrigin};
@@ -13,6 +14,8 @@ struct Graph<'a> {
     packages: &'a [String],
     /// Fichier de chaque package : deux packages peuvent porter le même nom.
     files: Vec<&'a str>,
+    /// Projet de chaque package, celui de l'arborescence.
+    projects: Vec<&'a str>,
     /// L'indice d'un bloc est son identifiant dans `edges`.
     nodes: Vec<Block>,
     groups: Vec<Group>,
@@ -85,6 +88,11 @@ pub(super) fn graph_json(inventory: &Inventory, lineage: &Lineage) -> String {
     let graph = Graph {
         packages: &lineage.packages,
         files: inventory.packages.iter().map(|p| p.file.as_str()).collect(),
+        projects: inventory
+            .packages
+            .iter()
+            .map(|p| project_of(&p.file))
+            .collect(),
         nodes,
         groups,
         edges,
@@ -278,6 +286,17 @@ mod tests {
 
     use super::*;
     use crate::lineage::lineage;
+
+    #[test]
+    fn gives_each_package_the_project_of_the_sidebar() {
+        // Copie de compilation seule (`Seul/obj/Development`) : le projet est `Seul`,
+        // comme dans l'arborescence, et non le premier dossier du chemin.
+        let (inventory, _) = crate::inventory(Path::new("tests/fixtures/build_copy"));
+        let json = graph_json(&inventory, &lineage(&inventory));
+
+        let graph: serde_json::Value = serde_json::from_str(&json).expect("JSON valide");
+        assert_eq!(graph["projects"], serde_json::json!(["Projet", "Seul"]));
+    }
 
     #[test]
     fn exposes_queries_and_keeps_the_json_inside_its_script_tag() {

@@ -113,7 +113,7 @@ fragile. Info : à savoir, sans urgence.</p><div class=\"rules\">{cards}</div></
 
 /// Projet d'un package : le dossier qui le contient (`FINANCE/FINANCE/x.dtsx`),
 /// celui au-dessus de `obj` ou `bin` pour une copie de compilation.
-fn project_of(file: &str) -> &str {
+pub(super) fn project_of(file: &str) -> &str {
     let mut dirs: Vec<&str> = file.split('/').collect();
     dirs.pop();
     if dirs.len() >= 2 && dirs.get(dirs.len() - 2).is_some_and(|d| is_build_dir(d)) {

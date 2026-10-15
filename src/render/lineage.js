@@ -54,11 +54,11 @@
   // Packages qui ont des blocs de lignage.
   const withBlocks = [...new Set(data.nodes.map((n) => n.package).filter((p) => p != null))];
 
-  // Projet = premier sous-dossier du package. Au-delà de MAP_LIMIT blocs, la carte
-  // complète bloque le navigateur (22 s pour 5 000 blocs) : elle s'ouvre sur un projet.
+  // Projet du package, calculé comme pour l'arborescence. Au-delà de MAP_LIMIT blocs, la
+  // carte complète bloque le navigateur (22 s pour 5 000 blocs) : elle s'ouvre sur un projet.
   const MAP_LIMIT = 1500;
   const ALL = "*";
-  const projectOf = (p) => (data.files[p].includes("/") ? data.files[p].split("/")[0] : "");
+  const projectOf = (p) => data.projects[p] ?? "";
   const projects = [...new Set(withBlocks.map(projectOf))].sort((a, b) => a.localeCompare(b));
   const projectSelect = document.querySelector("#carte .project-select");
   const tooBig = data.nodes.length > MAP_LIMIT;
