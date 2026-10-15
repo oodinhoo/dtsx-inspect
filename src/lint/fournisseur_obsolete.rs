@@ -39,12 +39,7 @@ impl Rule for FournisseurObsolete {
 }
 
 fn obsolete(file: &str, c: &ConnectionManager) -> Option<Finding> {
-    let provider = c.target.as_deref()?.split(';').find_map(|pair| {
-        let (key, value) = pair.split_once('=')?;
-        key.trim()
-            .eq_ignore_ascii_case("provider")
-            .then(|| value.trim())
-    })?;
+    let provider = c.setting(&["provider"])?;
     let lower = provider.to_lowercase();
     OBSOLETE.iter().any(|o| lower.starts_with(o)).then(|| {
         finding(

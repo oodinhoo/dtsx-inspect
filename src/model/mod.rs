@@ -22,6 +22,20 @@ pub struct ConnectionManager {
     pub target: Option<String>,
 }
 
+impl ConnectionManager {
+    /// Valeur de la première des `keys` présente dans la chaîne affichable (`target`),
+    /// casse ignorée : `setting(&["data source", "server"])`.
+    pub fn setting(&self, keys: &[&str]) -> Option<&str> {
+        let target = self.target.as_deref()?;
+        keys.iter().find_map(|key| {
+            target.split(';').find_map(|pair| {
+                let (k, v) = pair.split_once('=')?;
+                k.trim().eq_ignore_ascii_case(key).then(|| v.trim())
+            })
+        })
+    }
+}
+
 /// Référence brute vers une connexion (`{GUID}`, `{GUID}:external`,
 /// `Project.ConnectionManagers[Nom]`…) et le nom résolu s'il est connu.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

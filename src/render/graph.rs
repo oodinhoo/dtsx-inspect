@@ -105,7 +105,11 @@ pub(super) fn graph_json(inventory: &Inventory, lineage: &Lineage) -> String {
 
 fn block(node: &Node, inventory: &Inventory, groups: &mut Vec<Group>) -> Block {
     match node {
-        Node::Dataset { kind, label } => dataset(*kind, label),
+        Node::Dataset {
+            kind,
+            label,
+            server,
+        } => dataset(*kind, label, server.as_deref()),
         Node::Component {
             package,
             flow,
@@ -133,8 +137,8 @@ fn block(node: &Node, inventory: &Inventory, groups: &mut Vec<Group>) -> Block {
     }
 }
 
-fn dataset(kind: DatasetKind, label: &str) -> Block {
-    let (kind, title, sub, props) = match kind {
+fn dataset(kind: DatasetKind, label: &str, server: Option<&str>) -> Block {
+    let (kind, title, sub, mut props) = match kind {
         DatasetKind::File => {
             let (dir, file) = label.rsplit_once(['\\', '/']).unwrap_or(("", label));
             let sub = if dir.is_empty() {
@@ -159,6 +163,14 @@ fn dataset(kind: DatasetKind, label: &str) -> Block {
             let props = vec![("Base", base.to_owned()), ("Procédure", name.to_owned())];
             ("proc", name, format!("Procédure · {base}"), props)
         }
+    };
+    // Deux bases homonymes sur deux serveurs : le serveur les distingue.
+    let sub = match server {
+        Some(server) => {
+            props.insert(0, ("Serveur", server.to_owned()));
+            format!("{sub} · {server}")
+        }
+        None => sub,
     };
     Block {
         kind,

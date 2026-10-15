@@ -11,7 +11,7 @@ use quick_xml::Reader;
 
 use crate::inventory::{Inventory, SqlDefinition};
 use crate::model::{
-    Component, ConnectionManager, Executable, Package, Role, SqlOrigin, SqlStatement,
+    Component, ConnectionManager, ConnectionRef, Executable, Package, Role, SqlOrigin, SqlStatement,
 };
 use sql::{Defined, TableName, Tables};
 
@@ -30,6 +30,8 @@ pub enum Node {
     Dataset {
         kind: DatasetKind,
         label: String,
+        /// Serveur d'une table ou d'une procédure, lu dans la chaîne de connexion.
+        server: Option<String>,
     },
     /// Composant d'un Data Flow (`flow` = chemin lisible du Data Flow).
     Component {
@@ -98,7 +100,7 @@ pub fn lineage(inventory: &Inventory) -> Lineage {
                 builder.data_flow(index, package, e);
             }
             if let Some(sql) = &e.sql {
-                builder.sql_task(index, e, sql);
+                builder.sql_task(index, package, e, sql);
             }
         }
     }
@@ -147,27 +149,54 @@ enum Direction {
     Create,
 }
 
-/// Jeu de données, identifié par son genre et son libellé sans casse.
+/// Jeu de données, identifié par son genre, son serveur et son libellé sans casse.
 struct DatasetRef {
     kind: DatasetKind,
     label: String,
+    server: Option<String>,
+}
+
+/// Base visée par une connexion : serveur et base de sa chaîne (valeur de conception),
+/// à défaut le nom de la connexion. Deux connexions vers la même base donnent donc
+/// les mêmes nœuds, et deux bases homonymes sur deux serveurs des nœuds distincts.
+struct Database {
+    server: Option<String>,
+    name: String,
+}
+
+fn database_of(package: &Package, refs: &[ConnectionRef]) -> Option<Database> {
+    let name = refs.first()?.resolved.as_deref()?;
+    let manager = package.connections.iter().find(|m| m.name == name);
+    let setting = |keys: &[&str]| {
+        manager
+            .and_then(|m| m.setting(keys))
+            .filter(|v| !v.is_empty())
+    };
+    Some(Database {
+        server: setting(&["data source", "server"]).map(str::to_owned),
+        name: setting(&["initial catalog", "database"])
+            .unwrap_or(name)
+            .to_owned(),
+    })
 }
 
 #[derive(Default)]
 struct Builder<'a> {
     lineage: Lineage,
-    datasets: HashMap<(DatasetKind, String), NodeIndex>,
+    datasets: HashMap<(DatasetKind, String, String), NodeIndex>,
     scripts: &'a [SqlDefinition],
 }
 
 impl<'a> Builder<'a> {
     fn dataset(&mut self, d: DatasetRef) -> NodeIndex {
         let graph = &mut self.lineage.graph;
-        let key = (d.kind, d.label.to_lowercase());
+        let server = d.server.as_deref().unwrap_or_default().to_lowercase();
+        let key = (d.kind, server, d.label.to_lowercase());
         *self.datasets.entry(key).or_insert_with(|| {
             graph.add_node(Node::Dataset {
                 kind: d.kind,
                 label: d.label,
+                server: d.server,
             })
         })
     }
@@ -233,31 +262,31 @@ impl<'a> Builder<'a> {
         }
     }
 
-    fn sql_task(&mut self, package: usize, task: &Executable, sql: &SqlStatement) {
+    fn sql_task(&mut self, index: usize, package: &Package, task: &Executable, sql: &SqlStatement) {
         match sql.origin {
             SqlOrigin::Variable => {
                 let note = format!("requête dans la variable {}, non suivie", sql.text);
-                return self.note(package, &task.name, &note);
+                return self.note(index, &task.name, &note);
             }
             SqlOrigin::File => {
-                return self.note(package, &task.name, "requête dans un fichier, non suivie")
+                return self.note(index, &task.name, "requête dans un fichier, non suivie")
             }
             SqlOrigin::Direct | SqlOrigin::Expression => {}
         }
         let Ok(found) = sql::tables(&sql.text) else {
-            return self.note(package, &task.name, "SQL non analysé");
+            return self.note(index, &task.name, "SQL non analysé");
         };
-        let connection = task.connections.first().and_then(|r| r.resolved.as_deref());
-        let found = datasets(&found, connection);
+        let database = database_of(package, &task.connections);
+        let found = datasets(&found, database.as_ref());
         if found.is_empty() {
             return;
         }
         let node = self.lineage.graph.add_node(Node::SqlTask {
-            package,
+            package: index,
             name: task.name.clone(),
         });
         let from_expression = sql.origin == SqlOrigin::Expression;
-        self.attach(package, &task.name, node, found, from_expression);
+        self.attach(index, &task.name, node, found, from_expression);
     }
 
     /// Relie l'étape à ses jeux de données ; une procédure sans définition unique
@@ -321,22 +350,28 @@ impl<'a> Builder<'a> {
         while next < self.lineage.graph.node_count() {
             let node = NodeIndex::new(next);
             next += 1;
-            let (defined, label) = match &self.lineage.graph[node] {
+            let (defined, label, server) = match &self.lineage.graph[node] {
                 Node::Dataset {
                     kind: DatasetKind::Procedure,
                     label,
-                } => (Defined::Procedure, label),
+                    server,
+                } => (Defined::Procedure, label, server),
                 Node::Dataset {
                     kind: DatasetKind::Table,
                     label,
-                } => (Defined::View, label),
+                    server,
+                } => (Defined::View, label, server),
                 _ => continue,
             };
             let [defined] = self.definitions(label, defined)[..] else {
                 continue;
             };
-            let database = label.split_once(" : ").map(|(db, _)| db.to_owned());
-            for (d, direction) in datasets(&defined.tables, database.as_deref()) {
+            // Le corps vit dans la base et sur le serveur de la procédure ou de la vue.
+            let database = label.split_once(" : ").map(|(db, _)| Database {
+                server: server.clone(),
+                name: db.to_owned(),
+            });
+            for (d, direction) in datasets(&defined.tables, database.as_ref()) {
                 self.link(d, node, direction, false);
             }
         }
@@ -353,7 +388,7 @@ impl<'a> Builder<'a> {
 
 /// Tables créées, lues, écrites puis procédures appelées. Créations d'abord : une
 /// table créée puis remplie garde son lien d'écriture.
-fn datasets(found: &Tables, connection: Option<&str>) -> Vec<(DatasetRef, Direction)> {
+fn datasets(found: &Tables, database: Option<&Database>) -> Vec<(DatasetRef, Direction)> {
     let tables = [
         (&found.creates, Direction::Create),
         (&found.reads, Direction::Read),
@@ -361,11 +396,11 @@ fn datasets(found: &Tables, connection: Option<&str>) -> Vec<(DatasetRef, Direct
     ];
     let tables = tables
         .into_iter()
-        .flat_map(|(list, direction)| list.iter().map(move |t| (table(t, connection), direction)));
+        .flat_map(|(list, direction)| list.iter().map(move |t| (table(t, database), direction)));
     let procedures = found
         .procedures
         .iter()
-        .map(|p| (procedure(p, connection), Direction::Write));
+        .map(|p| (procedure(p, database), Direction::Write));
     tables.chain(procedures).collect()
 }
 
@@ -392,7 +427,7 @@ fn component_datasets(
     if c.class_id.contains("DynamicsCrm") {
         return dynamics(c, connection, direction);
     }
-    table_or_query(c, connection, direction)
+    table_or_query(c, database_of(package, &c.connections).as_ref(), direction)
 }
 
 /// Source KingswaySoft : entité unique (`SourceType` 0) ou requête FetchXML (1).
@@ -450,7 +485,7 @@ pub fn sql_command(c: &Component) -> Option<&str> {
 /// OLE DB, ADO.NET, Lookup, OLE DB Command… : requête (`SqlCommand`) ou table (`OpenRowset`).
 fn table_or_query(
     c: &Component,
-    connection: Option<&str>,
+    database: Option<&Database>,
     direction: Direction,
 ) -> Result<Vec<(DatasetRef, Direction)>, String> {
     let class = c.class_id.as_str();
@@ -459,18 +494,15 @@ fn table_or_query(
     if let Some(command) = sql_command(c) {
         let found = sql::tables(command).map_err(|_| "SQL non analysé".to_owned())?;
         // Destination en mode commande SQL : le SELECT désigne la table écrite.
-        let reads = found
-            .reads
-            .iter()
-            .map(|t| (table(t, connection), direction));
+        let reads = found.reads.iter().map(|t| (table(t, database), direction));
         let writes = found
             .writes
             .iter()
-            .map(|t| (table(t, connection), Direction::Write));
+            .map(|t| (table(t, database), Direction::Write));
         let procedures = found
             .procedures
             .iter()
-            .map(|p| (procedure(p, connection), Direction::Write));
+            .map(|p| (procedure(p, database), Direction::Write));
         return Ok(reads.chain(writes).chain(procedures).collect());
     }
     // AccessMode « …depuis une variable » (OLE DB : source 1 et 3, destination 1 et 4).
@@ -487,28 +519,31 @@ fn table_or_query(
         .or(props.get("TableOrViewName"))
         .and_then(|name| sql::object_name(name));
     Ok(object
-        .map(|t| (table(&t, connection), direction))
+        .map(|t| (table(&t, database), direction))
         .into_iter()
         .collect())
 }
 
-/// Table : la base vient du nom en trois parties, sinon de la connexion.
-// ponytail: une même base via deux connexions de noms différents = deux nœuds ;
-// passer à serveur/base de la cible si ça gêne.
-fn table(t: &TableName, connection: Option<&str>) -> DatasetRef {
-    let database = t.database.as_deref().or(connection).unwrap_or("?");
+/// Table : la base vient du nom en trois parties, sinon de la connexion ; le serveur,
+/// de la connexion.
+fn table(t: &TableName, database: Option<&Database>) -> DatasetRef {
+    let name = t
+        .database
+        .as_deref()
+        .or(database.map(|d| d.name.as_str()))
+        .unwrap_or("?");
     let schema = t.schema.as_deref().unwrap_or("dbo");
-    let label = format!("{database} : {schema}.{}", t.table);
     DatasetRef {
         kind: DatasetKind::Table,
-        label,
+        label: format!("{name} : {schema}.{}", t.table),
+        server: database.and_then(|d| d.server.clone()),
     }
 }
 
-fn procedure(p: &TableName, connection: Option<&str>) -> DatasetRef {
+fn procedure(p: &TableName, database: Option<&Database>) -> DatasetRef {
     DatasetRef {
         kind: DatasetKind::Procedure,
-        ..table(p, connection)
+        ..table(p, database)
     }
 }
 
@@ -520,6 +555,7 @@ fn file(manager: &ConnectionManager) -> DatasetRef {
     DatasetRef {
         kind: DatasetKind::File,
         label,
+        server: None,
     }
 }
 
@@ -527,6 +563,7 @@ fn entity(crm: &str, name: &str) -> DatasetRef {
     DatasetRef {
         kind: DatasetKind::Entity,
         label: format!("{crm} : {name}"),
+        server: None,
     }
 }
 

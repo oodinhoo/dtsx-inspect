@@ -270,3 +270,35 @@ fn procedures_defined_in_sql_scripts_are_followed() {
         ]
     );
 }
+
+#[test]
+fn tables_are_identified_by_server_and_database_not_by_connection_name() {
+    // `Entrepot` et `DW` visent la même base (casse et clés différentes) ; `Recette`
+    // vise une base homonyme sur un autre serveur.
+    let (inv, errors) = inventory(&fixture("serveurs"));
+    assert!(errors.is_empty(), "{errors:?}");
+
+    let l = lineage(&inv);
+
+    let mut datasets: Vec<(Option<&str>, &str)> = l
+        .graph
+        .node_weights()
+        .filter_map(|n| match n {
+            Node::Dataset { server, label, .. } => Some((server.as_deref(), label.as_str())),
+            _ => None,
+        })
+        .collect();
+    datasets.sort();
+    // Un seul `dbo.Clients` pour `Entrepot` et `DW` ; `dbo.Rapport`, vu seulement par
+    // `DW`, garde l'écriture de sa chaîne (`SRV-DEMO`, `entrepot`).
+    assert_eq!(
+        datasets,
+        vec![
+            (Some("SRV-DEMO"), "entrepot : dbo.Rapport"),
+            (Some("srv-demo"), "Entrepot : dbo.Clients"),
+            (Some("srv-demo"), "Entrepot : stg.Clients"),
+            (Some("srv-recette"), "Entrepot : dbo.Clients"),
+            (Some("srv-recette"), "Entrepot : stg.Clients"),
+        ]
+    );
+}
