@@ -1,0 +1,130 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:ObjectName="Parametre">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:ConnectionManagers>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[Entrepot]"
+      DTS:CreationName="OLEDB"
+      DTS:DTSID="{D0000000-0000-0000-0000-000000000001}"
+      DTS:ObjectName="Entrepot">
+      <DTS:PropertyExpressions>
+        <DTS:PropertyExpression
+          DTS:Name="ConnectionString">@[$Package::Chaine]</DTS:PropertyExpression>
+      </DTS:PropertyExpressions>
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:ConnectionString="Data Source=srv-demo;Initial Catalog=Entrepot;Provider=MSOLEDBSQL;" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+  </DTS:ConnectionManagers>
+  <DTS:PackageParameters>
+    <DTS:PackageParameter
+      DTS:CreationName=""
+      DTS:DataType="8"
+      DTS:DTSID="{D0000000-0000-0000-0000-000000000002}"
+      DTS:ObjectName="Chaine">
+      <DTS:Property
+        DTS:DataType="8"
+        DTS:Name="ParameterValue">Data Source=srv-demo;Initial Catalog=Entrepot;Password=s3cr3t;</DTS:Property>
+    </DTS:PackageParameter>
+    <DTS:PackageParameter
+      DTS:CreationName=""
+      DTS:DataType="8"
+      DTS:DTSID="{D0000000-0000-0000-0000-000000000003}"
+      DTS:ObjectName="Jeton"
+      DTS:Sensitive="True">
+      <DTS:Property
+        DTS:DataType="8"
+        DTS:Name="ParameterValue">s3cr3t-jeton</DTS:Property>
+    </DTS:PackageParameter>
+  </DTS:PackageParameters>
+  <DTS:Variables>
+    <DTS:Variable
+      DTS:CreationName=""
+      DTS:DTSID="{D0000000-0000-0000-0000-000000000004}"
+      DTS:IncludeInDebugDump="2345"
+      DTS:Namespace="User"
+      DTS:ObjectName="Requete">
+      <DTS:VariableValue
+        DTS:DataType="8">INSERT INTO dbo.Cible SELECT id FROM stg.Source</DTS:VariableValue>
+    </DTS:Variable>
+    <DTS:Variable
+      DTS:CreationName=""
+      DTS:DTSID="{D0000000-0000-0000-0000-000000000005}"
+      DTS:EvaluateAsExpression="True"
+      DTS:Expression="&quot;INSERT INTO dbo.Journal SELECT id FROM &quot; + @[User::Table]"
+      DTS:IncludeInDebugDump="2345"
+      DTS:Namespace="User"
+      DTS:ObjectName="RequeteCalculee">
+      <DTS:VariableValue
+        DTS:DataType="8">INSERT INTO dbo.Journal SELECT id FROM stg.Source</DTS:VariableValue>
+    </DTS:Variable>
+    <DTS:Variable
+      DTS:CreationName=""
+      DTS:DTSID="{D0000000-0000-0000-0000-000000000006}"
+      DTS:IncludeInDebugDump="2345"
+      DTS:Namespace="User"
+      DTS:ObjectName="MotDePasse">
+      <DTS:VariableValue
+        DTS:DataType="8">s3cr3t</DTS:VariableValue>
+    </DTS:Variable>
+  </DTS:Variables>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\SQL Variable"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="SQL Variable">
+      <DTS:Variables>
+        <DTS:Variable
+          DTS:CreationName=""
+          DTS:DTSID="{D0000000-0000-0000-0000-000000000007}"
+          DTS:IncludeInDebugDump="6789"
+          DTS:Namespace="User"
+          DTS:ObjectName="Lot">
+          <DTS:VariableValue
+            DTS:DataType="3">42</DTS:VariableValue>
+        </DTS:Variable>
+      </DTS:Variables>
+      <DTS:PropertyExpressions>
+        <DTS:PropertyExpression
+          DTS:Name="Disable">@[User::Lot] == 0</DTS:PropertyExpression>
+      </DTS:PropertyExpressions>
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{D0000000-0000-0000-0000-000000000001}"
+          SQLTask:SqlStatementSourceType="Variable"
+          SQLTask:SqlStatementSource="User::Requete" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\SQL Calculee"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="SQL Calculee">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{D0000000-0000-0000-0000-000000000001}"
+          SQLTask:SqlStatementSourceType="Variable"
+          SQLTask:SqlStatementSource="User::RequeteCalculee" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\SQL Absente"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="SQL Absente">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{D0000000-0000-0000-0000-000000000001}"
+          SQLTask:SqlStatementSourceType="Variable"
+          SQLTask:SqlStatementSource="User::Absente" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+</DTS:Executable>

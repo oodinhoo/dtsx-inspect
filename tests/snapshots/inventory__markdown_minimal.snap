@@ -12,6 +12,12 @@ expression: "render::markdown(&inventory(&fixture(\"minimal.dtsx\")).0)"
 | Fichier clients | FLATFILE | Package | C:\demo\clients.csv |
 | CRM | DynamicsCRM | Package |  |
 
+## Variables
+
+| Portée | Nom | Valeur | Expression |
+| --- | --- | --- | --- |
+| package | User::NbLignes | 0 |  |
+
 ## Tâches
 
 | Chemin | Type | Connexion | Désactivée |

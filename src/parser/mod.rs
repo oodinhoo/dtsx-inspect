@@ -9,10 +9,10 @@ use quick_xml::events::{BytesRef, BytesStart, Event};
 use quick_xml::{Reader, XmlVersion};
 
 use crate::model::{
-    Component, ConnectionManager, ConnectionRef, DataPath, Executable, Package, Role, Scope,
-    SqlOrigin, SqlStatement,
+    Component, ConnectionManager, ConnectionRef, DataPath, Executable, Package, Parameter,
+    PropertyExpression, Role, Scope, SqlOrigin, SqlStatement, Variable,
 };
-use secrets::summarize_connection_string;
+use secrets::{is_secret_name, redact_secrets, summarize_connection_string};
 
 /// Premier format SSIS 2012 (attributs `DTS:` au lieu d'éléments `DTS:Property`).
 const MIN_FORMAT_VERSION: u32 = 6;
@@ -48,6 +48,9 @@ pub fn parse_package(xml: &str) -> Result<Package, ParseError> {
         format_version,
         connections: doc.connections,
         executables: doc.executables,
+        parameters: doc.parameters,
+        variables: doc.variables,
+        expressions: doc.expressions,
     })
 }
 
@@ -75,6 +78,9 @@ struct Document {
     format_version: Option<u32>,
     connections: Vec<ConnectionManager>,
     executables: Vec<Executable>,
+    parameters: Vec<Parameter>,
+    variables: Vec<Variable>,
+    expressions: Vec<PropertyExpression>,
 }
 
 /// `DTS:ConnectionManager` en cours ; `depth` compte l'élément imbriqué
@@ -178,6 +184,9 @@ enum Capture {
     CalledPackage,
     PackageConnection,
     ComponentProperty(&'static str),
+    VariableValue,
+    ParameterValue,
+    Expression,
 }
 
 // ponytail: éléments repérés par nom local, sans résolution de namespace :
@@ -194,6 +203,10 @@ struct Reading {
     /// Propriétés définies par une expression : (tâche, `DTS:Name`), résolues à la
     /// fin car les composants d'un Data Flow sont lus après ses expressions.
     expressions: Vec<(usize, String)>,
+    /// Variable, paramètre ou expression de propriété en cours (valeur lue ensuite).
+    variable: Option<Variable>,
+    parameter: Option<Parameter>,
+    expression: Option<PropertyExpression>,
 }
 
 impl Reading {
@@ -222,10 +235,22 @@ impl Reading {
             {
                 self.begin(Capture::FormatVersion)
             }
-            "PropertyExpression" if self.connection.is_none() => {
-                if let (Some(&i), Some(name)) = (self.open_executables.last(), attr(e, "Name")?) {
-                    self.expressions.push((i, name));
-                }
+            "Property"
+                if self.parameter.is_some()
+                    && attr(e, "Name")?.as_deref() == Some("ParameterValue") =>
+            {
+                self.begin(Capture::ParameterValue)
+            }
+            "PropertyExpression" => self.start_expression(e)?,
+            "Variable" => self.start_variable(e)?,
+            "VariableValue" if self.variable.is_some() => self.begin(Capture::VariableValue),
+            "PackageParameter" => {
+                self.parameter = Some(Parameter {
+                    name: attr(e, "ObjectName")?.unwrap_or_default(),
+                    value: None,
+                    sensitive: attr(e, "Sensitive")?
+                        .is_some_and(|s| s.eq_ignore_ascii_case("true")),
+                });
             }
             "ExecutePackageTask" => self.in_execute_package = true,
             "PackageName" if self.in_execute_package => self.begin(Capture::CalledPackage),
@@ -319,6 +344,53 @@ impl Reading {
         doc
     }
 
+    /// Expression de propriété d'une connexion, d'une tâche ou du package. Celles des
+    /// tâches servent aussi au lignage (requête ou propriété de composant calculée).
+    fn start_expression(&mut self, e: &BytesStart) -> Result<(), ParseError> {
+        let property = attr(e, "Name")?.unwrap_or_default();
+        let owner = match (&self.connection, self.open_executables.last()) {
+            (Some(draft), _) => format!("connexion {}", draft.manager.name),
+            (None, Some(&i)) => {
+                self.expressions.push((i, property.clone()));
+                self.doc.executables[i].path().to_owned()
+            }
+            (None, None) => "package".to_owned(),
+        };
+        self.expression = Some(PropertyExpression {
+            owner,
+            property,
+            expression: String::new(),
+        });
+        self.begin(Capture::Expression);
+        Ok(())
+    }
+
+    /// `DTS:Variable` : portée (tâche ouverte), nom qualifié et, si elle est calculée,
+    /// son expression ; la valeur suit dans `DTS:VariableValue`.
+    fn start_variable(&mut self, e: &BytesStart) -> Result<(), ParseError> {
+        let namespace = attr(e, "Namespace")?.unwrap_or_else(|| "User".to_owned());
+        let name = format!(
+            "{namespace}::{}",
+            attr(e, "ObjectName")?.unwrap_or_default()
+        );
+        let computed =
+            attr(e, "EvaluateAsExpression")?.is_some_and(|v| v.eq_ignore_ascii_case("true"));
+        let expression = match computed {
+            true => attr(e, "Expression")?.map(|x| redact_secrets(&x)),
+            false => None,
+        };
+        let scope = self.open_executables.last().map_or(String::new(), |&i| {
+            self.doc.executables[i].path().to_owned()
+        });
+        self.variable = Some(Variable {
+            scope,
+            name,
+            value: None,
+            expression,
+        });
+        Ok(())
+    }
+
     fn start_executable(&mut self, e: &BytesStart) -> Result<(), ParseError> {
         self.doc.executables.push(Executable {
             ref_id: attr(e, "refId")?.unwrap_or_default(),
@@ -378,7 +450,18 @@ impl Reading {
                     self.doc.connections.push(draft.manager);
                 }
             }
-            "Property" | "PackageName" | "Connection" | "property" => self.finish_capture(),
+            "Property" | "PackageName" | "Connection" | "property" | "VariableValue"
+            | "PropertyExpression" => self.finish_capture(),
+            "Variable" => {
+                if let Some(v) = self.variable.take() {
+                    self.doc.variables.push(v);
+                }
+            }
+            "PackageParameter" => {
+                if let Some(p) = self.parameter.take() {
+                    self.doc.parameters.push(p);
+                }
+            }
             "ExecutePackageTask" => self.in_execute_package = false,
             "component" => {
                 if let (Some(c), Some(&i)) = (self.component.take(), self.open_executables.last()) {
@@ -400,6 +483,26 @@ impl Reading {
         };
         let value = std::mem::take(&mut self.captured).trim().to_owned();
         match (capture, self.open_executables.last().copied()) {
+            // Valeurs de conception : un nom de secret masque tout, sinon `password=…`
+            // est masqué dans le texte ; un paramètre sensible n'a pas de valeur.
+            (Capture::VariableValue, _) => {
+                if let Some(v) = self.variable.as_mut() {
+                    v.value = displayable(&v.name, &value);
+                }
+            }
+            (Capture::ParameterValue, _) => {
+                if let Some(p) = self.parameter.as_mut().filter(|p| !p.sensitive) {
+                    p.value = displayable(&p.name, &value);
+                }
+            }
+            (Capture::Expression, _) => {
+                if let Some(x) = self.expression.take() {
+                    self.doc.expressions.push(PropertyExpression {
+                        expression: redact_secrets(&value),
+                        ..x
+                    });
+                }
+            }
             (Capture::ComponentProperty(name), _) => {
                 if let Some(c) = self.component.as_mut() {
                     c.properties.insert(name.to_owned(), value);
@@ -417,6 +520,19 @@ impl Reading {
             (_, None) => {}
         }
     }
+}
+
+/// Valeur affichable d'une variable ou d'un paramètre : `***` pour un nom de secret,
+/// sinon le texte avec `password=` masqué ; rien si elle est vide.
+fn displayable(name: &str, value: &str) -> Option<String> {
+    if value.is_empty() {
+        return None;
+    }
+    Some(if is_secret_name(name) {
+        "***".to_owned()
+    } else {
+        redact_secrets(value)
+    })
 }
 
 fn start_component(e: &BytesStart) -> Result<ComponentDraft, ParseError> {
@@ -888,5 +1004,87 @@ mod tests {
     fn rejects_package_as_conmgr() {
         let err = parse_conmgr(MINIMAL).unwrap_err();
         assert!(matches!(err, ParseError::NotAConnectionManager), "{err:?}");
+    }
+
+    const PARAMETRE: &str = include_str!("../../tests/fixtures/variables/Parametre.dtsx");
+
+    #[test]
+    fn reads_variables_with_their_scope_value_and_expression() {
+        let p = parse_package(PARAMETRE).expect("parametre");
+        let vars: Vec<_> = p
+            .variables
+            .iter()
+            .map(|v| {
+                (
+                    v.scope.as_str(),
+                    v.name.as_str(),
+                    v.value.as_deref(),
+                    v.expression.as_deref(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            vars,
+            vec![
+                (
+                    "",
+                    "User::Requete",
+                    Some("INSERT INTO dbo.Cible SELECT id FROM stg.Source"),
+                    None
+                ),
+                (
+                    "",
+                    "User::RequeteCalculee",
+                    Some("INSERT INTO dbo.Journal SELECT id FROM stg.Source"),
+                    Some("\"INSERT INTO dbo.Journal SELECT id FROM \" + @[User::Table]")
+                ),
+                // Nom de secret : valeur masquée.
+                ("", "User::MotDePasse", Some("***"), None),
+                ("SQL Variable", "User::Lot", Some("42"), None),
+            ]
+        );
+    }
+
+    #[test]
+    fn reads_package_parameters_without_secrets() {
+        let p = parse_package(PARAMETRE).expect("parametre");
+        let params: Vec<_> = p
+            .parameters
+            .iter()
+            .map(|x| (x.name.as_str(), x.value.as_deref(), x.sensitive))
+            .collect();
+        assert_eq!(
+            params,
+            vec![
+                (
+                    "Chaine",
+                    Some("Data Source=srv-demo;Initial Catalog=Entrepot;Password=***;"),
+                    false
+                ),
+                ("Jeton", None, true),
+            ]
+        );
+        assert!(!format!("{p:?}").contains("s3cr3t"));
+    }
+
+    #[test]
+    fn reads_property_expressions_of_connections_and_tasks() {
+        let p = parse_package(PARAMETRE).expect("parametre");
+        let found: Vec<_> = p
+            .expressions
+            .iter()
+            .map(|e| (e.owner.as_str(), e.property.as_str(), e.expression.as_str()))
+            .collect();
+        assert_eq!(
+            found,
+            vec![
+                (
+                    "connexion Entrepot",
+                    "ConnectionString",
+                    "@[$Package::Chaine]"
+                ),
+                ("SQL Variable", "Disable", "@[User::Lot] == 0"),
+            ]
+        );
     }
 }

@@ -27,6 +27,15 @@ pub fn summarize_connection_string(raw: &str) -> Option<String> {
     (!kept.is_empty()).then(|| kept.join(";"))
 }
 
+/// Mots qui, dans un nom de variable ou de paramètre, annoncent un secret.
+const SECRET_NAMES: [&str; 6] = ["password", "pwd", "motdepasse", "secret", "token", "jeton"];
+
+/// `User::MotDePasse`, `Api_Token`… : la valeur ne doit pas être affichée.
+pub fn is_secret_name(name: &str) -> bool {
+    let compact = name.to_lowercase().replace(['_', '-', ' '], "");
+    SECRET_NAMES.iter().any(|s| compact.contains(s))
+}
+
 /// Clés dont la valeur est masquée dans un texte libre (SQL, FetchXML).
 const SECRET_KEYS: [&str; 2] = ["password", "pwd"];
 
@@ -207,6 +216,23 @@ mod tests {
             redact("SELECT PasswordHash FROM t"),
             "SELECT PasswordHash FROM t"
         );
+    }
+
+    #[test]
+    fn recognises_secret_names() {
+        use super::is_secret_name;
+        for name in [
+            "User::MotDePasse",
+            "Mot_de_passe",
+            "ApiToken",
+            "PWD",
+            "$Project::Secret",
+        ] {
+            assert!(is_secret_name(name), "{name}");
+        }
+        for name in ["User::Requete", "Chaine", "Passerelle"] {
+            assert!(!is_secret_name(name), "{name}");
+        }
     }
 
     #[test]

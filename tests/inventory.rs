@@ -200,3 +200,24 @@ fn reads_procedures_and_views_of_sql_scripts_whatever_their_encoding() {
         ]
     );
 }
+
+#[test]
+fn markdown_lists_parameters_variables_and_expressions_without_secrets() {
+    let (inv, errors) = inventory(&fixture("variables"));
+    assert!(errors.is_empty(), "{errors:?}");
+
+    let md = render::markdown(&inv);
+
+    for expected in [
+        "## Paramètres",
+        "| Jeton | (sensible) |",
+        "## Variables",
+        "| User::RequeteCalculee |",
+        "| SQL Variable | User::Lot | 42 |",
+        "## Expressions",
+        r"| connexion Entrepot | ConnectionString | @\[$Package::Chaine\] |",
+    ] {
+        assert!(md.contains(expected), "{expected} absent de :\n{md}");
+    }
+    assert!(!md.contains("s3cr3t"), "{md}");
+}

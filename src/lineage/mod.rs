@@ -263,17 +263,23 @@ impl<'a> Builder<'a> {
     }
 
     fn sql_task(&mut self, index: usize, package: &Package, task: &Executable, sql: &SqlStatement) {
-        match sql.origin {
-            SqlOrigin::Variable => {
-                let note = format!("requête dans la variable {}, non suivie", sql.text);
-                return self.note(index, &task.name, &note);
-            }
+        // Requête lue dans une variable : sa valeur ; calculée par expression, c'est
+        // la valeur à la conception, comme pour une requête en expression.
+        let (text, from_expression) = match sql.origin {
+            SqlOrigin::Direct => (sql.text.as_str(), false),
+            SqlOrigin::Expression => (sql.text.as_str(), true),
+            SqlOrigin::Variable => match variable(package, task, &sql.text) {
+                Some(v) => (v.0, v.1),
+                None => {
+                    let note = format!("requête dans la variable {}, non suivie", sql.text);
+                    return self.note(index, &task.name, &note);
+                }
+            },
             SqlOrigin::File => {
                 return self.note(index, &task.name, "requête dans un fichier, non suivie")
             }
-            SqlOrigin::Direct | SqlOrigin::Expression => {}
-        }
-        let Ok(found) = sql::tables(&sql.text) else {
+        };
+        let Ok(found) = sql::tables(text) else {
             return self.note(index, &task.name, "SQL non analysé");
         };
         let database = database_of(package, &task.connections);
@@ -285,7 +291,6 @@ impl<'a> Builder<'a> {
             package: index,
             name: task.name.clone(),
         });
-        let from_expression = sql.origin == SqlOrigin::Expression;
         self.attach(index, &task.name, node, found, from_expression);
     }
 
@@ -384,6 +389,21 @@ impl<'a> Builder<'a> {
             reason: reason.to_owned(),
         });
     }
+}
+
+/// Valeur de la variable `name` vue depuis la tâche (la plus proche l'emporte, comme
+/// dans SSIS), et si elle est calculée par expression. Valeur masquée : rien.
+fn variable<'p>(package: &'p Package, task: &Executable, name: &str) -> Option<(&'p str, bool)> {
+    let path = task.path();
+    let visible =
+        |scope: &str| scope.is_empty() || path == scope || path.starts_with(&format!("{scope}\\"));
+    let v = package
+        .variables
+        .iter()
+        .filter(|v| v.name.eq_ignore_ascii_case(name.trim()) && visible(&v.scope))
+        .max_by_key(|v| v.scope.len())?;
+    let value = v.value.as_deref().filter(|value| *value != "***")?;
+    Some((value, v.expression.is_some()))
 }
 
 /// Tables créées, lues, écrites puis procédures appelées. Créations d'abord : une

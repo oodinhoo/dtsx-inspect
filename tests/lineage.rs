@@ -302,3 +302,26 @@ fn tables_are_identified_by_server_and_database_not_by_connection_name() {
         ]
     );
 }
+
+#[test]
+fn queries_read_from_a_variable_use_its_value() {
+    let (inv, errors) = inventory(&fixture("variables"));
+    assert!(errors.is_empty(), "{errors:?}");
+
+    let l = lineage(&inv);
+
+    // Variable calculée par expression : sa valeur à la conception, en pointillés.
+    assert_eq!(
+        edges(&l),
+        vec![
+            "Entrepot : stg.Source -.-> SQL Calculee",
+            "Entrepot : stg.Source -> SQL Variable",
+            "SQL Calculee -.-> Entrepot : dbo.Journal",
+            "SQL Variable -> Entrepot : dbo.Cible",
+        ]
+    );
+    assert_eq!(
+        notes(&l),
+        vec!["Parametre : SQL Absente : requête dans la variable User::Absente, non suivie"]
+    );
+}

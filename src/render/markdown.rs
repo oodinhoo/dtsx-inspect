@@ -24,12 +24,79 @@ pub(super) fn package(p: &Package) -> String {
         .iter()
         .filter(|e| !e.components.is_empty())
         .flat_map(data_flow);
-    [header, connections(p), tasks(p)]
-        .concat()
-        .into_iter()
-        .chain(flows)
-        .collect::<Vec<_>>()
-        .join("\n")
+    [
+        header,
+        connections(p),
+        parameters(p),
+        variables(p),
+        tasks(p),
+        expressions(p),
+    ]
+    .concat()
+    .into_iter()
+    .chain(flows)
+    .collect::<Vec<_>>()
+    .join("\n")
+}
+
+/// Section omise quand elle serait vide : la plupart des packages n'ont ni
+/// paramètre ni expression.
+fn optional(title: &str, headers: &[&str], rows: Vec<String>) -> Vec<String> {
+    if rows.is_empty() {
+        Vec::new()
+    } else {
+        section(title, headers, rows)
+    }
+}
+
+fn parameters(p: &Package) -> Vec<String> {
+    let rows = p
+        .parameters
+        .iter()
+        .map(|x| {
+            let value = match (&x.value, x.sensitive) {
+                (_, true) => "(sensible)",
+                (Some(value), false) => value,
+                (None, false) => "",
+            };
+            row(&[&x.name, value])
+        })
+        .collect();
+    optional("## Paramètres", &["Nom", "Valeur"], rows)
+}
+
+fn variables(p: &Package) -> Vec<String> {
+    let rows = p
+        .variables
+        .iter()
+        .map(|v| {
+            let scope = if v.scope.is_empty() {
+                "package"
+            } else {
+                &v.scope
+            };
+            let value = v.value.as_deref().unwrap_or("");
+            row(&[scope, &v.name, value, v.expression.as_deref().unwrap_or("")])
+        })
+        .collect();
+    optional(
+        "## Variables",
+        &["Portée", "Nom", "Valeur", "Expression"],
+        rows,
+    )
+}
+
+fn expressions(p: &Package) -> Vec<String> {
+    let rows = p
+        .expressions
+        .iter()
+        .map(|x| row(&[&x.owner, &x.property, &x.expression]))
+        .collect();
+    optional(
+        "## Expressions",
+        &["Élément", "Propriété", "Expression"],
+        rows,
+    )
 }
 
 fn connections(p: &Package) -> Vec<String> {
@@ -182,6 +249,7 @@ mod tests {
                 format_version: 8,
                 connections: Vec::new(),
                 executables: vec![flow],
+                ..Package::default()
             }],
             sql_scripts: Vec::new(),
         };

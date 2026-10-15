@@ -126,11 +126,49 @@ impl Executable {
     }
 }
 
+/// Variable du package ou d'une tâche. Valeur de conception, secrets masqués.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Variable {
+    /// Chemin de la tâche ou du conteneur qui la porte ; vide pour le package.
+    pub scope: String,
+    /// Nom qualifié : `User::Nom`.
+    pub name: String,
+    pub value: Option<String>,
+    /// Expression qui la calcule (`EvaluateAsExpression`) ; `value` en est alors le
+    /// résultat à la conception.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expression: Option<String>,
+}
+
+/// Paramètre du package. Valeur de conception, secrets masqués ; aucune valeur
+/// pour un paramètre sensible.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Parameter {
+    pub name: String,
+    pub value: Option<String>,
+    pub sensitive: bool,
+}
+
+/// Propriété calculée par une expression, secrets masqués.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PropertyExpression {
+    /// Chemin de la tâche, `connexion Nom` ou `package`.
+    pub owner: String,
+    pub property: String,
+    pub expression: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct Package {
     pub file: String,
     pub name: String,
     pub format_version: u32,
     pub connections: Vec<ConnectionManager>,
     pub executables: Vec<Executable>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub parameters: Vec<Parameter>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub variables: Vec<Variable>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub expressions: Vec<PropertyExpression>,
 }
