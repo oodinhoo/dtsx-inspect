@@ -1,5 +1,6 @@
 //! dtsx-inspect : analyse de packages SSIS (`.dtsx`).
 
+pub mod calls;
 pub mod inventory;
 pub mod lineage;
 pub mod lint;

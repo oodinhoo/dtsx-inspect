@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand, ValueEnum};
+use dtsx_inspect::calls::calls;
 use dtsx_inspect::lineage::{self, lineage};
 use dtsx_inspect::lint::{lint, Severity};
 use dtsx_inspect::{inventory, render};
@@ -40,6 +41,11 @@ enum Command {
     /// Anti-patterns SSIS (code de sortie 1 si une erreur est trouvée)
     Lint {
         /// Fichier .dtsx ou dossier (parcouru récursivement)
+        path: PathBuf,
+    },
+    /// Appels de packages (tâches Execute Package) en Mermaid
+    Calls {
+        /// Dossier du projet, ou parent de plusieurs projets
         path: PathBuf,
     },
 }
@@ -104,6 +110,11 @@ fn main() -> anyhow::Result<ExitCode> {
                 .count();
             let failure = (blocking > 0).then(|| format!("{blocking} erreur(s) de lint"));
             (render::findings(&findings), errors, failure)
+        }
+        Command::Calls { path } => {
+            let (inventory, errors) = inventory(&path);
+            let chart = render::calls_mermaid(&inventory, &calls(&inventory));
+            (chart, errors, None)
         }
     };
     std::io::stdout().lock().write_all(output.as_bytes())?;

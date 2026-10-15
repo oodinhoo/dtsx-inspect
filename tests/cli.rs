@@ -141,3 +141,14 @@ fn lineage_reports_broken_files() {
     assert_eq!(out.status.code(), Some(1));
     assert!(stderr(&out).contains("corrompu.dtsx"), "{}", stderr(&out));
 }
+
+#[test]
+fn calls_prints_the_package_call_graph_in_mermaid() {
+    let out = run(&["calls", "tests/fixtures/appels"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    let chart = stdout(&out);
+    assert!(chart.starts_with("flowchart LR\n"), "{chart}");
+    assert!(chart.contains("\"Orchestrateur\""), "{chart}");
+    assert!(chart.contains("02_Absent.dtsx (introuvable)"), "{chart}");
+}

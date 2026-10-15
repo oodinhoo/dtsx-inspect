@@ -1,5 +1,5 @@
 // Navigation du rapport : arborescence projets → packages à gauche, vue à droite.
-// L'adresse décrit la vue (#vue, #carte/PROJET, #p/INDICE/flux|inventaire|lint, #regles/RÈGLE) :
+// L'adresse décrit la vue (#vue, #carte/PROJET, #p/INDICE/flux|inventaire|lint, #regles/RÈGLE, #appels) :
 // liens partageables et bouton Précédent. Sans les scripts du CDN, tout marche
 // sauf le graphe et la mise en forme de l'inventaire.
 (() => {
@@ -12,7 +12,7 @@
 
   function route() {
     const [view, arg, sub] = location.hash.slice(1).split("/").map(decodeURIComponent);
-    const target = { p: "package", carte: "carte", regles: "regles" }[view] ?? "vue";
+    const target = { p: "package", carte: "carte", regles: "regles", appels: "appels" }[view] ?? "vue";
     views.forEach((v) => (v.hidden = v.id !== target));
     for (const a of treeLinks) {
       const active = a.dataset.pkg !== undefined ? view === "p" && a.dataset.pkg === arg : a.hash === `#${target}`;

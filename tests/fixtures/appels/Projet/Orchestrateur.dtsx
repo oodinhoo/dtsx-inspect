@@ -1,0 +1,58 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:ObjectName="Orchestrateur">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:ConnectionManagers>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[Fils]"
+      DTS:CreationName="FILE"
+      DTS:DTSID="{C0000000-0000-0000-0000-000000000001}"
+      DTS:ObjectName="Fils">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:ConnectionString="D:\deploiement\03_Fils.dtsx" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+  </DTS:ConnectionManagers>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\PET Charger"
+      DTS:CreationName="Microsoft.ExecutePackageTask"
+      DTS:ExecutableType="Microsoft.ExecutePackageTask"
+      DTS:ObjectName="PET Charger">
+      <DTS:ObjectData>
+        <ExecutePackageTask>
+          <UseProjectReference>True</UseProjectReference>
+          <PackageName>01_Charger.dtsx</PackageName>
+        </ExecutePackageTask>
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\PET Absent"
+      DTS:CreationName="Microsoft.ExecutePackageTask"
+      DTS:ExecutableType="Microsoft.ExecutePackageTask"
+      DTS:ObjectName="PET Absent">
+      <DTS:ObjectData>
+        <ExecutePackageTask>
+          <UseProjectReference>True</UseProjectReference>
+          <PackageName>02_Absent.dtsx</PackageName>
+        </ExecutePackageTask>
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\PET Externe"
+      DTS:CreationName="Microsoft.ExecutePackageTask"
+      DTS:ExecutableType="Microsoft.ExecutePackageTask"
+      DTS:ObjectName="PET Externe">
+      <DTS:ObjectData>
+        <ExecutePackageTask>
+          <Connection>{C0000000-0000-0000-0000-000000000001}</Connection>
+        </ExecutePackageTask>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+</DTS:Executable>

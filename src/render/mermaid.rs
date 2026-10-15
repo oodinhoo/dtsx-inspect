@@ -2,7 +2,57 @@ use petgraph::graph::NodeIndex;
 use petgraph::visit::EdgeRef;
 
 use super::clean;
+use crate::calls::{Call, Callee};
+use crate::inventory::Inventory;
 use crate::lineage::{DatasetKind, Lineage, Node};
+
+/// Appels de packages : un nœud par package concerné, la tâche sur la flèche, les
+/// packages absents du dossier en pointillés.
+pub fn calls_mermaid(inventory: &Inventory, calls: &[Call]) -> String {
+    let package = |i: usize| {
+        let name = inventory.packages.get(i).map_or("?", |p| p.name.as_str());
+        (format!("p{i}"), format!("[\"{}\"]", escape(name)))
+    };
+    let mut nodes: Vec<String> = Vec::new();
+    let mut missing: Vec<&str> = Vec::new();
+    let mut edges = Vec::new();
+    for call in calls {
+        let from = package(call.caller);
+        let to = match &call.callee {
+            Callee::Package(i) => package(*i),
+            Callee::Missing(name) => {
+                let n = match missing.iter().position(|m| m == name) {
+                    Some(n) => n,
+                    None => {
+                        missing.push(name);
+                        missing.len() - 1
+                    }
+                };
+                let label = escape(&format!("{name} (introuvable)"));
+                (format!("m{n}"), format!("[\"{label}\"]:::missing"))
+            }
+        };
+        for (key, shape) in [&from, &to] {
+            let declared = format!("  {key}{shape}");
+            if !nodes.contains(&declared) {
+                nodes.push(declared);
+            }
+        }
+        edges.push(format!(
+            "  {} -->|\"{}\"| {}",
+            from.0,
+            escape(&call.task),
+            to.0
+        ));
+    }
+    let mut lines = vec!["flowchart LR".to_owned()];
+    lines.extend(nodes);
+    lines.extend(edges);
+    if !missing.is_empty() {
+        lines.push("  classDef missing stroke-dasharray:4 3".to_owned());
+    }
+    lines.join("\n") + "\n"
+}
 
 /// `flowchart LR` : jeux de données à part (partagés entre packages), un
 /// sous-graphe par package et un par Data Flow.

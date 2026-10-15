@@ -4,10 +4,11 @@ mod graph;
 mod html;
 mod markdown;
 mod mermaid;
+mod orchestration;
 
 pub use html::html;
 pub use markdown::markdown;
-pub use mermaid::mermaid;
+pub use mermaid::{calls_mermaid, mermaid};
 
 use crate::inventory::Inventory;
 use crate::lint::{Finding, Severity};

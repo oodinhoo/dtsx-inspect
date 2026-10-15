@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:ObjectName="Charger">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\PET Fils"
+      DTS:CreationName="Microsoft.ExecutePackageTask"
+      DTS:ExecutableType="Microsoft.ExecutePackageTask"
+      DTS:ObjectName="PET Fils">
+      <DTS:ObjectData>
+        <ExecutePackageTask>
+          <UseProjectReference>True</UseProjectReference>
+          <PackageName>03_Fils.dtsx</PackageName>
+        </ExecutePackageTask>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+</DTS:Executable>

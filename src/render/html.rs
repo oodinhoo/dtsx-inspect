@@ -6,6 +6,8 @@ use std::collections::{BTreeMap, HashMap};
 
 use super::graph::graph_json;
 use super::markdown;
+use super::orchestration::orchestration_view;
+use crate::calls::calls;
 use crate::inventory::{is_build_dir, FileError, Inventory};
 use crate::lineage::Lineage;
 use crate::lint::{rules, Finding, RuleDoc, Severity};
@@ -60,7 +62,7 @@ pub fn html(
         "<!doctype html>\n<html lang=\"fr\"><head><meta charset=\"utf-8\">\
 <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\
 <title>dtsx-inspect : {title}</title><style>{STYLE}</style></head><body><div class=\"app\">\
-{}<main class=\"content\">{}{}{}{}</main></div>{templates}\
+{}<main class=\"content\">{}{}{}{}{}</main></div>{templates}\
 <script type=\"application/json\" id=\"lineage-data\">{}</script>\
 {LIBRARIES}<script>{LINEAGE}</script><script>{SCRIPT}</script></body></html>\n",
         sidebar(&title, inventory, lint),
@@ -68,6 +70,7 @@ pub fn html(
         map_view(),
         package_view(),
         rules_view(lint),
+        orchestration_view(inventory, &calls(inventory)),
         graph_json(inventory, lineage),
     )
 }
@@ -187,6 +190,7 @@ fn sidebar(title: &str, inventory: &Inventory, lint: &[Finding]) -> String {
 <nav class=\"tree\" aria-label=\"Projets et packages\">\
 <a href=\"#vue\" class=\"nav-item\">Vue d'ensemble</a>\
 <a href=\"#carte\" class=\"nav-item\">Carte du lignage</a>\
+<a href=\"#appels\" class=\"nav-item\">Orchestration</a>\
 <a href=\"#regles\" class=\"nav-item\">Règles de lint</a>{tree}</nav></aside>"
     )
 }
@@ -391,7 +395,7 @@ fn plural(count: usize, word: &str) -> String {
     format!("{count} {word}{s}")
 }
 
-fn escape(text: &str) -> String {
+pub(super) fn escape(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
@@ -412,6 +416,26 @@ mod tests {
             &[],
         );
         assert!(!page.contains("<script>alert"), "{page}");
+    }
+
+    #[test]
+    fn the_orchestration_page_shows_who_calls_whom() {
+        let (inventory, _) = crate::inventory(std::path::Path::new("tests/fixtures/appels"));
+
+        let page = html("x", &inventory, &Lineage::default(), &[], &[]);
+
+        assert!(
+            page.contains("href=\"#appels\""),
+            "lien manquant dans la barre latérale"
+        );
+        let view = &page[page.find("id=\"appels\"").expect("vue Orchestration")..];
+        // Sans Data Flow, un package s'ouvre sur son inventaire.
+        assert!(view.contains("href=\"#p/2/inventaire\""), "{view}");
+        let root = view.find(">Orchestrateur</a>").expect("racine");
+        let child = view.find(">Charger</a>").expect("appel");
+        let grandchild = view.find(">Fils</a>").expect("appel imbriqué");
+        assert!(root < child && child < grandchild, "{view}");
+        assert!(view.contains("02_Absent.dtsx"), "{view}");
     }
 
     #[test]

@@ -340,6 +340,24 @@ kbd {
   border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 4px; background: var(--surface-2);
 }
 
+/* Orchestration : arbre des appels, un trait relie chaque appel à son appelant. */
+.calls, .calls ul { margin: 0; padding: 0; list-style: none; }
+.calls { max-width: 60rem; padding-bottom: 1.5rem; }
+.calls > li {
+  margin-bottom: .75rem; padding: .7rem 1rem; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius); font-weight: 600;
+}
+.calls ul { margin: .35rem 0 0 .6rem; padding-left: 1rem; border-left: 1px solid var(--border-strong); font-weight: 400; }
+.calls li li { position: relative; display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .5rem; padding: .2rem 0; }
+.calls li li::before {
+  content: ""; position: absolute; left: -1rem; top: .95rem; width: .7rem; border-top: 1px solid var(--border-strong);
+}
+.calls li li > ul { flex-basis: 100%; }
+.calls .via { color: var(--muted); font-family: var(--mono); font-size: .78rem; }
+.calls .via::after { content: " →"; }
+.calls .missing > span:not(.via):not(.badge) { color: var(--avertissement); }
+.calls .badge { font-size: .7rem; }
+
 /* Règles de lint : une fiche par règle, soulignée quand on y arrive depuis un constat. */
 .rules { display: grid; grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr)); gap: 1rem; padding-bottom: 1.5rem; }
 .rule {
