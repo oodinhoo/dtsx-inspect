@@ -100,7 +100,15 @@ fn counts_by_file(lint: &[Finding]) -> HashMap<&str, [usize; 2]> {
 fn sidebar(title: &str, inventory: &Inventory, lint: &[Finding]) -> String {
     let counts = counts_by_file(lint);
     let mut projects: BTreeMap<&str, Vec<(usize, &Package)>> = BTreeMap::new();
-    for (i, p) in inventory.packages.iter().enumerate() {
+    // Sans Data Flow (orchestrateur, SQL seul), un package reste accessible par les
+    // liens du lint et de la carte, sans encombrer l'arborescence.
+    let with_flow = |p: &&Package| p.executables.iter().any(|e| !e.components.is_empty());
+    for (i, p) in inventory
+        .packages
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| with_flow(p))
+    {
         projects
             .entry(project_of(&p.file))
             .or_default()
@@ -364,6 +372,28 @@ mod tests {
             &[],
         );
         assert!(!page.contains("<script>alert"), "{page}");
+    }
+
+    #[test]
+    fn the_tree_lists_only_packages_with_a_data_flow() {
+        let fixture =
+            |name: &str| crate::inventory(&std::path::Path::new("tests/fixtures").join(name)).0;
+        let packages = fixture("minimal.dtsx")
+            .packages
+            .into_iter()
+            .chain(fixture("orchestrateur.dtsx").packages)
+            .collect();
+        let inventory = Inventory {
+            packages,
+            ..Inventory::default()
+        };
+
+        let tree = sidebar("x", &inventory, &[]);
+
+        assert!(tree.contains("Demo_Minimal"), "{tree}");
+        // L'orchestrateur n'a que des Execute Package Task : sa page reste
+        // accessible par les liens du lint, mais il encombrerait l'arborescence.
+        assert!(!tree.contains("Orchestrateur"), "{tree}");
     }
 
     #[test]
