@@ -9,7 +9,7 @@ use quick_xml::events::{BytesRef, BytesStart, Event};
 use quick_xml::{Reader, XmlVersion};
 
 use crate::model::{
-    Component, ConnectionManager, ConnectionRef, DataPath, Executable, Package, Parameter,
+    Column, Component, ConnectionManager, ConnectionRef, DataPath, Executable, Package, Parameter,
     PropertyExpression, Role, Scope, SqlOrigin, SqlStatement, Variable,
 };
 use secrets::{is_secret_name, redact_secrets, summarize_connection_string};
@@ -117,7 +117,20 @@ struct ComponentDraft {
     /// Profondeur sous `<component>` : 2 = `<properties><property>` du composant
     /// (les propriétés de colonnes sont plus profondes).
     depth: usize,
+    inputs: Vec<Column>,
+    outputs: Vec<Column>,
+    /// Colonne en cours de lecture : la dernière de `inputs` (`true`) ou d'`outputs`.
+    open_column: Option<bool>,
+    in_error_output: bool,
 }
+
+/// Propriétés de colonne qui disent d'où vient la colonne.
+const COLUMN_PROPERTIES: [&str; 4] = [
+    "CopyFromReferenceColumn",
+    "Expression",
+    "OutputColumnLineageID",
+    "SourceInputColumnLineageID",
+];
 
 impl ComponentDraft {
     /// Rôle déduit de la structure : marche aussi pour les composants tiers.
@@ -143,6 +156,16 @@ impl ComponentDraft {
             connections: self.connections,
             properties: self.properties,
             expressions: Vec::new(),
+            inputs: self.inputs,
+            outputs: self.outputs,
+        }
+    }
+
+    /// Colonne en cours de lecture, à qui reviennent ses propriétés.
+    fn open_column(&mut self) -> Option<&mut Column> {
+        match self.open_column? {
+            true => self.inputs.last_mut(),
+            false => self.outputs.last_mut(),
         }
     }
 }
@@ -184,6 +207,7 @@ enum Capture {
     CalledPackage,
     PackageConnection,
     ComponentProperty(&'static str),
+    ColumnProperty(&'static str),
     VariableValue,
     ParameterValue,
     Expression,
@@ -279,7 +303,39 @@ impl Reading {
                 c.connections.extend(reference.and_then(connection_ref));
             }
             "input" => c.has_input = true,
-            "output" if attr(e, "isErrorOut")?.as_deref() != Some("true") => c.has_output = true,
+            "output" => {
+                let error = attr(e, "isErrorOut")?.as_deref() == Some("true");
+                c.in_error_output = error;
+                c.has_output |= !error;
+            }
+            // Sortie d'erreur : `ErrorCode`, `ErrorColumn`… ne sont pas des données.
+            "outputColumn" if c.in_error_output => {}
+            "inputColumn" | "outputColumn" => {
+                let is_input = local == "inputColumn";
+                let name = if is_input { "cachedName" } else { "name" };
+                let column = Column {
+                    lineage: attr(e, "lineageId")?.unwrap_or_default(),
+                    name: attr(e, name)?.unwrap_or_default(),
+                    external: attr(e, "externalMetadataColumnId")?
+                        .and_then(|id| external_name(&id)),
+                    ..Column::default()
+                };
+                if is_input {
+                    c.inputs.push(column);
+                } else {
+                    c.outputs.push(column);
+                }
+                c.open_column = Some(is_input);
+            }
+            "property" if c.open_column.is_some() => {
+                let name = attr(e, "name")?;
+                if let Some(known) = COLUMN_PROPERTIES
+                    .iter()
+                    .find(|p| Some(**p) == name.as_deref())
+                {
+                    self.begin(Capture::ColumnProperty(known));
+                }
+            }
             "property" if c.depth == 2 => {
                 let name = attr(e, "name")?;
                 if let Some(known) = COMPONENT_PROPERTIES
@@ -463,6 +519,16 @@ impl Reading {
                 }
             }
             "ExecutePackageTask" => self.in_execute_package = false,
+            "inputColumn" | "outputColumn" => {
+                if let Some(c) = self.component.as_mut() {
+                    c.open_column = None;
+                }
+            }
+            "output" => {
+                if let Some(c) = self.component.as_mut() {
+                    c.in_error_output = false;
+                }
+            }
             "component" => {
                 if let (Some(c), Some(&i)) = (self.component.take(), self.open_executables.last()) {
                     self.doc.executables[i].components.push(c.finish());
@@ -508,6 +574,19 @@ impl Reading {
                     c.properties.insert(name.to_owned(), value);
                 }
             }
+            (Capture::ColumnProperty(name), _) => {
+                let column = self
+                    .component
+                    .as_mut()
+                    .and_then(ComponentDraft::open_column);
+                if let Some(column) = column {
+                    match name {
+                        "CopyFromReferenceColumn" => column.reference = Some(value),
+                        "OutputColumnLineageID" => column.feeds = column_refs(&value).next(),
+                        _ => column.sources.extend(column_refs(&value)),
+                    }
+                }
+            }
             (Capture::FormatVersion, _) => self.doc.format_version = value.parse().ok(),
             (Capture::CalledPackage, Some(i)) => {
                 self.doc.executables[i].called_package = Some(value).filter(|v| !v.is_empty());
@@ -545,7 +624,25 @@ fn start_component(e: &BytesStart) -> Result<ComponentDraft, ParseError> {
         has_input: false,
         has_output: false,
         depth: 0,
+        inputs: Vec::new(),
+        outputs: Vec::new(),
+        open_column: None,
+        in_error_output: false,
     })
+}
+
+/// Colonnes citées dans une propriété de colonne : `LOWER(#{…Columns[email]})`.
+fn column_refs(text: &str) -> impl Iterator<Item = String> + '_ {
+    text.split("#{")
+        .skip(1)
+        .filter_map(|part| part.split_once('}'))
+        .map(|(id, _)| id.to_owned())
+}
+
+/// Nom de la colonne de table d'un identifiant `…ExternalColumns[nom]`.
+fn external_name(id: &str) -> Option<String> {
+    let (_, name) = id.rsplit_once("ExternalColumns[")?;
+    Some(name.strip_suffix(']').unwrap_or(name).to_owned())
 }
 
 /// Expression de Data Flow `[Composant].[Propriété]`, si la propriété est dans

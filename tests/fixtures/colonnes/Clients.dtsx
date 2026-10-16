@@ -1,0 +1,357 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:ObjectName="Clients">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:ConnectionManagers>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[Fichier clients]"
+      DTS:CreationName="FLATFILE"
+      DTS:DTSID="{E0000000-0000-0000-0000-000000000001}"
+      DTS:ObjectName="Fichier clients">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:ConnectionString="D:\demo\clients.csv" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[Entrepot]"
+      DTS:CreationName="OLEDB"
+      DTS:DTSID="{E0000000-0000-0000-0000-000000000002}"
+      DTS:ObjectName="Entrepot">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:ConnectionString="Data Source=srv-demo;Initial Catalog=Entrepot;Provider=MSOLEDBSQL;" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+  </DTS:ConnectionManagers>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\DFT Clients"
+      DTS:CreationName="Microsoft.Pipeline"
+      DTS:ExecutableType="Microsoft.Pipeline"
+      DTS:ObjectName="DFT Clients">
+      <DTS:ObjectData>
+        <pipeline
+          version="1">
+          <components>
+            <component
+              refId="Package\DFT Clients\FF Clients"
+              componentClassID="Microsoft.FlatFileSource"
+              name="FF Clients">
+              <connections>
+                <connection
+                  refId="Package\DFT Clients\FF Clients.Connections[FlatFileConnection]"
+                  connectionManagerID="{E0000000-0000-0000-0000-000000000001}"
+                  name="FlatFileConnection" />
+              </connections>
+              <outputs>
+                <output
+                  refId="Package\DFT Clients\FF Clients.Outputs[Sortie]"
+                  name="Sortie">
+                  <outputColumns>
+                    <outputColumn
+                      refId="Package\DFT Clients\FF Clients.Outputs[Sortie].Columns[id]"
+                      dataType="wstr"
+                      externalMetadataColumnId="Package\DFT Clients\FF Clients.Outputs[Sortie].ExternalColumns[id]"
+                      lineageId="Package\DFT Clients\FF Clients.Outputs[Sortie].Columns[id]"
+                      name="id" />
+                    <outputColumn
+                      refId="Package\DFT Clients\FF Clients.Outputs[Sortie].Columns[email]"
+                      dataType="wstr"
+                      externalMetadataColumnId="Package\DFT Clients\FF Clients.Outputs[Sortie].ExternalColumns[email]"
+                      lineageId="Package\DFT Clients\FF Clients.Outputs[Sortie].Columns[email]"
+                      name="email" />
+                    <outputColumn
+                      refId="Package\DFT Clients\FF Clients.Outputs[Sortie].Columns[pays_code]"
+                      dataType="wstr"
+                      externalMetadataColumnId="Package\DFT Clients\FF Clients.Outputs[Sortie].ExternalColumns[pays_code]"
+                      lineageId="Package\DFT Clients\FF Clients.Outputs[Sortie].Columns[pays_code]"
+                      name="pays_code" />
+                  </outputColumns>
+                  <externalMetadataColumns
+                    isUsed="True">
+                    <externalMetadataColumn
+                      refId="Package\DFT Clients\FF Clients.Outputs[Sortie].ExternalColumns[id]"
+                      dataType="wstr"
+                      name="id" />
+                    <externalMetadataColumn
+                      refId="Package\DFT Clients\FF Clients.Outputs[Sortie].ExternalColumns[email]"
+                      dataType="wstr"
+                      name="email" />
+                    <externalMetadataColumn
+                      refId="Package\DFT Clients\FF Clients.Outputs[Sortie].ExternalColumns[pays_code]"
+                      dataType="wstr"
+                      name="pays_code" />
+                  </externalMetadataColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Clients\DER Email"
+              componentClassID="Microsoft.DerivedColumn"
+              name="DER Email">
+              <inputs>
+                <input
+                  refId="Package\DFT Clients\DER Email.Inputs[Entree]"
+                  name="Entree" />
+              </inputs>
+              <outputs>
+                <output
+                  refId="Package\DFT Clients\DER Email.Outputs[Sortie]"
+                  name="Sortie">
+                  <outputColumns>
+                    <outputColumn
+                      refId="Package\DFT Clients\DER Email.Outputs[Sortie].Columns[email_norm]"
+                      dataType="wstr"
+                      lineageId="Package\DFT Clients\DER Email.Outputs[Sortie].Columns[email_norm]"
+                      name="email_norm">
+                      <properties>
+                        <property
+                          containsID="true"
+                          dataType="System.String"
+                          name="Expression">LOWER(TRIM(#{Package\DFT Clients\FF Clients.Outputs[Sortie].Columns[email]}))</property>
+                        <property
+                          containsID="true"
+                          dataType="System.String"
+                          name="FriendlyExpression">LOWER(TRIM(email))</property>
+                      </properties>
+                    </outputColumn>
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Clients\DCV Id"
+              componentClassID="Microsoft.DataConvert"
+              name="DCV Id">
+              <inputs>
+                <input
+                  refId="Package\DFT Clients\DCV Id.Inputs[Entree]"
+                  name="Entree">
+                  <inputColumns>
+                    <inputColumn
+                      refId="Package\DFT Clients\DCV Id.Inputs[Entree].Columns[id]"
+                      cachedName="id"
+                      lineageId="Package\DFT Clients\FF Clients.Outputs[Sortie].Columns[id]" />
+                  </inputColumns>
+                </input>
+              </inputs>
+              <outputs>
+                <output
+                  refId="Package\DFT Clients\DCV Id.Outputs[Sortie]"
+                  name="Sortie">
+                  <outputColumns>
+                    <outputColumn
+                      refId="Package\DFT Clients\DCV Id.Outputs[Sortie].Columns[id_int]"
+                      dataType="i4"
+                      lineageId="Package\DFT Clients\DCV Id.Outputs[Sortie].Columns[id_int]"
+                      name="id_int">
+                      <properties>
+                        <property
+                          containsID="true"
+                          dataType="System.Int32"
+                          name="SourceInputColumnLineageID">#{Package\DFT Clients\FF Clients.Outputs[Sortie].Columns[id]}</property>
+                      </properties>
+                    </outputColumn>
+                  </outputColumns>
+                </output>
+                <output
+                  refId="Package\DFT Clients\DCV Id.Outputs[Sortie d'erreur]"
+                  isErrorOut="true"
+                  name="Sortie d'erreur">
+                  <outputColumns>
+                    <outputColumn
+                      refId="Package\DFT Clients\DCV Id.Outputs[Sortie d'erreur].Columns[ErrorCode]"
+                      dataType="i4"
+                      lineageId="Package\DFT Clients\DCV Id.Outputs[Sortie d'erreur].Columns[ErrorCode]"
+                      name="ErrorCode" />
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Clients\LKP Pays"
+              componentClassID="Microsoft.Lookup"
+              name="LKP Pays">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="SqlCommand">select code, libelle from ref.Pays</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Clients\LKP Pays.Connections[OleDbConnection]"
+                  connectionManagerID="{E0000000-0000-0000-0000-000000000002}"
+                  name="OleDbConnection" />
+              </connections>
+              <inputs>
+                <input
+                  refId="Package\DFT Clients\LKP Pays.Inputs[Entree]"
+                  name="Entree">
+                  <inputColumns>
+                    <inputColumn
+                      refId="Package\DFT Clients\LKP Pays.Inputs[Entree].Columns[pays_code]"
+                      cachedName="pays_code"
+                      lineageId="Package\DFT Clients\FF Clients.Outputs[Sortie].Columns[pays_code]">
+                      <properties>
+                        <property
+                          dataType="System.String"
+                          name="JoinToReferenceColumn">code</property>
+                      </properties>
+                    </inputColumn>
+                  </inputColumns>
+                </input>
+              </inputs>
+              <outputs>
+                <output
+                  refId="Package\DFT Clients\LKP Pays.Outputs[Correspondance]"
+                  name="Correspondance">
+                  <outputColumns>
+                    <outputColumn
+                      refId="Package\DFT Clients\LKP Pays.Outputs[Correspondance].Columns[pays_libelle]"
+                      dataType="wstr"
+                      lineageId="Package\DFT Clients\LKP Pays.Outputs[Correspondance].Columns[pays_libelle]"
+                      name="pays_libelle">
+                      <properties>
+                        <property
+                          dataType="System.String"
+                          name="CopyFromReferenceColumn">libelle</property>
+                      </properties>
+                    </outputColumn>
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Clients\MC Copie"
+              componentClassID="Microsoft.Multicast"
+              name="MC Copie">
+              <inputs>
+                <input
+                  refId="Package\DFT Clients\MC Copie.Inputs[Entree]"
+                  name="Entree" />
+              </inputs>
+              <outputs>
+                <output
+                  refId="Package\DFT Clients\MC Copie.Outputs[Sortie 1]"
+                  name="Sortie 1" />
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Clients\SCR Note"
+              componentClassID="Microsoft.ManagedComponentHost"
+              name="SCR Note">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="UserComponentTypeName">Microsoft.ScriptComponentHost</property>
+              </properties>
+              <inputs>
+                <input
+                  refId="Package\DFT Clients\SCR Note.Inputs[Entree]"
+                  name="Entree" />
+              </inputs>
+              <outputs>
+                <output
+                  refId="Package\DFT Clients\SCR Note.Outputs[Sortie]"
+                  name="Sortie">
+                  <outputColumns>
+                    <outputColumn
+                      refId="Package\DFT Clients\SCR Note.Outputs[Sortie].Columns[note]"
+                      dataType="wstr"
+                      lineageId="Package\DFT Clients\SCR Note.Outputs[Sortie].Columns[note]"
+                      name="note" />
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Clients\DST Clients"
+              componentClassID="Microsoft.OLEDBDestination"
+              name="DST Clients">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="OpenRowset">[dbo].[Clients]</property>
+                <property
+                  dataType="System.Int32"
+                  name="AccessMode"
+                  typeConverter="AccessMode">3</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Clients\DST Clients.Connections[OleDbConnection]"
+                  connectionManagerID="{E0000000-0000-0000-0000-000000000002}"
+                  name="OleDbConnection" />
+              </connections>
+              <inputs>
+                <input
+                  refId="Package\DFT Clients\DST Clients.Inputs[Entree]"
+                  name="Entree">
+                  <inputColumns>
+                    <inputColumn
+                      refId="Package\DFT Clients\DST Clients.Inputs[Entree].Columns[id_int]"
+                      cachedName="id_int"
+                      externalMetadataColumnId="Package\DFT Clients\DST Clients.Inputs[Entree].ExternalColumns[id]"
+                      lineageId="Package\DFT Clients\DCV Id.Outputs[Sortie].Columns[id_int]" />
+                    <inputColumn
+                      refId="Package\DFT Clients\DST Clients.Inputs[Entree].Columns[email_norm]"
+                      cachedName="email_norm"
+                      externalMetadataColumnId="Package\DFT Clients\DST Clients.Inputs[Entree].ExternalColumns[email]"
+                      lineageId="Package\DFT Clients\DER Email.Outputs[Sortie].Columns[email_norm]" />
+                    <inputColumn
+                      refId="Package\DFT Clients\DST Clients.Inputs[Entree].Columns[pays_libelle]"
+                      cachedName="pays_libelle"
+                      externalMetadataColumnId="Package\DFT Clients\DST Clients.Inputs[Entree].ExternalColumns[pays]"
+                      lineageId="Package\DFT Clients\LKP Pays.Outputs[Correspondance].Columns[pays_libelle]" />
+                    <inputColumn
+                      refId="Package\DFT Clients\DST Clients.Inputs[Entree].Columns[note]"
+                      cachedName="note"
+                      externalMetadataColumnId="Package\DFT Clients\DST Clients.Inputs[Entree].ExternalColumns[note]"
+                      lineageId="Package\DFT Clients\SCR Note.Outputs[Sortie].Columns[note]" />
+                  </inputColumns>
+                </input>
+              </inputs>
+            </component>
+          </components>
+          <paths>
+            <path
+              refId="Package\DFT Clients.Paths[1]"
+              endId="Package\DFT Clients\DER Email.Inputs[Entree]"
+              name="1"
+              startId="Package\DFT Clients\FF Clients.Outputs[Sortie]" />
+            <path
+              refId="Package\DFT Clients.Paths[2]"
+              endId="Package\DFT Clients\DCV Id.Inputs[Entree]"
+              name="2"
+              startId="Package\DFT Clients\DER Email.Outputs[Sortie]" />
+            <path
+              refId="Package\DFT Clients.Paths[3]"
+              endId="Package\DFT Clients\LKP Pays.Inputs[Entree]"
+              name="3"
+              startId="Package\DFT Clients\DCV Id.Outputs[Sortie]" />
+            <path
+              refId="Package\DFT Clients.Paths[4]"
+              endId="Package\DFT Clients\MC Copie.Inputs[Entree]"
+              name="4"
+              startId="Package\DFT Clients\LKP Pays.Outputs[Correspondance]" />
+            <path
+              refId="Package\DFT Clients.Paths[5]"
+              endId="Package\DFT Clients\SCR Note.Inputs[Entree]"
+              name="5"
+              startId="Package\DFT Clients\MC Copie.Outputs[Sortie 1]" />
+            <path
+              refId="Package\DFT Clients.Paths[6]"
+              endId="Package\DFT Clients\DST Clients.Inputs[Entree]"
+              name="6"
+              startId="Package\DFT Clients\SCR Note.Outputs[Sortie]" />
+          </paths>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+</DTS:Executable>

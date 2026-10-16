@@ -1,0 +1,132 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:ObjectName="Synthese">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:ConnectionManagers>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[Entrepot]"
+      DTS:CreationName="OLEDB"
+      DTS:DTSID="{E2000000-0000-0000-0000-000000000001}"
+      DTS:ObjectName="Entrepot">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:ConnectionString="Data Source=srv-demo;Initial Catalog=Entrepot;Provider=MSOLEDBSQL;" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+  </DTS:ConnectionManagers>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\DFT Synthese"
+      DTS:CreationName="Microsoft.Pipeline"
+      DTS:ExecutableType="Microsoft.Pipeline"
+      DTS:ObjectName="DFT Synthese">
+      <DTS:ObjectData>
+        <pipeline
+          version="1">
+          <components>
+            <component
+              refId="Package\DFT Synthese\SRC Commandes"
+              componentClassID="Microsoft.OLEDBSource"
+              name="SRC Commandes">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="SqlCommand">SELECT c.email AS courriel, UPPER(p.libelle) AS pays, o.montant
+FROM dbo.Commandes o
+JOIN dbo.Clients c ON c.id = o.client_id
+LEFT JOIN ref.Pays p ON p.code = c.pays</property>
+                <property
+                  dataType="System.Int32"
+                  name="AccessMode"
+                  typeConverter="AccessMode">2</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Synthese\SRC Commandes.Connections[OleDbConnection]"
+                  connectionManagerID="{E2000000-0000-0000-0000-000000000001}"
+                  name="OleDbConnection" />
+              </connections>
+              <outputs>
+                <output
+                  refId="Package\DFT Synthese\SRC Commandes.Outputs[Sortie]"
+                  name="Sortie">
+                  <outputColumns>
+                    <outputColumn
+                      refId="Package\DFT Synthese\SRC Commandes.Outputs[Sortie].Columns[courriel]"
+                      externalMetadataColumnId="Package\DFT Synthese\SRC Commandes.Outputs[Sortie].ExternalColumns[courriel]"
+                      lineageId="Package\DFT Synthese\SRC Commandes.Outputs[Sortie].Columns[courriel]"
+                      name="courriel" />
+                    <outputColumn
+                      refId="Package\DFT Synthese\SRC Commandes.Outputs[Sortie].Columns[pays]"
+                      externalMetadataColumnId="Package\DFT Synthese\SRC Commandes.Outputs[Sortie].ExternalColumns[pays]"
+                      lineageId="Package\DFT Synthese\SRC Commandes.Outputs[Sortie].Columns[pays]"
+                      name="pays" />
+                    <outputColumn
+                      refId="Package\DFT Synthese\SRC Commandes.Outputs[Sortie].Columns[montant]"
+                      externalMetadataColumnId="Package\DFT Synthese\SRC Commandes.Outputs[Sortie].ExternalColumns[montant]"
+                      lineageId="Package\DFT Synthese\SRC Commandes.Outputs[Sortie].Columns[montant]"
+                      name="montant" />
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Synthese\DST Synthese"
+              componentClassID="Microsoft.OLEDBDestination"
+              name="DST Synthese">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="OpenRowset">[dbo].[Synthese]</property>
+                <property
+                  dataType="System.Int32"
+                  name="AccessMode"
+                  typeConverter="AccessMode">3</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Synthese\DST Synthese.Connections[OleDbConnection]"
+                  connectionManagerID="{E2000000-0000-0000-0000-000000000001}"
+                  name="OleDbConnection" />
+              </connections>
+              <inputs>
+                <input
+                  refId="Package\DFT Synthese\DST Synthese.Inputs[Entree]"
+                  name="Entree">
+                  <inputColumns>
+                    <inputColumn
+                      refId="Package\DFT Synthese\DST Synthese.Inputs[Entree].Columns[courriel]"
+                      cachedName="courriel"
+                      externalMetadataColumnId="Package\DFT Synthese\DST Synthese.Inputs[Entree].ExternalColumns[email]"
+                      lineageId="Package\DFT Synthese\SRC Commandes.Outputs[Sortie].Columns[courriel]" />
+                    <inputColumn
+                      refId="Package\DFT Synthese\DST Synthese.Inputs[Entree].Columns[pays]"
+                      cachedName="pays"
+                      externalMetadataColumnId="Package\DFT Synthese\DST Synthese.Inputs[Entree].ExternalColumns[pays]"
+                      lineageId="Package\DFT Synthese\SRC Commandes.Outputs[Sortie].Columns[pays]" />
+                    <inputColumn
+                      refId="Package\DFT Synthese\DST Synthese.Inputs[Entree].Columns[montant]"
+                      cachedName="montant"
+                      externalMetadataColumnId="Package\DFT Synthese\DST Synthese.Inputs[Entree].ExternalColumns[montant]"
+                      lineageId="Package\DFT Synthese\SRC Commandes.Outputs[Sortie].Columns[montant]" />
+                  </inputColumns>
+                </input>
+              </inputs>
+            </component>
+          </components>
+          <paths>
+            <path
+              refId="Package\DFT Synthese.Paths[1]"
+              endId="Package\DFT Synthese\DST Synthese.Inputs[Entree]"
+              name="1"
+              startId="Package\DFT Synthese\SRC Commandes.Outputs[Sortie]" />
+          </paths>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+</DTS:Executable>

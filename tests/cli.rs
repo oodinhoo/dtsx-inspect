@@ -152,3 +152,30 @@ fn calls_prints_the_package_call_graph_in_mermaid() {
     assert!(chart.contains("\"Orchestrateur\""), "{chart}");
     assert!(chart.contains("02_Absent.dtsx (introuvable)"), "{chart}");
 }
+
+#[test]
+fn columns_traces_a_column_upstream_and_downstream() {
+    let out = run(&[
+        "columns",
+        "tests/fixtures/colonnes",
+        "--of",
+        "dbo.Clients.email",
+    ]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    let trace = stdout(&out);
+    assert!(trace.starts_with("Entrepot : dbo.Clients.email"), "{trace}");
+    assert!(trace.contains("← expression : FF Clients.email"), "{trace}");
+    assert!(
+        trace.contains("→ Unir tout : UNI Fusion.courriel"),
+        "{trace}"
+    );
+}
+
+#[test]
+fn columns_without_match_fails() {
+    let out = run(&["columns", "tests/fixtures/colonnes", "--of", "inexistante"]);
+
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("inexistante"), "{}", stderr(&out));
+}

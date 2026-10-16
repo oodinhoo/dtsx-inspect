@@ -1,11 +1,13 @@
 //! Sorties de l'inventaire.
 
+mod columns;
 mod graph;
 mod html;
 mod markdown;
 mod mermaid;
 mod orchestration;
 
+pub use columns::column_trace;
 pub use html::html;
 pub use markdown::markdown;
 pub use mermaid::{calls_mermaid, mermaid};

@@ -233,7 +233,7 @@ fn selects_star(query: &Query) -> bool {
     }
 }
 
-fn parse(sql: &str) -> Result<Vec<Statement>, ParserError> {
+pub(crate) fn parse(sql: &str) -> Result<Vec<Statement>, ParserError> {
     // Sources ADO.NET/ODBC : la requête peut viser MySQL (MyApp…) plutôt que SQL Server.
     Parser::parse_sql(&MsSqlDialect {}, sql)
         .or_else(|error| Parser::parse_sql(&MySqlDialect {}, sql).map_err(|_| error))
@@ -327,7 +327,7 @@ impl Relations {
     }
 }
 
-fn single_name(relation: &ObjectName) -> Option<String> {
+pub(crate) fn single_name(relation: &ObjectName) -> Option<String> {
     match relation.0.as_slice() {
         [single] => single.as_ident().map(|id| id.value.to_lowercase()),
         _ => None,
@@ -367,7 +367,7 @@ impl Visitor for Relations {
     }
 }
 
-fn table_name(name: &ObjectName) -> Option<TableName> {
+pub(crate) fn table_name(name: &ObjectName) -> Option<TableName> {
     let parts = name
         .0
         .iter()

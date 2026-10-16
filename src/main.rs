@@ -4,6 +4,7 @@ use std::process::ExitCode;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use dtsx_inspect::calls::calls;
+use dtsx_inspect::lineage::columns::column_lineage;
 use dtsx_inspect::lineage::{self, lineage};
 use dtsx_inspect::lint::{lint, Severity};
 use dtsx_inspect::{inventory, render};
@@ -47,6 +48,15 @@ enum Command {
     Calls {
         /// Dossier du projet, ou parent de plusieurs projets
         path: PathBuf,
+    },
+    /// Lignage d'une colonne dans les Data Flows : d'où elle vient, où elle va
+    Columns {
+        /// Fichier .dtsx ou dossier (parcouru récursivement)
+        path: PathBuf,
+        /// Colonnes de table ou de fichier dont le nom contient ce texte (sans
+        /// casse), par exemple `dbo.Clients.email`
+        #[arg(long)]
+        of: String,
     },
 }
 
@@ -115,6 +125,17 @@ fn main() -> anyhow::Result<ExitCode> {
             let (inventory, errors) = inventory(&path);
             let chart = render::calls_mermaid(&inventory, &calls(&inventory));
             (chart, errors, None)
+        }
+        Command::Columns { path, of } => {
+            let (inventory, errors) = inventory(&path);
+            match render::column_trace(&column_lineage(&inventory), &of) {
+                Some(trace) => (trace, errors, None),
+                None => {
+                    let failure =
+                        format!("aucune colonne de table ni de fichier ne contient « {of} »");
+                    (String::new(), errors, Some(failure))
+                }
+            }
         }
     };
     std::io::stdout().lock().write_all(output.as_bytes())?;

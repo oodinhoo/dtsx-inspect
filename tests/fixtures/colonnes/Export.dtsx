@@ -1,0 +1,153 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:ObjectName="Export">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:ConnectionManagers>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[DW]"
+      DTS:CreationName="OLEDB"
+      DTS:DTSID="{E1000000-0000-0000-0000-000000000001}"
+      DTS:ObjectName="DW">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:ConnectionString="Data Source=srv-demo;Initial Catalog=Entrepot;Provider=MSOLEDBSQL;" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[Export CSV]"
+      DTS:CreationName="FLATFILE"
+      DTS:DTSID="{E1000000-0000-0000-0000-000000000002}"
+      DTS:ObjectName="Export CSV">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:ConnectionString="D:\demo\export.csv" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+  </DTS:ConnectionManagers>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\DFT Export"
+      DTS:CreationName="Microsoft.Pipeline"
+      DTS:ExecutableType="Microsoft.Pipeline"
+      DTS:ObjectName="DFT Export">
+      <DTS:ObjectData>
+        <pipeline
+          version="1">
+          <components>
+            <component
+              refId="Package\DFT Export\SRC Clients"
+              componentClassID="Microsoft.OLEDBSource"
+              name="SRC Clients">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="OpenRowset">[dbo].[Clients]</property>
+                <property
+                  dataType="System.Int32"
+                  name="AccessMode"
+                  typeConverter="AccessMode">0</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Export\SRC Clients.Connections[OleDbConnection]"
+                  connectionManagerID="{E1000000-0000-0000-0000-000000000001}"
+                  name="OleDbConnection" />
+              </connections>
+              <outputs>
+                <output
+                  refId="Package\DFT Export\SRC Clients.Outputs[Sortie]"
+                  name="Sortie">
+                  <outputColumns>
+                    <outputColumn
+                      refId="Package\DFT Export\SRC Clients.Outputs[Sortie].Columns[email]"
+                      dataType="wstr"
+                      externalMetadataColumnId="Package\DFT Export\SRC Clients.Outputs[Sortie].ExternalColumns[email]"
+                      lineageId="Package\DFT Export\SRC Clients.Outputs[Sortie].Columns[email]"
+                      name="email" />
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Export\UNI Fusion"
+              componentClassID="Microsoft.UnionAll"
+              name="UNI Fusion">
+              <inputs>
+                <input
+                  refId="Package\DFT Export\UNI Fusion.Inputs[Entree 1]"
+                  name="Entree 1">
+                  <inputColumns>
+                    <inputColumn
+                      refId="Package\DFT Export\UNI Fusion.Inputs[Entree 1].Columns[email]"
+                      cachedName="email"
+                      lineageId="Package\DFT Export\SRC Clients.Outputs[Sortie].Columns[email]">
+                      <properties>
+                        <property
+                          containsID="true"
+                          dataType="System.Int32"
+                          name="OutputColumnLineageID">#{Package\DFT Export\UNI Fusion.Outputs[Sortie].Columns[courriel]}</property>
+                      </properties>
+                    </inputColumn>
+                  </inputColumns>
+                </input>
+              </inputs>
+              <outputs>
+                <output
+                  refId="Package\DFT Export\UNI Fusion.Outputs[Sortie]"
+                  name="Sortie">
+                  <outputColumns>
+                    <outputColumn
+                      refId="Package\DFT Export\UNI Fusion.Outputs[Sortie].Columns[courriel]"
+                      dataType="wstr"
+                      lineageId="Package\DFT Export\UNI Fusion.Outputs[Sortie].Columns[courriel]"
+                      name="courriel" />
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Export\FFD Export"
+              componentClassID="Microsoft.FlatFileDestination"
+              name="FFD Export">
+              <connections>
+                <connection
+                  refId="Package\DFT Export\FFD Export.Connections[FlatFileConnection]"
+                  connectionManagerID="{E1000000-0000-0000-0000-000000000002}"
+                  name="FlatFileConnection" />
+              </connections>
+              <inputs>
+                <input
+                  refId="Package\DFT Export\FFD Export.Inputs[Entree]"
+                  name="Entree">
+                  <inputColumns>
+                    <inputColumn
+                      refId="Package\DFT Export\FFD Export.Inputs[Entree].Columns[courriel]"
+                      cachedName="courriel"
+                      externalMetadataColumnId="Package\DFT Export\FFD Export.Inputs[Entree].ExternalColumns[courriel]"
+                      lineageId="Package\DFT Export\UNI Fusion.Outputs[Sortie].Columns[courriel]" />
+                  </inputColumns>
+                </input>
+              </inputs>
+            </component>
+          </components>
+          <paths>
+            <path
+              refId="Package\DFT Export.Paths[1]"
+              endId="Package\DFT Export\UNI Fusion.Inputs[Entree 1]"
+              name="1"
+              startId="Package\DFT Export\SRC Clients.Outputs[Sortie]" />
+            <path
+              refId="Package\DFT Export.Paths[2]"
+              endId="Package\DFT Export\FFD Export.Inputs[Entree]"
+              name="2"
+              startId="Package\DFT Export\UNI Fusion.Outputs[Sortie]" />
+          </paths>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+</DTS:Executable>

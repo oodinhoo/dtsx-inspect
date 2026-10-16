@@ -237,6 +237,8 @@ mod tests {
                 connections: Vec::new(),
                 properties: Default::default(),
                 expressions: Vec::new(),
+                inputs: Vec::new(),
+                outputs: Vec::new(),
             }],
             paths: Vec::new(),
             sql: None,

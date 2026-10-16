@@ -69,6 +69,29 @@ pub struct Component {
     /// (`[Composant].[SqlCommand]`) : leur valeur est celle de la conception.
     #[serde(skip)]
     pub expressions: Vec<String>,
+    /// Colonnes lues (entrées) et produites (sorties), pour le lignage par colonne.
+    #[serde(skip)]
+    pub inputs: Vec<Column>,
+    #[serde(skip)]
+    pub outputs: Vec<Column>,
+}
+
+/// Colonne d'entrée ou de sortie d'un composant de Data Flow.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Column {
+    /// Sortie : son identifiant (`lineageId`). Entrée : celui de la colonne de
+    /// sortie amont qu'elle lit.
+    pub lineage: String,
+    pub name: String,
+    /// Colonne de la table ou du fichier (`…ExternalColumns[nom]`) : lue par une
+    /// sortie de source, écrite par une entrée de destination.
+    pub external: Option<String>,
+    /// Sortie calculée : colonnes amont citées (expression, conversion).
+    pub sources: Vec<String>,
+    /// Sortie de recherche : colonne copiée de la table de référence.
+    pub reference: Option<String>,
+    /// Entrée d'Unir tout : colonne de sortie qu'elle alimente.
+    pub feeds: Option<String>,
 }
 
 /// Lien du Data Flow entre deux composants (`ref_id`).

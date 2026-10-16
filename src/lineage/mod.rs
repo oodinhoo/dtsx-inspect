@@ -1,5 +1,7 @@
 //! Lignage : graphe jeux de données -> composants / tâches SQL -> jeux de données.
 
+pub mod columns;
+pub mod projection;
 pub mod sql;
 
 use std::collections::{HashMap, HashSet};
