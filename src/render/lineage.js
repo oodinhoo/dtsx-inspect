@@ -358,6 +358,7 @@
       ${n.expression ? '<section><p class="note">Construit par expression : la valeur affichée est celle de la conception, elle peut différer à l\'exécution.</p></section>' : ""}
       <section><h4>Propriétés</h4><dl class="props">${props.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></section>
       ${n.query ? `<section><h4>${esc(n.query.title)}</h4><pre class="query">${esc(n.query.text)}</pre><button class="action" data-copy>Copier</button></section>` : ""}
+      ${columnsSection(n)}
       <section><h4>${isData ? "Alimenté par" : "En amont"}</h4>${links(up)}</section>
       <section><h4>${isData ? "Consommé par" : "En aval"}</h4>${links(down)}</section>`;
     inspector.classList.add("open");
@@ -377,8 +378,62 @@
     } else if (target.dataset.copy !== undefined) {
       navigator.clipboard?.writeText(inspector.querySelector(".query").textContent);
       target.textContent = "Copié";
+    } else if (target.dataset.column !== undefined) {
+      inspector.querySelectorAll(".column-list button").forEach((b) => b.classList.toggle("active", b === target));
+      const trace = inspector.querySelector(".trace");
+      // Une étape par ligne, en retrait suspendu : une ligne longue revient à la ligne
+      // sous son propre texte. `textContent` : les noms viennent des packages.
+      trace.replaceChildren(...columnTrace(Number(target.dataset.column)).map(([depth, text]) => {
+        const line = document.createElement("div");
+        line.style.setProperty("--depth", depth);
+        line.textContent = text;
+        return line;
+      }));
+      trace.hidden = false;
     }
   });
+
+  // ---------- Lignage par colonne : liste d'un bloc et chaîne d'une colonne ----------
+  // `data.columns[i]` = [colonne, description complète, produite par un composant].
+  const columnsIn = new Map();
+  const columnsOut = new Map();
+  for (const [from, to, how] of data.column_edges ?? []) {
+    columnsIn.set(to, [...(columnsIn.get(to) ?? []), [from, how]]);
+    columnsOut.set(from, [...(columnsOut.get(from) ?? []), [to, how]]);
+  }
+  // Une colonne très partagée peut avoir des milliers de descendants : la chaîne
+  // affichée s'arrête là, le reste reste consultable en ligne de commande.
+  const TRACE_LINES = 300;
+
+  function columnsSection(n) {
+    const ids = [...(n.columns ?? [])].sort((a, b) => data.columns[a][0].localeCompare(data.columns[b][0]));
+    if (!ids.length) return "";
+    const buttons = ids.map((c) => `<button data-column="${c}">${esc(data.columns[c][0])}</button>`).join("");
+    return `<section><h4>Colonnes (${ids.length})</h4><p class="muted">Cliquer une colonne : d'où elle vient (←), où elle va (→).</p>
+      <div class="column-list">${buttons}</div><div class="trace" hidden></div></section>`;
+  }
+
+  // Même contenu que `dtsx-inspect columns --of` : [profondeur, texte] par étape.
+  function columnTrace(start) {
+    const lines = [[0, data.columns[start][1]]];
+    const walk = (node, upstream, path) => {
+      const next = [...((upstream ? columnsIn : columnsOut).get(node) ?? [])]
+        .sort(([a], [b]) => data.columns[a][1].localeCompare(data.columns[b][1]));
+      for (const [other, how] of next) {
+        if (lines.length > TRACE_LINES) return;
+        const unknown = upstream && data.columns[other][2] && !columnsIn.has(other);
+        const loop = path.includes(other);
+        lines.push([path.length, `${upstream ? "←" : "→"} ${how} : ${data.columns[other][1]}`
+          + `${unknown ? ", origine inconnue" : ""}${loop ? " (boucle)" : ""}`]);
+        if (!loop) walk(other, upstream, [...path, other]);
+      }
+    };
+    walk(start, true, [start]);
+    walk(start, false, [start]);
+    if (lines.length > TRACE_LINES) lines.push([0, `… chaîne tronquée à ${TRACE_LINES} lignes (dtsx-inspect columns --of pour la suite)`]);
+    else if (lines.length === 1) lines.push([1, "Aucune colonne liée : ni origine ni usage connus."]);
+    return lines;
+  }
 
   // ---------- Légende : seulement ce que la vue affichée contient ----------
   const legend = stage.querySelector(".legend");

@@ -1,10 +1,14 @@
 //! Données du lignage interactif (blocs, Data Flows, liens), lues par `lineage.js`.
 
+use std::collections::HashMap;
+
 use petgraph::visit::EdgeRef;
 use serde::Serialize;
 
+use super::columns::describe;
 use super::html::project_of;
 use crate::inventory::Inventory;
+use crate::lineage::columns::{column_lineage, ColumnLineage, ColumnNode};
 use crate::lineage::{sql_command, DatasetKind, Lineage, Node, Note};
 use crate::model::{Component, ConnectionRef, Executable, Package, Role, SqlOrigin};
 use crate::parser::secrets::redact_secrets;
@@ -21,6 +25,11 @@ struct Graph<'a> {
     groups: Vec<Group>,
     /// (depuis, vers, requête construite par expression, création de table)
     edges: Vec<(usize, usize, bool, bool)>,
+    /// Lignage par colonne : (colonne, description complète, produite par un
+    /// composant) ; l'indice est l'identifiant de la colonne dans `column_edges`.
+    columns: Vec<(String, String, bool)>,
+    /// (depuis, vers, comment)
+    column_edges: Vec<(usize, usize, &'static str)>,
 }
 
 #[derive(Serialize)]
@@ -34,6 +43,9 @@ struct Block {
     query: Option<Query>,
     note: Option<String>,
     expression: bool,
+    /// Colonnes de la table ou du fichier, ou produites par le composant.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    columns: Vec<usize>,
 }
 
 /// Requête affichée dans le panneau de détails, mots de passe masqués.
@@ -58,6 +70,8 @@ pub(super) fn graph_json(inventory: &Inventory, lineage: &Lineage) -> String {
         .node_indices()
         .map(|i| block(&g[i], inventory, &mut groups))
         .collect();
+    let columns = column_lineage(inventory);
+    attach_columns(lineage, &columns, &mut nodes);
     for note in &lineage.notes {
         // ponytail: étape retrouvée par son nom dans le package ; deux homonymes
         // dans un même package se partagent la remarque.
@@ -96,11 +110,83 @@ pub(super) fn graph_json(inventory: &Inventory, lineage: &Lineage) -> String {
         nodes,
         groups,
         edges,
+        columns: columns
+            .graph
+            .node_indices()
+            .map(|i| {
+                let step = matches!(columns.graph[i], ColumnNode::Step { .. });
+                (
+                    column_name(&columns.graph[i]).to_owned(),
+                    describe(&columns, i),
+                    step,
+                )
+            })
+            .collect(),
+        column_edges: columns
+            .graph
+            .edge_references()
+            .map(|e| (e.source().index(), e.target().index(), e.weight().label()))
+            .collect(),
     };
     // Des chaînes et des entiers : la sérialisation ne peut pas échouer.
     serde_json::to_string(&graph)
         .unwrap_or_else(|_| "null".to_owned())
         .replace('<', "\\u003c")
+}
+
+/// Colonnes de chaque bloc : celles d'une table ou d'un fichier (même serveur, même
+/// libellé), celles que produit un composant (même package, Data Flow et nom).
+fn attach_columns(lineage: &Lineage, columns: &ColumnLineage, blocks: &mut [Block]) {
+    let mut of_dataset: HashMap<(String, String), Vec<usize>> = HashMap::new();
+    let mut of_component: HashMap<(usize, &str, &str), Vec<usize>> = HashMap::new();
+    for i in columns.graph.node_indices() {
+        match &columns.graph[i] {
+            ColumnNode::Dataset {
+                dataset, server, ..
+            } => of_dataset
+                .entry(dataset_key(dataset, server.as_deref()))
+                .or_default()
+                .push(i.index()),
+            ColumnNode::Step {
+                package,
+                flow,
+                component,
+                ..
+            } => of_component
+                .entry((*package, flow, component))
+                .or_default()
+                .push(i.index()),
+        }
+    }
+    for i in lineage.graph.node_indices() {
+        let found = match &lineage.graph[i] {
+            Node::Dataset { label, server, .. } => {
+                of_dataset.get(&dataset_key(label, server.as_deref()))
+            }
+            Node::Component {
+                package,
+                flow,
+                name,
+            } => of_component.get(&(*package, flow.as_str(), name.as_str())),
+            Node::SqlTask { .. } => None,
+        };
+        if let (Some(found), Some(block)) = (found, blocks.get_mut(i.index())) {
+            block.columns = found.clone();
+        }
+    }
+}
+
+fn dataset_key(label: &str, server: Option<&str>) -> (String, String) {
+    (
+        server.unwrap_or_default().to_lowercase(),
+        label.to_lowercase(),
+    )
+}
+
+fn column_name(node: &ColumnNode) -> &str {
+    match node {
+        ColumnNode::Dataset { column, .. } | ColumnNode::Step { column, .. } => column,
+    }
 }
 
 fn block(node: &Node, inventory: &Inventory, groups: &mut Vec<Group>) -> Block {
@@ -182,6 +268,7 @@ fn dataset(kind: DatasetKind, label: &str, server: Option<&str>) -> Block {
         query: None,
         note: None,
         expression: false,
+        columns: Vec::new(),
     }
 }
 
@@ -225,6 +312,7 @@ fn component(package: usize, group: usize, name: &str, c: Option<&Component>) ->
         query,
         note: None,
         expression: c.is_some_and(|c| !c.expressions.is_empty()),
+        columns: Vec::new(),
     }
 }
 
@@ -260,6 +348,7 @@ fn sql_task(package: usize, name: &str, task: Option<&Executable>) -> Block {
         query,
         note: None,
         expression,
+        columns: Vec::new(),
     }
 }
 
@@ -298,6 +387,38 @@ mod tests {
 
     use super::*;
     use crate::lineage::lineage;
+
+    #[test]
+    fn blocks_list_their_columns_and_the_column_graph_is_shipped() {
+        let (inventory, _) = crate::inventory(Path::new("tests/fixtures/colonnes"));
+        let json = graph_json(&inventory, &lineage(&inventory));
+
+        let graph: serde_json::Value = serde_json::from_str(&json).expect("JSON valide");
+        let columns_of = |title: &str| {
+            let block = graph["nodes"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .find(|n| n["title"] == title)
+                .cloned()
+                .unwrap_or_default();
+            let mut names: Vec<String> = block["columns"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|i| graph["columns"][i.as_u64()? as usize][0].as_str())
+                .map(str::to_owned)
+                .collect();
+            names.sort();
+            names
+        };
+        // Table : ses colonnes, lues ou écrites par les packages.
+        assert_eq!(columns_of("dbo.Clients"), ["email", "id", "note", "pays"]);
+        // Composant : les colonnes qu'il produit.
+        assert_eq!(columns_of("DER Email"), ["email_norm"]);
+        let edges = graph["column_edges"].as_array().expect("liens de colonnes");
+        assert!(edges.iter().any(|e| e[2] == "expression"), "{edges:?}");
+    }
 
     #[test]
     fn gives_each_package_the_project_of_the_sidebar() {

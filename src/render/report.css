@@ -400,6 +400,19 @@ kbd {
   max-height: 22rem; margin: 0 0 8px; padding: 10px; overflow: auto; white-space: pre;
   background: var(--bg); border: 1px solid var(--border); border-radius: 6px; font-size: 12px;
 }
+.column-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.column-list button {
+  padding: 2px 8px; border-radius: 999px; font-family: var(--mono); font-size: 11.5px; line-height: 1.6;
+}
+.column-list button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.trace {
+  max-height: 26rem; margin: 10px 0 0; padding: 8px 10px; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+  font-family: var(--mono); font-size: 11.5px; line-height: 1.45;
+}
+/* Retrait suspendu : la flèche reste à sa profondeur, le texte revient sous lui-même. */
+.trace div { padding-left: calc(var(--depth, 0) * 12px + 14px); text-indent: -14px; overflow-wrap: anywhere; }
+.trace div + div { margin-top: 2px; }
 .links { display: flex; flex-direction: column; gap: 6px; }
 .links button { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; font-size: 13px; }
 .links button:hover { background: var(--accent-soft); }
