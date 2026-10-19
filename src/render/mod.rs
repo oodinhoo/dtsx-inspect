@@ -7,6 +7,7 @@ mod html;
 mod mapping;
 mod markdown;
 mod mermaid;
+mod order;
 
 pub use columns::column_trace;
 pub use diff::mapping_diff;
@@ -14,6 +15,7 @@ pub use html::html;
 pub use mapping::mapping_csv;
 pub use markdown::markdown;
 pub use mermaid::{calls_mermaid, mermaid};
+pub use order::order_markdown;
 
 use crate::inventory::Inventory;
 use crate::lint::{Finding, Severity};

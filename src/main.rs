@@ -6,6 +6,7 @@ use anyhow::Context;
 use clap::{Parser, Subcommand, ValueEnum};
 use dtsx_inspect::calls::calls;
 use dtsx_inspect::lineage::columns::column_lineage;
+use dtsx_inspect::lineage::order::execution_order;
 use dtsx_inspect::lineage::{self, lineage};
 use dtsx_inspect::lint::{lint, Severity};
 use dtsx_inspect::{inventory, render};
@@ -66,6 +67,12 @@ enum Command {
         /// Fichier CSV à écrire ; sans lui, le CSV sort sur la console
         #[arg(long)]
         out: Option<PathBuf>,
+    },
+    /// Ordre d'exécution déduit des données : un package après ceux qui écrivent les
+    /// tables qu'il lit, par vagues, avec les cycles et les tables à charger avant
+    Order {
+        /// Fichier .dtsx ou dossier (parcouru récursivement)
+        path: PathBuf,
     },
     /// Compare le lignage de deux dossiers, serveurs mis à part (code de sortie 1 si un
     /// lien ou un package a disparu, ou si un lien est moins bien suivi)
@@ -166,6 +173,11 @@ fn main() -> anyhow::Result<ExitCode> {
                 }
                 None => (csv, errors, None),
             }
+        }
+        Command::Order { path } => {
+            let (inventory, errors) = inventory(&path);
+            let order = execution_order(&lineage(&inventory));
+            (render::order_markdown(&inventory, &order), errors, None)
         }
         Command::Diff { avant, apres } => {
             let (before, mut errors) = inventory(&avant);

@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:ObjectName="Retour">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:ConnectionManagers>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[Entrepot]"
+      DTS:CreationName="OLEDB"
+      DTS:DTSID="{C0000000-0000-0000-0000-000000000001}"
+      DTS:ObjectName="Entrepot">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:ConnectionString="Data Source=srv-demo;Initial Catalog=Entrepot;Provider=MSOLEDBSQL;" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+  </DTS:ConnectionManagers>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\SQL Retour"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="SQL Retour">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{C0000000-0000-0000-0000-000000000001}"
+          SQLTask:SqlStatementSource="INSERT INTO dbo.A SELECT x FROM dbo.B;&#xA;INSERT INTO dbo.Journal (nom) VALUES ('Retour')" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+</DTS:Executable>

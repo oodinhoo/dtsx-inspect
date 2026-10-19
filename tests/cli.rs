@@ -181,6 +181,19 @@ fn columns_without_match_fails() {
 }
 
 #[test]
+fn order_prints_the_waves_deduced_from_the_data() {
+    let out = run(&["order", "tests/fixtures/ordre"]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    let first = text.find("## Vague 1").expect("vague 1");
+    let second = text
+        .find("- Charger — après Extraire")
+        .expect("Charger après Extraire");
+    assert!(first < second, "{text}");
+}
+
+#[test]
 fn diff_fails_only_when_the_lineage_regresses() {
     let same = run(&[
         "diff",
