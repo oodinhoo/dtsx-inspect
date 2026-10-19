@@ -62,6 +62,7 @@ pub fn redact_secrets(text: &str) -> String {
         let start = text.len() - value.len();
         let len = match value.chars().next() {
             Some(q @ ('\'' | '"')) => quoted_len(value, q),
+            Some('N' | 'n') if value[1..].starts_with('\'') => 1 + quoted_len(&value[1..], '\''),
             Some('{') => value.find('}').map_or(value.len(), |end| end + 1),
             _ => value
                 .find(|c: char| matches!(c, ';' | '\'' | '"' | ')' | ',') || c.is_whitespace())
@@ -216,6 +217,12 @@ mod tests {
             redact("SELECT PasswordHash FROM t"),
             "SELECT PasswordHash FROM t"
         );
+        // Chaîne Unicode T-SQL : `N'…'`.
+        assert_eq!(
+            redact("CREATE LOGIN l WITH PASSWORD = N'a''b', DEFAULT_DATABASE = d"),
+            "CREATE LOGIN l WITH PASSWORD = ***, DEFAULT_DATABASE = d"
+        );
+        assert_eq!(redact("@rmtpassword=n'x'"), "@rmtpassword=***");
     }
 
     #[test]

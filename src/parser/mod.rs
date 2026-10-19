@@ -106,6 +106,72 @@ const COMPONENT_PROPERTIES: [&str; 8] = [
 /// est dans la propriété `UserComponentTypeName`.
 const MANAGED_HOST: &str = "Microsoft.ManagedComponentHost";
 
+/// Classes du format 2012/2014 (`{GUID}`, [MS-DTSX2] PipelineComponentComponentClassIDEnum)
+/// et leur nom depuis SSIS 2016, que le lignage et le lint reconnaissent.
+// shortcut: seules les classes vues dans les packages réels ou testées par le code ;
+// un autre composant Microsoft 2012 garde son GUID et compte comme tiers.
+const LEGACY_CLASSES: [(&str, &str); 15] = [
+    (
+        "{165A526D-D5DE-47FF-96A6-F8274C19826B}",
+        "Microsoft.OLEDBSource",
+    ),
+    (
+        "{4ADA7EAA-136C-4215-8098-D7A7C27FC0D1}",
+        "Microsoft.OLEDBDestination",
+    ),
+    (
+        "{D23FD76B-F51D-420F-BBCB-19CBF6AC1AB4}",
+        "Microsoft.FlatFileSource",
+    ),
+    (
+        "{8DA75FED-1B7C-407D-B2AD-2B24209CCCA4}",
+        "Microsoft.FlatFileDestination",
+    ),
+    (
+        "{8C084929-27D1-479F-9641-ABB7CDADF1AC}",
+        "Microsoft.ExcelSource",
+    ),
+    ("{874F7595-FB5F-40FF-96AF-FBFF8250E3EF}", MANAGED_HOST),
+    ("{671046B0-AA63-4C9F-90E4-C06E0B710CE3}", "Microsoft.Lookup"),
+    (
+        "{93FFEC66-CBC8-4C7F-9C6A-CB1C17A7567D}",
+        "Microsoft.OLEDBCommand",
+    ),
+    ("{5B1A3FF5-D366-4D75-AD1F-F19A36FCBEDB}", "Microsoft.Sort"),
+    (
+        "{62B1106C-7DB8-4EC8-ADD6-4C664DFFC54A}",
+        "Microsoft.DataConvert",
+    ),
+    (
+        "{49928E82-9C4E-49F0-AABE-3812B82707EC}",
+        "Microsoft.DerivedColumn",
+    ),
+    (
+        "{B594E9A8-4351-4939-891C-CFE1AB93E925}",
+        "Microsoft.UnionAll",
+    ),
+    (
+        "{7F88F654-4E20-4D14-84F4-AF9C925D3087}",
+        "Microsoft.ConditionalSplit",
+    ),
+    (
+        "{EC139FBC-694E-490B-8EA7-35690FB0F445}",
+        "Microsoft.Multicast",
+    ),
+    (
+        "{E2697D8C-70DA-42B2-8208-A19CE3A9FE41}",
+        "Microsoft.RowCount",
+    ),
+];
+
+/// Nom 2016 d'une classe de composant, quel que soit le format du package.
+fn class_name(id: &str) -> &str {
+    LEGACY_CLASSES
+        .iter()
+        .find(|(guid, _)| guid.eq_ignore_ascii_case(id))
+        .map_or(id, |(_, name)| name)
+}
+
 struct ComponentDraft {
     ref_id: String,
     name: String,
@@ -140,11 +206,12 @@ impl ComponentDraft {
             (true, false) => Role::Destination,
             (true, true) => Role::Transform,
         };
+        let host = class_name(&self.class_id);
         let class_id = match self.properties.get("UserComponentTypeName") {
-            Some(user) if self.class_id == MANAGED_HOST => {
+            Some(user) if host == MANAGED_HOST => {
                 user.split(',').next().unwrap_or(user).trim().to_owned()
             }
-            _ => self.class_id,
+            _ => host.to_owned(),
         };
         Component {
             ref_id: self.ref_id,

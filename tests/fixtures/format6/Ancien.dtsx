@@ -1,0 +1,178 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="SSIS.Package.3"
+  DTS:DTSID="{60000000-0000-0000-0000-000000000001}"
+  DTS:ExecutableType="SSIS.Package.3"
+  DTS:ObjectName="Ancien_2012">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">6</DTS:Property>
+  <DTS:ConnectionManagers>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[Entrepot]"
+      DTS:CreationName="OLEDB"
+      DTS:DTSID="{60000000-0000-0000-0000-0000000000A1}"
+      DTS:ObjectName="Entrepot">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:ConnectionString="Data Source=srv-demo;Initial Catalog=Entrepot;Provider=MSOLEDBSQL;Integrated Security=SSPI;" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[Fichier clients]"
+      DTS:CreationName="FLATFILE"
+      DTS:DTSID="{60000000-0000-0000-0000-0000000000A2}"
+      DTS:ObjectName="Fichier clients">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:ConnectionString="C:\demo\anciens.csv" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[CRM]"
+      DTS:CreationName="DynamicsCRM"
+      DTS:DTSID="{60000000-0000-0000-0000-0000000000A3}"
+      DTS:ObjectName="CRM">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:ConnectionString="ServerType=Online;OrganizationService=https://demo.crm.example;" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+  </DTS:ConnectionManagers>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\DFT Anciens"
+      DTS:CreationName="SSIS.Pipeline.3"
+      DTS:DTSID="{60000000-0000-0000-0000-000000000100}"
+      DTS:ExecutableType="SSIS.Pipeline.3"
+      DTS:ObjectName="DFT Anciens">
+      <DTS:ObjectData>
+        <pipeline
+          version="1">
+          <components>
+            <component
+              refId="Package\DFT Anciens\FF Anciens"
+              componentClassID="{D23FD76B-F51D-420F-BBCB-19CBF6AC1AB4}"
+              name="FF Anciens">
+              <connections>
+                <connection
+                  refId="Package\DFT Anciens\FF Anciens.Connections[FlatFileConnection]"
+                  connectionManagerID="Package.ConnectionManagers[Fichier clients]"
+                  connectionManagerRefId="Package.ConnectionManagers[Fichier clients]"
+                  name="FlatFileConnection" />
+              </connections>
+              <outputs>
+                <output
+                  refId="Package\DFT Anciens\FF Anciens.Outputs[Sortie]"
+                  name="Sortie" />
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Anciens\CRM Comptes"
+              componentClassID="{874F7595-FB5F-40FF-96AF-FBFF8250E3EF}"
+              name="CRM Comptes">
+              <properties>
+                <property
+                  name="UserComponentTypeName">KingswaySoft.IntegrationToolkit.DynamicsCrm.CrmSourceComponent, KingswaySoft.IntegrationToolkit.DynamicsCrm, Version=1.0.0.0, Culture=neutral, PublicKeyToken=0000000000000000</property>
+                <property
+                  name="SourceType">0</property>
+                <property
+                  name="SourceEntity">account</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Anciens\CRM Comptes.Connections[CrmConnection]"
+                  connectionManagerID="Package.ConnectionManagers[CRM]"
+                  connectionManagerRefId="Package.ConnectionManagers[CRM]"
+                  name="CrmConnection" />
+              </connections>
+              <outputs>
+                <output
+                  refId="Package\DFT Anciens\CRM Comptes.Outputs[Sortie]"
+                  name="Sortie" />
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Anciens\UNI Fusion"
+              componentClassID="{B594E9A8-4351-4939-891C-CFE1AB93E925}"
+              name="UNI Fusion">
+              <inputs>
+                <input
+                  refId="Package\DFT Anciens\UNI Fusion.Inputs[Entree 1]"
+                  name="Entree 1" />
+                <input
+                  refId="Package\DFT Anciens\UNI Fusion.Inputs[Entree 2]"
+                  name="Entree 2" />
+              </inputs>
+              <outputs>
+                <output
+                  refId="Package\DFT Anciens\UNI Fusion.Outputs[Sortie]"
+                  name="Sortie" />
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Anciens\TRI Clients"
+              componentClassID="{5B1A3FF5-D366-4D75-AD1F-F19A36FCBEDB}"
+              name="TRI Clients">
+              <inputs>
+                <input
+                  refId="Package\DFT Anciens\TRI Clients.Inputs[Entree]"
+                  name="Entree" />
+              </inputs>
+              <outputs>
+                <output
+                  refId="Package\DFT Anciens\TRI Clients.Outputs[Sortie]"
+                  name="Sortie" />
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Anciens\DST Clients"
+              componentClassID="{4ADA7EAA-136C-4215-8098-D7A7C27FC0D1}"
+              name="DST Clients">
+              <properties>
+                <property
+                  name="AccessMode">0</property>
+                <property
+                  name="OpenRowset">[dbo].[Clients]</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Anciens\DST Clients.Connections[OleDbConnection]"
+                  connectionManagerID="Package.ConnectionManagers[Entrepot]"
+                  connectionManagerRefId="Package.ConnectionManagers[Entrepot]"
+                  name="OleDbConnection" />
+              </connections>
+              <inputs>
+                <input
+                  refId="Package\DFT Anciens\DST Clients.Inputs[Entree]"
+                  name="Entree" />
+              </inputs>
+            </component>
+          </components>
+          <paths>
+            <path
+              refId="Package\DFT Anciens.Paths[Fichier]"
+              startId="Package\DFT Anciens\FF Anciens.Outputs[Sortie]"
+              endId="Package\DFT Anciens\UNI Fusion.Inputs[Entree 1]"
+              name="Fichier" />
+            <path
+              refId="Package\DFT Anciens.Paths[CRM]"
+              startId="Package\DFT Anciens\CRM Comptes.Outputs[Sortie]"
+              endId="Package\DFT Anciens\UNI Fusion.Inputs[Entree 2]"
+              name="CRM" />
+            <path
+              refId="Package\DFT Anciens.Paths[Fusion]"
+              startId="Package\DFT Anciens\UNI Fusion.Outputs[Sortie]"
+              endId="Package\DFT Anciens\TRI Clients.Inputs[Entree]"
+              name="Fusion" />
+            <path
+              refId="Package\DFT Anciens.Paths[Trie]"
+              startId="Package\DFT Anciens\TRI Clients.Outputs[Sortie]"
+              endId="Package\DFT Anciens\DST Clients.Inputs[Entree]"
+              name="Trie" />
+          </paths>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+</DTS:Executable>

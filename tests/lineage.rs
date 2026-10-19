@@ -325,3 +325,43 @@ fn queries_read_from_a_variable_use_its_value() {
         vec!["Parametre : SQL Absente : requête dans la variable User::Absente, non suivie"]
     );
 }
+
+#[test]
+fn reads_ssis_2012_packages_whose_components_are_named_by_guid() {
+    let (inv, errors) = inventory(&fixture("format6"));
+    assert!(errors.is_empty(), "{errors:?}");
+    let classes: Vec<_> = inv.packages[0].executables[0]
+        .components
+        .iter()
+        .map(|c| (c.class_id.as_str(), c.known))
+        .collect();
+    assert_eq!(
+        classes,
+        [
+            ("Microsoft.FlatFileSource", true),
+            (
+                "KingswaySoft.IntegrationToolkit.DynamicsCrm.CrmSourceComponent",
+                false
+            ),
+            ("Microsoft.UnionAll", true),
+            ("Microsoft.Sort", true),
+            ("Microsoft.OLEDBDestination", true),
+        ]
+    );
+
+    let l = lineage(&inv);
+
+    assert_eq!(
+        edges(&l),
+        [
+            r"C:\demo\anciens.csv -> FF Anciens",
+            "CRM : account -> CRM Comptes",
+            "CRM Comptes -> UNI Fusion",
+            "DST Clients -> Entrepot : dbo.Clients",
+            "FF Anciens -> UNI Fusion",
+            "TRI Clients -> DST Clients",
+            "UNI Fusion -> TRI Clients",
+        ]
+    );
+    assert!(notes(&l).is_empty(), "{:?}", notes(&l));
+}
