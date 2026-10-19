@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use dtsx_inspect::inventory;
+use dtsx_inspect::lineage::{lineage, Lineage};
 use dtsx_inspect::lint::lint;
 
 fn fixture(relative: &str) -> PathBuf {
@@ -13,7 +14,7 @@ fn fixture(relative: &str) -> PathBuf {
 fn findings(relative: &str) -> Vec<String> {
     let (inv, errors) = inventory(&fixture(relative));
     assert!(errors.is_empty(), "{errors:?}");
-    lint(&inv)
+    lint(&inv, &lineage(&inv))
         .iter()
         .map(|f| format!("{}|{}|{}", f.rule, f.file, f.location))
         .collect()
@@ -99,4 +100,45 @@ fn flags_ssis_design_rules_from_microsoft_guidance() {
             "{clean} : {found:?}"
         );
     }
+}
+
+#[test]
+fn applies_component_rules_to_ssis_2012_packages() {
+    assert_contains(
+        &findings("format6"),
+        &[
+            r"tri-dans-le-flux|Ancien.dtsx|DFT Anciens\TRI Clients",
+            r"chargement-sans-fast-load|Ancien.dtsx|DFT Anciens\DST Clients",
+        ],
+    );
+}
+
+#[test]
+fn project_connections_are_reported_once_per_project() {
+    let found = findings("multi");
+
+    let providers: Vec<_> = found
+        .iter()
+        .filter(|f| f.starts_with("fournisseur-obsolete|"))
+        .collect();
+    assert_eq!(
+        providers,
+        [
+            "fournisseur-obsolete|a|connexion Cible",
+            "fournisseur-obsolete|b|connexion Cible"
+        ]
+    );
+}
+
+#[test]
+fn lint_reuses_the_lineage_it_is_given() {
+    let (inv, errors) = inventory(&fixture("lineage"));
+    assert!(errors.is_empty(), "{errors:?}");
+
+    let found = lint(&inv, &Lineage::default());
+
+    assert!(
+        !found.iter().any(|f| f.rule == "lignage-incomplet"),
+        "{found:?}"
+    );
 }

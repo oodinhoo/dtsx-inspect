@@ -4,6 +4,7 @@
 
 use super::{components, finding, tasks, Finding, Rule, RuleDoc, Severity};
 use crate::inventory::Inventory;
+use crate::lineage::Lineage;
 
 pub struct NomParDefaut;
 
@@ -84,7 +85,7 @@ impl Rule for NomParDefaut {
         &DOC
     }
 
-    fn check(&self, inventory: &Inventory) -> Vec<Finding> {
+    fn check(&self, inventory: &Inventory, _lineage: &Lineage) -> Vec<Finding> {
         let tasks = tasks(inventory)
             .filter(|(_, e)| is_default(&e.name))
             .map(|(p, e)| finding(&DOC, &p.file, e.path().to_owned(), MESSAGE));

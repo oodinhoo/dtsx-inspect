@@ -1,7 +1,10 @@
 //! Fournisseur OLE DB abandonné : SQL Native Client (`SQLNCLI*`) et `SQLOLEDB`.
 
+use std::collections::HashSet;
+
 use super::{finding, Finding, Rule, RuleDoc, Severity};
 use crate::inventory::Inventory;
+use crate::lineage::Lineage;
 use crate::model::{ConnectionManager, Scope};
 
 pub struct FournisseurObsolete;
@@ -21,21 +24,29 @@ impl Rule for FournisseurObsolete {
         &DOC
     }
 
-    fn check(&self, inventory: &Inventory) -> Vec<Finding> {
-        let project = inventory.project_connections.iter().map(|c| ("projet", c));
-        // Les connexions de projet utilisées sont recopiées dans chaque package :
-        // on ne garde que les locales pour ne les signaler qu'une fois.
-        let local = inventory.packages.iter().flat_map(|p| {
-            p.connections
-                .iter()
-                .filter(|c| c.scope == Scope::Package)
-                .map(move |c| (p.file.as_str(), c))
-        });
-        project
-            .chain(local)
-            .filter_map(|(file, c)| obsolete(file, c))
+    fn check(&self, inventory: &Inventory, _lineage: &Lineage) -> Vec<Finding> {
+        // Une connexion de projet est recopiée dans chaque package qui l'utilise :
+        // signalée une fois par projet, sous le dossier du projet.
+        let mut seen = HashSet::new();
+        inventory
+            .packages
+            .iter()
+            .flat_map(|p| p.connections.iter().map(move |c| (p, c)))
+            .filter_map(|(p, c)| {
+                let file = match c.scope {
+                    Scope::Package => p.file.as_str(),
+                    Scope::Project => project(&p.file),
+                };
+                let first = c.scope == Scope::Package || seen.insert((file, c.id.as_str()));
+                first.then(|| obsolete(file, c)).flatten()
+            })
             .collect()
     }
+}
+
+/// Dossier du projet d'un package (`FINANCE/x.dtsx` -> `FINANCE`), `projet` à la racine.
+fn project(file: &str) -> &str {
+    file.rsplit_once('/').map_or("projet", |(folder, _)| folder)
 }
 
 fn obsolete(file: &str, c: &ConnectionManager) -> Option<Finding> {

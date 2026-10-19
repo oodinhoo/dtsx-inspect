@@ -4,6 +4,7 @@
 
 use super::{components, finding, tasks, Finding, Rule, RuleDoc, Severity};
 use crate::inventory::Inventory;
+use crate::lineage::Lineage;
 use crate::model::ConnectionRef;
 
 pub struct ConnexionNonResolue;
@@ -21,7 +22,7 @@ impl Rule for ConnexionNonResolue {
         &DOC
     }
 
-    fn check(&self, inventory: &Inventory) -> Vec<Finding> {
+    fn check(&self, inventory: &Inventory, _lineage: &Lineage) -> Vec<Finding> {
         let tasks = tasks(inventory).map(|(p, e)| (p, e.path().to_owned(), &e.connections));
         let parts = components(inventory).map(|(p, location, c)| (p, location, &c.connections));
         tasks

@@ -4,6 +4,7 @@
 use super::{finding, tasks, Finding, Rule, RuleDoc, Severity};
 use crate::inventory::Inventory;
 use crate::lineage::sql::inserts_select_star;
+use crate::lineage::Lineage;
 use crate::model::SqlOrigin;
 
 pub struct InsertSelectEtoile;
@@ -21,7 +22,7 @@ impl Rule for InsertSelectEtoile {
         &DOC
     }
 
-    fn check(&self, inventory: &Inventory) -> Vec<Finding> {
+    fn check(&self, inventory: &Inventory, _lineage: &Lineage) -> Vec<Finding> {
         tasks(inventory)
             .filter(|(_, e)| {
                 e.sql.as_ref().is_some_and(|sql| {

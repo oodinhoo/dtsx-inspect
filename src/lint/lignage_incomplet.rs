@@ -3,7 +3,7 @@
 
 use super::{finding, Finding, Rule, RuleDoc, Severity};
 use crate::inventory::Inventory;
-use crate::lineage::lineage;
+use crate::lineage::Lineage;
 
 pub struct LignageIncomplet;
 
@@ -20,8 +20,8 @@ impl Rule for LignageIncomplet {
         &DOC
     }
 
-    fn check(&self, inventory: &Inventory) -> Vec<Finding> {
-        lineage(inventory)
+    fn check(&self, inventory: &Inventory, lineage: &Lineage) -> Vec<Finding> {
+        lineage
             .notes
             .iter()
             .filter_map(|note| {

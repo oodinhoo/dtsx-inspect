@@ -113,7 +113,7 @@ fn main() -> anyhow::Result<ExitCode> {
         }
         Command::Lint { path } => {
             let (inventory, errors) = inventory(&path);
-            let findings = lint(&inventory);
+            let findings = lint(&inventory, &lineage(&inventory));
             let blocking = findings
                 .iter()
                 .filter(|f| f.severity == Severity::Erreur)
@@ -162,11 +162,12 @@ fn report() -> anyhow::Result<()> {
         return Ok(());
     };
     let (inventory, errors) = inventory(&dir);
+    let lineage = lineage(&inventory);
     let page = render::html(
         &dir.display().to_string(),
         &inventory,
-        &lineage(&inventory),
-        &lint(&inventory),
+        &lineage,
+        &lint(&inventory, &lineage),
         &errors,
     );
     // ponytail: un seul rapport, écrasé à chaque lancement ; « Enregistrer sous » du navigateur pour le garder.

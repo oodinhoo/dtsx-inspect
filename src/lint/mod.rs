@@ -15,6 +15,7 @@ mod tri_dans_le_flux;
 use std::fmt;
 
 use crate::inventory::Inventory;
+use crate::lineage::Lineage;
 use crate::model::{Component, Executable, Package};
 use chargement_sans_fast_load::ChargementSansFastLoad;
 use colonnes_inutiles::ColonnesInutiles;
@@ -89,7 +90,7 @@ pub struct RuleDoc {
 
 pub trait Rule {
     fn doc(&self) -> &'static RuleDoc;
-    fn check(&self, inventory: &Inventory) -> Vec<Finding>;
+    fn check(&self, inventory: &Inventory, lineage: &Lineage) -> Vec<Finding>;
 }
 
 /// Fiches de toutes les règles, dans l'ordre alphabétique de leur fichier.
@@ -128,8 +129,11 @@ fn finding(doc: &RuleDoc, file: &str, location: String, message: impl Into<Strin
 }
 
 /// Toutes les règles, triées par fichier puis emplacement.
-pub fn lint(inventory: &Inventory) -> Vec<Finding> {
-    let mut findings: Vec<Finding> = RULES.iter().flat_map(|r| r.check(inventory)).collect();
+pub fn lint(inventory: &Inventory, lineage: &Lineage) -> Vec<Finding> {
+    let mut findings: Vec<Finding> = RULES
+        .iter()
+        .flat_map(|r| r.check(inventory, lineage))
+        .collect();
     findings.sort_by(|a, b| (&a.file, &a.location, a.rule).cmp(&(&b.file, &b.location, b.rule)));
     findings
 }

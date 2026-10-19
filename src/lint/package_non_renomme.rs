@@ -3,6 +3,7 @@
 
 use super::{finding, Finding, Rule, RuleDoc, Severity};
 use crate::inventory::Inventory;
+use crate::lineage::Lineage;
 
 pub struct PackageNonRenomme;
 
@@ -19,7 +20,7 @@ impl Rule for PackageNonRenomme {
         &DOC
     }
 
-    fn check(&self, inventory: &Inventory) -> Vec<Finding> {
+    fn check(&self, inventory: &Inventory, _lineage: &Lineage) -> Vec<Finding> {
         inventory
             .packages
             .iter()

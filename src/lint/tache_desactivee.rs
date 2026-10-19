@@ -2,6 +2,7 @@
 
 use super::{finding, tasks, Finding, Rule, RuleDoc, Severity};
 use crate::inventory::Inventory;
+use crate::lineage::Lineage;
 
 pub struct TacheDesactivee;
 
@@ -18,7 +19,7 @@ impl Rule for TacheDesactivee {
         &DOC
     }
 
-    fn check(&self, inventory: &Inventory) -> Vec<Finding> {
+    fn check(&self, inventory: &Inventory, _lineage: &Lineage) -> Vec<Finding> {
         tasks(inventory)
             .filter(|(_, e)| e.disabled)
             .map(|(p, e)| {

@@ -4,6 +4,7 @@
 
 use super::{components, finding, Finding, Rule, RuleDoc, Severity};
 use crate::inventory::Inventory;
+use crate::lineage::Lineage;
 
 pub struct CommandeLigneALigne;
 
@@ -20,7 +21,7 @@ impl Rule for CommandeLigneALigne {
         &DOC
     }
 
-    fn check(&self, inventory: &Inventory) -> Vec<Finding> {
+    fn check(&self, inventory: &Inventory, _lineage: &Lineage) -> Vec<Finding> {
         components(inventory)
             .filter(|(_, _, c)| c.class_id == "Microsoft.OLEDBCommand")
             .map(|(p, location, _)| {

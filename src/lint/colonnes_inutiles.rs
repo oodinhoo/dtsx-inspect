@@ -6,6 +6,7 @@
 use super::{components, finding, Finding, Rule, RuleDoc, Severity};
 use crate::inventory::Inventory;
 use crate::lineage::sql::query_selects_star;
+use crate::lineage::Lineage;
 use crate::lineage::{access_mode, sql_command};
 
 pub struct ColonnesInutiles;
@@ -23,7 +24,7 @@ impl Rule for ColonnesInutiles {
         &DOC
     }
 
-    fn check(&self, inventory: &Inventory) -> Vec<Finding> {
+    fn check(&self, inventory: &Inventory, _lineage: &Lineage) -> Vec<Finding> {
         components(inventory)
             .filter_map(|(p, location, c)| {
                 let message = if c.class_id == "Microsoft.OLEDBSource" && access_mode(c) == 0 {

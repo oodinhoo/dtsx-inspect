@@ -5,6 +5,7 @@
 use super::{components, finding, Finding, Rule, RuleDoc, Severity};
 use crate::inventory::Inventory;
 use crate::lineage::access_mode;
+use crate::lineage::Lineage;
 
 pub struct ChargementSansFastLoad;
 
@@ -21,7 +22,7 @@ impl Rule for ChargementSansFastLoad {
         &DOC
     }
 
-    fn check(&self, inventory: &Inventory) -> Vec<Finding> {
+    fn check(&self, inventory: &Inventory, _lineage: &Lineage) -> Vec<Finding> {
         components(inventory)
             .filter(|(_, _, c)| {
                 c.class_id == "Microsoft.OLEDBDestination" && matches!(access_mode(c), 0 | 1)

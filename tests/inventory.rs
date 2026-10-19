@@ -94,8 +94,18 @@ fn each_package_only_sees_the_connections_of_its_own_project() {
     assert_eq!(
         used,
         vec![
-            ("A", vec![Some("Data Source=srv-a;Initial Catalog=Cible")]),
-            ("B", vec![Some("Data Source=srv-b;Initial Catalog=Cible")]),
+            (
+                "A",
+                vec![Some(
+                    "Data Source=srv-a;Initial Catalog=Cible;Provider=SQLNCLI11.1"
+                )]
+            ),
+            (
+                "B",
+                vec![Some(
+                    "Data Source=srv-b;Initial Catalog=Cible;Provider=SQLNCLI11.1"
+                )]
+            ),
         ]
     );
     assert_eq!(
