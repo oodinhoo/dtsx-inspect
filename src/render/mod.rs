@@ -1,6 +1,7 @@
 //! Sorties de l'inventaire.
 
 mod columns;
+mod diff;
 mod graph;
 mod html;
 mod mapping;
@@ -8,6 +9,7 @@ mod markdown;
 mod mermaid;
 
 pub use columns::column_trace;
+pub use diff::mapping_diff;
 pub use html::html;
 pub use mapping::mapping_csv;
 pub use markdown::markdown;
@@ -25,6 +27,15 @@ fn clean(text: &str) -> String {
 fn plural(count: usize, word: &str) -> String {
     let s = if count > 1 { "s" } else { "" };
     format!("{count} {word}{s}")
+}
+
+/// `Projet / Package`, ou le package seul à la racine du dossier analysé.
+fn qualified(project: &str, package: &str) -> String {
+    if project.is_empty() {
+        package.to_owned()
+    } else {
+        format!("{project} / {package}")
+    }
 }
 
 pub fn json(inventory: &Inventory) -> Result<String, serde_json::Error> {

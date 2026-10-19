@@ -1,0 +1,274 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:DTSID="{00000000-0000-0000-0000-000000000001}"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:ObjectName="Demo_Minimal"
+  DTS:PackageType="5">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:ConnectionManagers>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[Entrepot]"
+      DTS:CreationName="OLEDB"
+      DTS:DTSID="{AAAAAAAA-0000-0000-0000-000000000001}"
+      DTS:ObjectName="Entrepot">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:ConnectionString="Data Source=srv-demo;User ID=etl_user;Initial Catalog=Entrepot;Provider=SQLNCLI11.1;Password=s3cr3t;">
+          <DTS:Password
+            DTS:Name="Password"
+            Sensitive="1">s3cr3t</DTS:Password>
+        </DTS:ConnectionManager>
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[Fichier clients]"
+      DTS:CreationName="FLATFILE"
+      DTS:DTSID="{AAAAAAAA-0000-0000-0000-000000000002}"
+      DTS:ObjectName="Fichier clients">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:Format="Delimited"
+          DTS:ColumnNamesInFirstDataRow="True"
+          DTS:ConnectionString="C:\demo\clients.csv">
+          <DTS:FlatFileColumns>
+            <DTS:FlatFileColumn
+              DTS:ColumnType="Delimited"
+              DTS:ObjectName="id" />
+          </DTS:FlatFileColumns>
+        </DTS:ConnectionManager>
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[CRM]"
+      DTS:CreationName="DynamicsCRM"
+      DTS:DTSID="{AAAAAAAA-0000-0000-0000-000000000003}"
+      DTS:ObjectName="CRM">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:ConnectionString="ServerType=Online;OrganizationService=https://demo.crm.example;UserName=svc@demo.example;Password='s3cr3t;Server=s3cr3t';ClientSecret=s3cr3t;" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+  </DTS:ConnectionManagers>
+  <DTS:Variables>
+    <DTS:Variable
+      DTS:CreationName=""
+      DTS:DTSID="{00000000-0000-0000-0000-000000000010}"
+      DTS:Namespace="User"
+      DTS:ObjectName="NbLignes">
+      <DTS:VariableValue
+        DTS:DataType="3">0</DTS:VariableValue>
+    </DTS:Variable>
+  </DTS:Variables>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\SEQ Chargement"
+      DTS:CreationName="STOCK:SEQUENCE"
+      DTS:DTSID="{00000000-0000-0000-0000-000000000100}"
+      DTS:ExecutableType="STOCK:SEQUENCE"
+      DTS:ObjectName="SEQ Chargement">
+      <DTS:Variables />
+      <DTS:Executables>
+        <DTS:Executable
+          DTS:refId="Package\SEQ Chargement\SQL Vider staging"
+          DTS:CreationName="Microsoft.ExecuteSQLTask"
+          DTS:DTSID="{00000000-0000-0000-0000-000000000101}"
+          DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+          DTS:ObjectName="SQL Vider staging"
+          DTS:ThreadHint="0">
+          <DTS:Variables />
+          <DTS:ObjectData>
+            <SQLTask:SqlTaskData
+              SQLTask:Connection="{AAAAAAAA-0000-0000-0000-000000000001}"
+              SQLTask:SqlStatementSource="TRUNCATE TABLE stg.Clients" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+          </DTS:ObjectData>
+        </DTS:Executable>
+        <DTS:Executable
+          DTS:refId="Package\SEQ Chargement\DFT Clients"
+          DTS:CreationName="Microsoft.Pipeline"
+          DTS:DTSID="{00000000-0000-0000-0000-000000000102}"
+          DTS:ExecutableType="Microsoft.Pipeline"
+          DTS:ObjectName="DFT Clients">
+          <DTS:Variables />
+          <DTS:ObjectData>
+            <pipeline
+              version="1">
+              <components>
+                <component
+                  refId="Package\SEQ Chargement\DFT Clients\FF Clients"
+                  componentClassID="Microsoft.FlatFileSource"
+                  name="FF Clients"
+                  version="1">
+                  <properties>
+                    <property
+                      dataType="System.Boolean"
+                      name="RetainNulls">false</property>
+                  </properties>
+                  <connections>
+                    <connection
+                      refId="Package\SEQ Chargement\DFT Clients\FF Clients.Connections[FlatFileConnection]"
+                      connectionManagerID="{AAAAAAAA-0000-0000-0000-000000000002}"
+                      connectionManagerRefId="Package.ConnectionManagers[Fichier clients]"
+                      name="FlatFileConnection" />
+                  </connections>
+                  <outputs>
+                    <output
+                      refId="Package\SEQ Chargement\DFT Clients\FF Clients.Outputs[Sortie]"
+                      name="Sortie">
+                      <outputColumns>
+                        <outputColumn
+                          refId="Package\SEQ Chargement\DFT Clients\FF Clients.Outputs[Sortie].Columns[id]"
+                          name="id" />
+                      </outputColumns>
+                    </output>
+                    <output
+                      refId="Package\SEQ Chargement\DFT Clients\FF Clients.Outputs[Erreur]"
+                      isErrorOut="true"
+                      name="Erreur" />
+                  </outputs>
+                </component>
+                <component
+                  refId="Package\SEQ Chargement\DFT Clients\DER Ajout date"
+                  componentClassID="Microsoft.DerivedColumn"
+                  name="DER Ajout date">
+                  <inputs>
+                    <input
+                      refId="Package\SEQ Chargement\DFT Clients\DER Ajout date.Inputs[Entree]"
+                      name="Entree">
+                      <inputColumns />
+                    </input>
+                  </inputs>
+                  <outputs>
+                    <output
+                      refId="Package\SEQ Chargement\DFT Clients\DER Ajout date.Outputs[Sortie]"
+                      name="Sortie" />
+                    <output
+                      refId="Package\SEQ Chargement\DFT Clients\DER Ajout date.Outputs[Erreur]"
+                      isErrorOut="true"
+                      name="Erreur" />
+                  </outputs>
+                </component>
+                <component
+                  refId="Package\SEQ Chargement\DFT Clients\DST Clients"
+                  componentClassID="Microsoft.OLEDBDestination"
+                  name="DST Clients">
+                  <properties>
+                    <property
+                      dataType="System.String"
+                      name="OpenRowset">[stg].[Clients]</property>
+                  </properties>
+                  <connections>
+                    <connection
+                      refId="Package\SEQ Chargement\DFT Clients\DST Clients.Connections[OleDbConnection]"
+                      connectionManagerID="{AAAAAAAA-0000-0000-0000-000000000001}"
+                      connectionManagerRefId="Package.ConnectionManagers[Entrepot]"
+                      name="OleDbConnection" />
+                  </connections>
+                  <inputs>
+                    <input
+                      refId="Package\SEQ Chargement\DFT Clients\DST Clients.Inputs[Entree]"
+                      name="Entree" />
+                  </inputs>
+                  <outputs>
+                    <output
+                      refId="Package\SEQ Chargement\DFT Clients\DST Clients.Outputs[Erreur]"
+                      isErrorOut="true"
+                      name="Erreur" />
+                  </outputs>
+                </component>
+                <component
+                  refId="Package\SEQ Chargement\DFT Clients\CRM Comptes"
+                  componentClassID="KingswaySoft.IntegrationToolkit.DynamicsCrm.CrmDestination, KingswaySoft.IntegrationToolkit.DynamicsCrm, Version=1.0.0.0, Culture=neutral, PublicKeyToken=0000000000000000"
+                  name="CRM Comptes">
+                  <connections>
+                    <connection
+                      refId="Package\SEQ Chargement\DFT Clients\CRM Comptes.Connections[CrmConnection]"
+                      connectionManagerRefId="Package.ConnectionManagers[CRM]"
+                      name="CrmConnection" />
+                  </connections>
+                  <inputs>
+                    <input
+                      refId="Package\SEQ Chargement\DFT Clients\CRM Comptes.Inputs[Entree]"
+                      name="Entree" />
+                  </inputs>
+                  <outputs>
+                    <output
+                      refId="Package\SEQ Chargement\DFT Clients\CRM Comptes.Outputs[Erreur]"
+                      isErrorOut="true"
+                      name="Erreur" />
+                  </outputs>
+                </component>
+              </components>
+              <paths>
+                <path
+                  refId="Package\SEQ Chargement\DFT Clients.Paths[Sortie]"
+                  endId="Package\SEQ Chargement\DFT Clients\DER Ajout date.Inputs[Entree]"
+                  name="Sortie"
+                  startId="Package\SEQ Chargement\DFT Clients\FF Clients.Outputs[Sortie]" />
+                <path
+                  refId="Package\SEQ Chargement\DFT Clients.Paths[Sortie derivee]"
+                  endId="Package\SEQ Chargement\DFT Clients\DST Clients.Inputs[Entree]"
+                  name="Sortie derivee"
+                  startId="Package\SEQ Chargement\DFT Clients\DER Ajout date.Outputs[Sortie]" />
+              </paths>
+            </pipeline>
+          </DTS:ObjectData>
+        </DTS:Executable>
+      </DTS:Executables>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\SQL Ancienne purge"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:Disabled="True"
+      DTS:DTSID="{00000000-0000-0000-0000-000000000200}"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="SQL Ancienne purge">
+      <DTS:Variables />
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{BBBBBBBB-0000-0000-0000-00000000DEAD}"
+          SQLTask:SqlStatementSource="DELETE FROM old.Clients" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+  <DTS:PrecedenceConstraints>
+    <DTS:PrecedenceConstraint
+      DTS:refId="Package.PrecedenceConstraints[Contrainte]"
+      DTS:CreationName=""
+      DTS:DTSID="{00000000-0000-0000-0000-000000000300}"
+      DTS:From="Package\SEQ Chargement"
+      DTS:LogicalAnd="True"
+      DTS:ObjectName="Contrainte"
+      DTS:To="Package\SQL Ancienne purge" />
+  </DTS:PrecedenceConstraints>
+  <DTS:EventHandlers>
+    <DTS:EventHandler
+      DTS:refId="Package.EventHandlers[OnError]"
+      DTS:CreationName="OnError"
+      DTS:DTSID="{00000000-0000-0000-0000-000000000400}"
+      DTS:EventID="0"
+      DTS:EventName="OnError"
+      DTS:LocaleID="-1">
+      <DTS:Variables />
+      <DTS:Executables>
+        <DTS:Executable
+          DTS:refId="Package.EventHandlers[OnError]\SQL Journaliser erreur"
+          DTS:CreationName="Microsoft.ExecuteSQLTask"
+          DTS:DTSID="{00000000-0000-0000-0000-000000000401}"
+          DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+          DTS:ObjectName="SQL Journaliser erreur">
+          <DTS:Variables />
+          <DTS:ObjectData>
+            <SQLTask:SqlTaskData
+              SQLTask:Connection="{aaaaaaaa-0000-0000-0000-000000000001}"
+              SQLTask:SqlStatementSource="INSERT INTO log.Erreurs DEFAULT VALUES" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+          </DTS:ObjectData>
+        </DTS:Executable>
+      </DTS:Executables>
+    </DTS:EventHandler>
+  </DTS:EventHandlers>
+  <DTS:DesignTimeProperties><![CDATA[<?xml version="1.0"?>
+<Objects Version="8"><Package design-time-name="Package"><LayoutInfo><component name="ne doit pas etre lu" /></LayoutInfo></Package></Objects>]]></DTS:DesignTimeProperties>
+</DTS:Executable>

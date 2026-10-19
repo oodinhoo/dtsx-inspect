@@ -67,6 +67,14 @@ enum Command {
         #[arg(long)]
         out: Option<PathBuf>,
     },
+    /// Compare le lignage de deux dossiers, serveurs mis à part (code de sortie 1 si un
+    /// lien ou un package a disparu, ou si un lien est moins bien suivi)
+    Diff {
+        /// Dossier avant les modifications
+        avant: PathBuf,
+        /// Dossier après les modifications
+        apres: PathBuf,
+    },
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -158,6 +166,15 @@ fn main() -> anyhow::Result<ExitCode> {
                 }
                 None => (csv, errors, None),
             }
+        }
+        Command::Diff { avant, apres } => {
+            let (before, mut errors) = inventory(&avant);
+            let (after, more) = inventory(&apres);
+            errors.extend(more);
+            let (report, regression) = render::mapping_diff(&before, &after);
+            let failure =
+                regression.then(|| "régression du lignage entre les deux dossiers".to_owned());
+            (report, errors, failure)
         }
     };
     std::io::stdout().lock().write_all(output.as_bytes())?;

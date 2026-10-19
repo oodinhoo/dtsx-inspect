@@ -181,6 +181,38 @@ fn columns_without_match_fails() {
 }
 
 #[test]
+fn diff_fails_only_when_the_lineage_regresses() {
+    let same = run(&[
+        "diff",
+        "tests/fixtures/colonnes_sql",
+        "tests/fixtures/colonnes_sql",
+    ]);
+    let regressed = run(&[
+        "diff",
+        "tests/fixtures/diff/avant",
+        "tests/fixtures/diff/apres",
+    ]);
+
+    assert!(same.status.success(), "{}", stderr(&same));
+    assert!(
+        stdout(&same).contains("Aucune différence de lignage."),
+        "{}",
+        stdout(&same)
+    );
+    assert!(!regressed.status.success());
+    assert!(
+        stdout(&regressed).contains("## Liens disparus (1)"),
+        "{}",
+        stdout(&regressed)
+    );
+    assert!(
+        stderr(&regressed).contains("régression"),
+        "{}",
+        stderr(&regressed)
+    );
+}
+
+#[test]
 fn mapping_writes_the_csv_to_a_file_or_the_console() {
     let file = std::env::temp_dir().join("dtsx-inspect-mapping-test.csv");
     let file_arg = file.to_str().expect("chemin UTF-8");
