@@ -6,15 +6,17 @@ use std::iter::once;
 use std::ops::ControlFlow;
 
 use sqlparser::ast::{
-    Expr, Ident, Select, SelectItem, SetExpr, Statement, TableFactor, Visit, Visitor,
+    Expr, Ident, Query, Select, SelectItem, SetExpr, Statement, TableFactor, TableObject, Visit,
+    Visitor,
 };
 
-use super::sql::{parse, single_name, table_name, TableName};
+use super::sql::{batches, parse, single_name, table_name, TableName};
 
 /// Colonne de sortie d'un SELECT.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectColumn {
-    /// Nom en sortie : l'alias, sinon le nom de la colonne reprise.
+    /// Nom en sortie : l'alias, sinon le nom de la colonne reprise ; vide pour un calcul
+    /// sans alias, gardé pour sa position (`INSERT INTO t (a, b) SELECT …`).
     pub name: String,
     /// Colonnes de table citées : une pour une colonne reprise, plusieurs pour un calcul.
     pub from: Vec<(TableName, String)>,
@@ -56,6 +58,46 @@ pub fn projection(sql: &str) -> Option<Projection> {
         Statement::Query(q) => Some(q),
         _ => None,
     })?;
+    query_projection(query)
+}
+
+/// `INSERT INTO cible [(colonnes)] SELECT …` : la table remplie, ses colonnes nommées
+/// (vide sans liste) et la liste du SELECT.
+#[derive(Debug)]
+pub struct InsertSelect {
+    pub target: TableName,
+    pub columns: Vec<String>,
+    pub projection: Projection,
+}
+
+/// Les `INSERT … SELECT` d'un texte SQL, lot par lot (`GO`).
+pub fn insert_selects(sql: &str) -> Vec<InsertSelect> {
+    batches(sql)
+        .iter()
+        .filter_map(|batch| parse(batch).ok())
+        .flatten()
+        .filter_map(|statement| {
+            let Statement::Insert(insert) = statement else {
+                return None;
+            };
+            let TableObject::TableName(target) = &insert.table else {
+                return None;
+            };
+            let columns = insert
+                .columns
+                .iter()
+                .filter_map(|c| c.0.last()?.as_ident().map(|id| id.value.clone()))
+                .collect();
+            Some(InsertSelect {
+                target: table_name(target)?,
+                columns,
+                projection: query_projection(insert.source.as_deref()?)?,
+            })
+        })
+        .collect()
+}
+
+fn query_projection(query: &Query) -> Option<Projection> {
     let select = first_select(&query.body)?;
     let ctes: HashSet<String> = query
         .with
@@ -106,9 +148,7 @@ pub fn projection(sql: &str) -> Option<Projection> {
             _ => None,
         });
         // Colonne calculée sans alias : SQL Server ne la nomme pas, SSIS non plus.
-        let Some(name) = name else {
-            continue;
-        };
+        let name = name.unwrap_or_default();
         let mut cited = Identifiers::default();
         // Le visiteur ne s'interrompt jamais (`Break = ()`).
         let _ = expr.visit(&mut cited);

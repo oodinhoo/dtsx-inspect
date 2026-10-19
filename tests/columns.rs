@@ -189,3 +189,47 @@ fn source_queries_lead_to_the_table_columns_of_their_select() {
         "{montant}"
     );
 }
+
+fn sql_trace(needle: &str) -> String {
+    let (inv, errors) = dtsx_inspect::inventory(&fixture("colonnes_sql"));
+    assert!(errors.is_empty(), "{errors:?}");
+    dtsx_inspect::render::column_trace(
+        &dtsx_inspect::lineage::columns::column_lineage(&inv),
+        needle,
+    )
+    .unwrap_or_else(|| panic!("colonne {needle}"))
+}
+
+#[test]
+fn insert_select_star_tasks_carry_columns_by_name() {
+    // `INSERT INTO dbo.Archive SELECT * FROM dbo.Clients` vient avant la tâche qui
+    // remplit dbo.Clients depuis la table de transit : la chaîne est suivie quand même.
+    let expected = [
+        "Entrepot : dbo.Archive.email (srv-demo)",
+        "  ← écriture : SQL Archiver.email (Chargement › SQL Archiver)",
+        "    ← SELECT * : Entrepot : dbo.Clients.email",
+        "      ← écriture : SQL Finaliser.email (Chargement › SQL Finaliser)",
+        "        ← SELECT * : Entrepot : stg.Clients.email",
+        "          ← écriture : SRC Externe.email (Chargement › DFT Staging)",
+        "            ← lecture : Entrepot : ext.Clients.email",
+    ];
+
+    assert_eq!(sql_trace("dbo.Archive.email"), expected.join("\n") + "\n");
+}
+
+#[test]
+fn insert_with_a_column_list_pairs_columns_by_position() {
+    let courriel = sql_trace("dbo.Resume.courriel");
+    assert!(
+        courriel.contains(
+            "← écriture : SQL Resumer.courriel (Chargement › SQL Resumer)\n    \
+             ← calcul SQL : Entrepot : stg.Clients.email"
+        ),
+        "{courriel}"
+    );
+    let numero = sql_trace("dbo.Resume.numero");
+    assert!(
+        numero.contains("← lecture : Entrepot : stg.Clients.id"),
+        "{numero}"
+    );
+}

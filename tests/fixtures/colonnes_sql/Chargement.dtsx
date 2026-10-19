@@ -1,0 +1,150 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:ObjectName="Chargement">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:ConnectionManagers>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[Entrepot]"
+      DTS:CreationName="OLEDB"
+      DTS:DTSID="{E3000000-0000-0000-0000-000000000001}"
+      DTS:ObjectName="Entrepot">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:ConnectionString="Data Source=srv-demo;Initial Catalog=Entrepot;Provider=MSOLEDBSQL;" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+  </DTS:ConnectionManagers>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\DFT Staging"
+      DTS:CreationName="Microsoft.Pipeline"
+      DTS:ExecutableType="Microsoft.Pipeline"
+      DTS:ObjectName="DFT Staging">
+      <DTS:ObjectData>
+        <pipeline
+          version="1">
+          <components>
+            <component
+              refId="Package\DFT Staging\SRC Externe"
+              componentClassID="Microsoft.OLEDBSource"
+              name="SRC Externe">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="OpenRowset">[ext].[Clients]</property>
+                <property
+                  dataType="System.Int32"
+                  name="AccessMode">0</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Staging\SRC Externe.Connections[OleDbConnection]"
+                  connectionManagerID="{E3000000-0000-0000-0000-000000000001}"
+                  name="OleDbConnection" />
+              </connections>
+              <outputs>
+                <output
+                  refId="Package\DFT Staging\SRC Externe.Outputs[Sortie]"
+                  name="Sortie">
+                  <outputColumns>
+                    <outputColumn
+                      refId="Package\DFT Staging\SRC Externe.Outputs[Sortie].Columns[id]"
+                      externalMetadataColumnId="Package\DFT Staging\SRC Externe.Outputs[Sortie].ExternalColumns[id]"
+                      lineageId="Package\DFT Staging\SRC Externe.Outputs[Sortie].Columns[id]"
+                      name="id" />
+                    <outputColumn
+                      refId="Package\DFT Staging\SRC Externe.Outputs[Sortie].Columns[email]"
+                      externalMetadataColumnId="Package\DFT Staging\SRC Externe.Outputs[Sortie].ExternalColumns[email]"
+                      lineageId="Package\DFT Staging\SRC Externe.Outputs[Sortie].Columns[email]"
+                      name="email" />
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Staging\DST Staging"
+              componentClassID="Microsoft.OLEDBDestination"
+              name="DST Staging">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="OpenRowset">[stg].[Clients]</property>
+                <property
+                  dataType="System.Int32"
+                  name="AccessMode">3</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Staging\DST Staging.Connections[OleDbConnection]"
+                  connectionManagerID="{E3000000-0000-0000-0000-000000000001}"
+                  name="OleDbConnection" />
+              </connections>
+              <inputs>
+                <input
+                  refId="Package\DFT Staging\DST Staging.Inputs[Entree]"
+                  name="Entree">
+                  <inputColumns>
+                    <inputColumn
+                      refId="Package\DFT Staging\DST Staging.Inputs[Entree].Columns[id]"
+                      cachedName="id"
+                      externalMetadataColumnId="Package\DFT Staging\DST Staging.Inputs[Entree].ExternalColumns[id]"
+                      lineageId="Package\DFT Staging\SRC Externe.Outputs[Sortie].Columns[id]" />
+                    <inputColumn
+                      refId="Package\DFT Staging\DST Staging.Inputs[Entree].Columns[email]"
+                      cachedName="email"
+                      externalMetadataColumnId="Package\DFT Staging\DST Staging.Inputs[Entree].ExternalColumns[email]"
+                      lineageId="Package\DFT Staging\SRC Externe.Outputs[Sortie].Columns[email]" />
+                  </inputColumns>
+                </input>
+              </inputs>
+            </component>
+          </components>
+          <paths>
+            <path
+              refId="Package\DFT Staging.Paths[1]"
+              endId="Package\DFT Staging\DST Staging.Inputs[Entree]"
+              name="1"
+              startId="Package\DFT Staging\SRC Externe.Outputs[Sortie]" />
+          </paths>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\SQL Archiver"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="SQL Archiver">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{E3000000-0000-0000-0000-000000000001}"
+          SQLTask:SqlStatementSource="INSERT INTO dbo.Archive SELECT * FROM dbo.Clients" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\SQL Finaliser"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="SQL Finaliser">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{E3000000-0000-0000-0000-000000000001}"
+          SQLTask:SqlStatementSource="TRUNCATE TABLE dbo.Clients;&#xA;INSERT INTO dbo.Clients&#xA;SELECT * FROM stg.Clients" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\SQL Resumer"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="SQL Resumer">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{E3000000-0000-0000-0000-000000000001}"
+          SQLTask:SqlStatementSource="INSERT INTO dbo.Resume (courriel, numero) SELECT LOWER(s.email), s.id FROM stg.Clients s" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+</DTS:Executable>

@@ -265,21 +265,9 @@ impl<'a> Builder<'a> {
     }
 
     fn sql_task(&mut self, index: usize, package: &Package, task: &Executable, sql: &SqlStatement) {
-        // Requête lue dans une variable : sa valeur ; calculée par expression, c'est
-        // la valeur à la conception, comme pour une requête en expression.
-        let (text, from_expression) = match sql.origin {
-            SqlOrigin::Direct => (sql.text.as_str(), false),
-            SqlOrigin::Expression => (sql.text.as_str(), true),
-            SqlOrigin::Variable => match variable(package, task, &sql.text) {
-                Some(v) => (v.0, v.1),
-                None => {
-                    let note = format!("requête dans la variable {}, non suivie", sql.text);
-                    return self.note(index, &task.name, &note);
-                }
-            },
-            SqlOrigin::File => {
-                return self.note(index, &task.name, "requête dans un fichier, non suivie")
-            }
+        let (text, from_expression) = match statement(package, task, sql) {
+            Ok(found) => found,
+            Err(note) => return self.note(index, &task.name, &note),
         };
         let Ok(found) = sql::tables(text) else {
             return self.note(index, &task.name, "SQL non analysé");
@@ -390,6 +378,23 @@ impl<'a> Builder<'a> {
             step: step.to_owned(),
             reason: reason.to_owned(),
         });
+    }
+}
+
+/// Requête exécutée par une tâche SQL, et si elle est calculée par expression ; `Err` :
+/// pourquoi elle n'est pas suivie. Lue dans une variable : sa valeur ; calculée par
+/// expression, c'est la valeur à la conception, comme pour une requête en expression.
+pub(super) fn statement<'a>(
+    package: &'a Package,
+    task: &Executable,
+    sql: &'a SqlStatement,
+) -> Result<(&'a str, bool), String> {
+    match sql.origin {
+        SqlOrigin::Direct => Ok((sql.text.as_str(), false)),
+        SqlOrigin::Expression => Ok((sql.text.as_str(), true)),
+        SqlOrigin::Variable => variable(package, task, &sql.text)
+            .ok_or_else(|| format!("requête dans la variable {}, non suivie", sql.text)),
+        SqlOrigin::File => Err("requête dans un fichier, non suivie".to_owned()),
     }
 }
 

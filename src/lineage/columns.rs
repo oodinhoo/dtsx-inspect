@@ -1,5 +1,6 @@
-//! Lignage par colonne dans les Data Flows : colonne de table ou de fichier lue,
-//! colonnes calculées par les composants, colonne de table ou de fichier écrite.
+//! Lignage par colonne : dans les Data Flows, colonne de table ou de fichier lue,
+//! colonnes calculées par les composants, colonne de table ou de fichier écrite ; dans
+//! les tâches SQL, les `INSERT … SELECT` d'une table vers une autre.
 //! Une colonne de table est un seul nœud pour tous les packages (même serveur,
 //! même base) : le lignage passe ainsi d'un package à l'autre.
 
@@ -7,8 +8,10 @@ use std::collections::HashMap;
 
 use petgraph::graph::{DiGraph, NodeIndex};
 
-use super::projection::{projection, Projection};
-use super::{component_datasets, database_of, sql_command, table, Database, DatasetRef, Direction};
+use super::projection::{insert_selects, projection, InsertSelect, Projection};
+use super::{
+    component_datasets, database_of, sql_command, statement, table, Database, DatasetRef, Direction,
+};
 use crate::inventory::Inventory;
 use crate::model::{Executable, Package, Role};
 
@@ -40,6 +43,8 @@ pub enum How {
     Lookup,
     /// Calculée dans la requête de la source (fonction, opération…).
     SqlExpression,
+    /// `INSERT … SELECT *` : colonne de même nom dans la table lue.
+    SelectStar,
 }
 
 impl How {
@@ -52,6 +57,7 @@ impl How {
             How::Union => "Unir tout",
             How::Lookup => "recherche",
             How::SqlExpression => "calcul SQL",
+            How::SelectStar => "SELECT *",
         }
     }
 }
@@ -75,7 +81,32 @@ pub fn column_lineage(inventory: &Inventory) -> ColumnLineage {
             builder.flow(index, package, flow);
         }
     }
-    builder.lineage
+    // Tâches SQL ensuite : un `SELECT *` reprend les colonnes connues de la table lue,
+    // qu'un Data Flow ou une autre tâche, plus loin dans les packages, peut révéler. On
+    // repasse tant que de nouvelles colonnes apparaissent.
+    let inserts: Vec<_> = inventory
+        .packages
+        .iter()
+        .enumerate()
+        .flat_map(|(index, package)| package.executables.iter().map(move |e| (index, package, e)))
+        .filter_map(|(index, package, task)| {
+            let (text, _) = statement(package, task, task.sql.as_ref()?).ok()?;
+            let inserts = insert_selects(text);
+            let database = database_of(package, &task.connections);
+            (!inserts.is_empty()).then_some((index, task, inserts, database))
+        })
+        .collect();
+    loop {
+        let before = builder.lineage.graph.node_count();
+        for (index, task, inserts, database) in &inserts {
+            for insert in inserts {
+                builder.insert(*index, task, insert, database.as_ref());
+            }
+        }
+        if builder.lineage.graph.node_count() == before {
+            return builder.lineage;
+        }
+    }
 }
 
 #[derive(Default)]
@@ -83,6 +114,8 @@ struct Builder {
     lineage: ColumnLineage,
     /// (serveur, jeu de données, colonne) sans casse -> nœud.
     datasets: HashMap<(String, String, String), NodeIndex>,
+    /// (package, chemin de la tâche SQL, colonne sans casse) -> nœud.
+    sql_steps: HashMap<(usize, String, String), NodeIndex>,
 }
 
 impl Builder {
@@ -174,6 +207,97 @@ impl Builder {
             let source = self.dataset(d, column);
             self.edge(source, node, how);
         }
+    }
+
+    /// `INSERT … SELECT` d'une tâche SQL : chaque colonne remplie passe par une étape au
+    /// nom de la tâche.
+    fn insert(
+        &mut self,
+        package: usize,
+        task: &Executable,
+        insert: &InsertSelect,
+        database: Option<&Database>,
+    ) {
+        let target = table(&insert.target, database);
+        for (column, sources) in self.filled(insert, database) {
+            let step = self.sql_step(package, task, &column);
+            for (from, how) in sources {
+                self.edge(from, step, how);
+            }
+            let to = self.dataset(&target, &column);
+            self.edge(step, to, How::Write);
+        }
+    }
+
+    /// Colonnes remplies par un INSERT et les colonnes lues pour chacune. Liste de
+    /// colonnes nommée : appariées par position avec le SELECT. Sans liste : par le nom
+    /// en sortie du SELECT, et un `SELECT *` reprend par leur nom les colonnes déjà
+    /// connues de sa table (SQL Server apparie par position : même nom supposé).
+    fn filled(
+        &mut self,
+        insert: &InsertSelect,
+        database: Option<&Database>,
+    ) -> Vec<(String, Vec<(NodeIndex, How)>)> {
+        let p = &insert.projection;
+        let mut filled = Vec::new();
+        // Liste nommée et `*` : les positions ne se comptent plus, on ne devine pas.
+        if !insert.columns.is_empty() && !p.stars.is_empty() {
+            return filled;
+        }
+        for (i, c) in p.columns.iter().enumerate() {
+            let name = insert.columns.get(i).unwrap_or(&c.name);
+            if name.is_empty() {
+                continue;
+            }
+            let how = if c.computed {
+                How::SqlExpression
+            } else {
+                How::Read
+            };
+            let sources = c
+                .from
+                .iter()
+                .map(|(t, col)| (self.dataset(&table(t, database), col), how))
+                .collect();
+            filled.push((name.clone(), sources));
+        }
+        for star in &p.stars {
+            for (column, node) in self.known_columns(&table(star, database)) {
+                filled.push((column, vec![(node, How::SelectStar)]));
+            }
+        }
+        filled
+    }
+
+    /// Colonnes déjà connues d'une table, triées par nom.
+    fn known_columns(&self, d: &DatasetRef) -> Vec<(String, NodeIndex)> {
+        let server = d.server.as_deref().unwrap_or_default().to_lowercase();
+        let label = d.label.to_lowercase();
+        let mut found: Vec<(String, NodeIndex)> = self
+            .datasets
+            .iter()
+            .filter(|((s, l, _), _)| *s == server && *l == label)
+            .filter_map(|(_, &node)| match &self.lineage.graph[node] {
+                ColumnNode::Dataset { column, .. } => Some((column.clone(), node)),
+                ColumnNode::Step { .. } => None,
+            })
+            .collect();
+        found.sort();
+        found
+    }
+
+    /// Colonne remplie par une tâche SQL : une étape par tâche et par colonne.
+    fn sql_step(&mut self, package: usize, task: &Executable, column: &str) -> NodeIndex {
+        let key = (package, task.path().to_owned(), column.to_lowercase());
+        let graph = &mut self.lineage.graph;
+        *self.sql_steps.entry(key).or_insert_with(|| {
+            graph.add_node(ColumnNode::Step {
+                package,
+                flow: task.path().to_owned(),
+                component: task.name.clone(),
+                column: column.to_owned(),
+            })
+        })
     }
 
     fn dataset(&mut self, d: &DatasetRef, column: &str) -> NodeIndex {

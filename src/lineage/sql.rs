@@ -176,7 +176,7 @@ fn collect(statement: &Statement, found: &mut Tables) {
 
 /// Lots séparés par une ligne `GO` : séparateur de SSMS et de la tâche SQL de
 /// SSIS, pas du T-SQL.
-fn batches(sql: &str) -> Vec<String> {
+pub(crate) fn batches(sql: &str) -> Vec<String> {
     let mut batches = Vec::new();
     let mut current = String::new();
     for line in sql.lines() {
