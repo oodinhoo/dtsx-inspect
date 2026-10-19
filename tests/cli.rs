@@ -179,3 +179,20 @@ fn columns_without_match_fails() {
     assert!(!out.status.success());
     assert!(stderr(&out).contains("inexistante"), "{}", stderr(&out));
 }
+
+#[test]
+fn mapping_writes_the_csv_to_a_file_or_the_console() {
+    let file = std::env::temp_dir().join("dtsx-inspect-mapping-test.csv");
+    let file_arg = file.to_str().expect("chemin UTF-8");
+
+    let written = run(&["mapping", "tests/fixtures/colonnes_sql", "--out", file_arg]);
+    let printed = run(&["mapping", "tests/fixtures/colonnes_sql"]);
+
+    assert!(written.status.success(), "{}", stderr(&written));
+    let csv = std::fs::read_to_string(&file).expect("CSV écrit");
+    std::fs::remove_file(&file).expect("nettoyage");
+    assert!(csv.starts_with("\u{feff}Projet;Package;"), "{csv}");
+    assert!(csv.contains("Entrepot : dbo.Archive.email"), "{csv}");
+    assert!(stdout(&written).is_empty(), "{}", stdout(&written));
+    assert_eq!(stdout(&printed), csv);
+}

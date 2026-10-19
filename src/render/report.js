@@ -1,30 +1,41 @@
-// Navigation du rapport : arborescence projets → packages à gauche, vue à droite.
-// L'adresse décrit la vue (#vue, #carte/PROJET, #p/INDICE/flux|inventaire|lint, #regles/RÈGLE, #appels) :
-// liens partageables et bouton Précédent. Sans les scripts du CDN, tout marche
-// sauf le graphe et la mise en forme de l'inventaire.
+// Navigation du rapport : un onglet par espace, la recherche globale en haut (search.js).
+// L'adresse décrit la vue (#vue, #carte/PROJET, #colonnes/c|t/INDICE[?filtres], #packages,
+// #p/INDICE/flux|inventaire|lint[/BLOC], #qualite, #regles/RÈGLE) : liens
+// partageables et bouton Précédent. Sans les scripts du CDN, tout marche sauf le graphe
+// et la mise en forme de l'inventaire.
 (() => {
   const views = [...document.querySelectorAll(".view")];
-  const treeLinks = [...document.querySelectorAll(".tree a")];
-  const treeFilter = document.querySelector(".tree-filter");
+  const tabs = [...document.querySelectorAll(".tabs a")];
   const packageView = document.getElementById("package");
+  const search = document.getElementById("global-search");
   const lineage = window.lineage;
   const SUBS = ["flux", "inventaire", "lint"];
+  // Espace de chaque début d'adresse ; une règle s'affiche dans l'onglet Qualité.
+  const TARGETS = {
+    carte: "carte", colonnes: "colonnes", packages: "packages", p: "package",
+    qualite: "qualite", regles: "qualite",
+  };
 
   function route() {
-    const [view, arg, sub] = location.hash.slice(1).split("/").map(decodeURIComponent);
-    const target = { p: "package", carte: "carte", regles: "regles", appels: "appels" }[view] ?? "vue";
+    // `?q=…&base=…` : les filtres de l'onglet Colonnes, gardés dans l'adresse.
+    const [path, query] = location.hash.slice(1).split("?");
+    const [view, arg, sub, block] = path.split("/").map(decodeURIComponent);
+    const target = TARGETS[view] ?? "vue";
     views.forEach((v) => (v.hidden = v.id !== target));
-    for (const a of treeLinks) {
-      const active = a.dataset.pkg !== undefined ? view === "p" && a.dataset.pkg === arg : a.hash === `#${target}`;
-      a.classList.toggle("active", active);
-      if (active) reveal(a);
+    // La page d'un package se trouve sous l'onglet Packages.
+    const tab = target === "package" ? "packages" : target;
+    for (const a of tabs) {
+      if (a.dataset.tab === tab) a.setAttribute("aria-current", "page");
+      else a.removeAttribute("aria-current");
     }
     if (target === "carte") {
       lineage?.mount(document.querySelector("#carte .stage-slot"));
       lineage?.map(arg);
+    } else if (target === "colonnes") {
+      window.columns?.show(arg, Number(sub), new URLSearchParams(query));
     } else if (target === "package") {
-      showPackage(Number(arg), SUBS.includes(sub) ? sub : "flux");
-    } else if (target === "regles") {
+      showPackage(Number(arg), SUBS.includes(sub) ? sub : "flux", block == null ? null : Number(block));
+    } else if (view === "regles") {
       showRule(arg);
     }
   }
@@ -38,7 +49,7 @@
     rule.scrollIntoView({ block: "center" });
   }
 
-  // « Voir N constats » : la vue d'ensemble filtrée sur la règle, gravité affichée.
+  // « Voir N constats » : le tableau de l'onglet Qualité filtré sur la règle, gravité affichée.
   document.querySelectorAll("[data-show-rule]").forEach((button) =>
     button.addEventListener("click", () => {
       const box = document.querySelector(`[data-severity="${button.dataset.ruleSeverity}"]`);
@@ -49,14 +60,15 @@
       const filter = document.querySelector("[data-filter='lint-rows']");
       filter.value = button.dataset.showRule;
       filter.dispatchEvent(new Event("input"));
-      location.hash = "#vue";
+      location.hash = "#qualite";
       requestAnimationFrame(() => document.getElementById("lint-rows").scrollIntoView({ block: "start" }));
     })
   );
 
-  function showPackage(index, sub) {
+  // `block` : bloc du flux à ouvrir (résultat de la recherche globale).
+  function showPackage(index, sub, block) {
     const template = document.getElementById(`pkg-${index}`);
-    if (!template) return (location.hash = "#vue");
+    if (!template) return (location.hash = "#packages");
     const info = template.dataset;
     packageView.querySelector(".crumb").textContent = info.project ? `${info.project} › ${info.file}` : info.file;
     packageView.querySelector(".pkg-name").textContent = info.name;
@@ -70,7 +82,7 @@
     for (const panel of packageView.querySelectorAll(".sub")) panel.hidden = panel.dataset.sub !== sub;
     if (sub === "flux") {
       lineage?.mount(packageView.querySelector(".sub[data-sub='flux']"));
-      lineage?.flow(index);
+      lineage?.flow(index, Number.isInteger(block) ? block : null);
     } else if (sub === "inventaire") {
       packageView.querySelector(".md-host").replaceChildren(rendered(template));
     } else {
@@ -89,24 +101,19 @@
     return div;
   }
 
-  // Package courant visible dans l'arborescence, son projet déplié.
-  function reveal(link) {
-    const project = link.closest("details");
-    if (project) project.open = true;
-    link.scrollIntoView({ block: "nearest" });
-  }
-
   addEventListener("hashchange", route);
 
-  // Filtre de l'arborescence : nom ou chemin du package, nom du projet.
-  treeFilter.addEventListener("input", () => {
-    const query = treeFilter.value.trim().toLowerCase();
-    for (const project of document.querySelectorAll(".tree details")) {
+  // Filtre de l'onglet Packages : nom ou chemin du package, nom du projet. Les projets
+  // trouvés se déplient ; filtre vidé, tout se replie.
+  const packageFilter = document.getElementById("package-filter");
+  packageFilter?.addEventListener("input", () => {
+    const query = packageFilter.value.trim().toLowerCase();
+    for (const project of document.querySelectorAll("#packages .project")) {
       const projectMatch = project.querySelector("summary").textContent.toLowerCase().includes(query);
       let shown = 0;
-      for (const a of project.querySelectorAll("a")) {
-        const match = projectMatch || `${a.textContent} ${a.title}`.toLowerCase().includes(query);
-        a.hidden = !match;
+      for (const item of project.querySelectorAll("li")) {
+        const match = projectMatch || item.textContent.toLowerCase().includes(query);
+        item.hidden = !match;
         shown += match;
       }
       project.hidden = shown === 0;
@@ -114,10 +121,10 @@
     }
   });
 
-  // Constats de lint de la vue d'ensemble : gravités et filtre texte.
+  // Constats de lint de l'onglet Qualité : gravités et filtre texte.
   document.querySelectorAll("[data-severity]").forEach((box) =>
     box.addEventListener("change", () =>
-      document.querySelector("#vue table.lint").classList.toggle("hide-" + box.dataset.severity, !box.checked)
+      document.querySelector("#qualite table.lint").classList.toggle("hide-" + box.dataset.severity, !box.checked)
     )
   );
   document.querySelectorAll("[data-filter]").forEach((input) =>
@@ -129,7 +136,7 @@
     })
   );
 
-  // Raccourcis : / filtre les packages, Échap ferme le panneau, F ajuste le graphe.
+  // Raccourcis : / cherche partout (comme Ctrl K), Échap ferme le panneau, F ajuste le graphe.
   addEventListener("keydown", (event) => {
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     if (event.target.matches?.("input, select, textarea")) {
@@ -138,7 +145,7 @@
     }
     if (event.key === "/") {
       event.preventDefault();
-      treeFilter.focus();
+      search?.focus();
     } else if (event.key === "Escape") {
       lineage?.close();
     } else if (event.key === "f" || event.key === "F") {

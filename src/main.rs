@@ -2,6 +2,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+use anyhow::Context;
 use clap::{Parser, Subcommand, ValueEnum};
 use dtsx_inspect::calls::calls;
 use dtsx_inspect::lineage::columns::column_lineage;
@@ -57,6 +58,14 @@ enum Command {
         /// casse), par exemple `dbo.Clients.email`
         #[arg(long)]
         of: String,
+    },
+    /// Fiche de mapping source → cible en CSV pour Excel (`;`, UTF-8 avec BOM)
+    Mapping {
+        /// Fichier .dtsx ou dossier (parcouru récursivement)
+        path: PathBuf,
+        /// Fichier CSV à écrire ; sans lui, le CSV sort sur la console
+        #[arg(long)]
+        out: Option<PathBuf>,
     },
 }
 
@@ -135,6 +144,19 @@ fn main() -> anyhow::Result<ExitCode> {
                         format!("aucune colonne de table ni de fichier ne contient « {of} »");
                     (String::new(), errors, Some(failure))
                 }
+            }
+        }
+        Command::Mapping { path, out } => {
+            let (inventory, errors) = inventory(&path);
+            let csv = render::mapping_csv(&inventory, &column_lineage(&inventory));
+            match out {
+                // Console redirigée par PowerShell : réencodée, d'où `--out` pour Excel.
+                Some(file) => {
+                    std::fs::write(&file, csv)
+                        .with_context(|| format!("écriture de {}", file.display()))?;
+                    (String::new(), errors, None)
+                }
+                None => (csv, errors, None),
             }
         }
     };

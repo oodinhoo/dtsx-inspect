@@ -325,9 +325,10 @@
   const emphasizeSelection = () => emphasize(selected == null ? null : chain(selected));
 
   function choose(id) {
-    selected = id;
+    // Bloc absent de la vue (lien vers un autre package, bloc filtré) : rien de choisi.
+    selected = byId.has(id) ? id : null;
     emphasizeSelection();
-    if (id == null) {
+    if (selected == null) {
       inspector.classList.remove("open");
       return;
     }
@@ -390,6 +391,12 @@
         return line;
       }));
       trace.hidden = false;
+      inspector.querySelector(".column-page")?.remove();
+      trace.after(Object.assign(document.createElement("a"), {
+        className: "action column-page",
+        href: `#colonnes/c/${target.dataset.column}`,
+        textContent: "Ouvrir la page de la colonne",
+      }));
     }
   });
 
@@ -595,13 +602,19 @@
   });
 
   // Le graphe n'est redessiné que si la vue demandée change : revenir sur le flux
-  // d'un package garde le cadrage et la sélection.
+  // d'un package garde le cadrage et la sélection. `select` : bloc à ouvrir (recherche).
   let shown = null;
-  function show(next, pkg = null) {
+  function show(next, pkg = null, select = null) {
     const key = next === "flow" ? `flow:${pkg}` : `map:${projectSelect.value}`;
-    if (key === shown) return;
+    if (key === shown) {
+      if (select != null && byId.has(select)) {
+        choose(select);
+        center(select);
+      }
+      return;
+    }
     [shown, mode, flowPackage, isolated] = [key, next, pkg, null];
-    draw();
+    draw(select);
   }
 
   if (elk) canvas.querySelector(".offline").hidden = true;
@@ -613,10 +626,17 @@
       projectSelect.value = known ? project : defaultProject;
       if (elk) show("map");
     },
-    flow(pkg) {
-      if (elk) show("flow", pkg);
+    flow(pkg, select = null) {
+      if (elk) show("flow", pkg, select);
     },
     close: () => choose(null),
     fit: () => fit(false),
+    // Pour columns.js et search.js : mêmes données, mêmes échappement et icônes.
+    data,
+    esc,
+    tile,
+    columnsIn,
+    columnsOut,
+    columnTrace,
   };
 })();

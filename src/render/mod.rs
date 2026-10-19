@@ -3,12 +3,13 @@
 mod columns;
 mod graph;
 mod html;
+mod mapping;
 mod markdown;
 mod mermaid;
-mod orchestration;
 
 pub use columns::column_trace;
 pub use html::html;
+pub use mapping::mapping_csv;
 pub use markdown::markdown;
 pub use mermaid::{calls_mermaid, mermaid};
 
@@ -18,6 +19,12 @@ use crate::lint::{Finding, Severity};
 /// Une ligne de sortie ne doit pas pouvoir en ouvrir une autre.
 fn clean(text: &str) -> String {
     text.replace(['\r', '\n'], " ")
+}
+
+/// `1 tâche`, `2 tâches` (en français, 0 est au singulier).
+fn plural(count: usize, word: &str) -> String {
+    let s = if count > 1 { "s" } else { "" };
+    format!("{count} {word}{s}")
 }
 
 pub fn json(inventory: &Inventory) -> Result<String, serde_json::Error> {
