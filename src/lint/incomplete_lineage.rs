@@ -1,21 +1,21 @@
-//! Ce que le lignage n'a pas pu suivre (SQL non analysé,
-//! requête en variable…) : autant d'angles morts dans la documentation.
+//! What the lineage could not trace (SQL not analyzed, query in a variable…): as many
+//! blind spots in the documentation.
 
 use super::{finding, Finding, Rule, RuleDoc, Severity};
 use crate::inventory::Inventory;
 use crate::lineage::Lineage;
 
-pub struct LignageIncomplet;
+pub struct IncompleteLineage;
 
 const DOC: RuleDoc = RuleDoc {
-    id: "lignage-incomplet",
+    id: "incomplete-lineage",
     severity: Severity::Info,
-    title: "Étape que le lignage n'a pas pu suivre",
-    why: "SQL non analysable, requête lue dans une variable ou un fichier, procédure stockée sans définition : la documentation du lignage a un angle mort à cet endroit.",
-    fix: "Rien d'obligatoire. Pour combler le trou : ajouter au dossier analysé les scripts .sql des procédures, ou remplacer la requête en variable par une requête saisie directement.",
+    title: "Step the lineage could not trace",
+    why: "SQL that cannot be parsed, query read from a variable or a file, stored procedure without definition: the lineage documentation has a blind spot there.",
+    fix: "Nothing mandatory. To fill the gap: add the .sql scripts of the procedures to the analyzed folder, or replace the query in a variable by a query typed in directly.",
 };
 
-impl Rule for LignageIncomplet {
+impl Rule for IncompleteLineage {
     fn doc(&self) -> &'static RuleDoc {
         &DOC
     }

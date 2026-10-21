@@ -1,10 +1,9 @@
 ---
 source: tests/lineage.rs
-assertion_line: 263
 expression: "render::mermaid(&build())"
 ---
 flowchart LR
-  %% Pointillés : requête construite par expression (valeur à la conception).
+  %% Dashed: query built by an expression (design-time value).
   n3[/"D:\demo\clients.csv"/]
   n4[("Entrepot : ref.Pays")]
   n5[("Entrepot : stg.Clients")]
@@ -84,6 +83,6 @@ flowchart LR
   n11 --> n32
   n11 --> n33
   n33 --> n34
-  %% Non suivi : Chargement : SQL Import brut : SQL non analysé
-  %% Non suivi : Chargement : SQL Depuis variable : requête dans la variable User::Requete, non suivie
-  %% Non suivi : Export : SCR Source : source sans jeu de données identifié
+  %% Not traced: Chargement: SQL Import brut: SQL not analyzed
+  %% Not traced: Chargement: SQL Depuis variable: query in variable User::Requete, not traced
+  %% Not traced: Export: SCR Source: source without an identified dataset

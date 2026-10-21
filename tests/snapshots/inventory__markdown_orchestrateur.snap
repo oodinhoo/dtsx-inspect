@@ -4,15 +4,15 @@ expression: "render::markdown(&inventory(&fixture(\"orchestrateur.dtsx\")).0)"
 ---
 # Orchestrateur (orchestrateur.dtsx, format 8)
 
-## Connexions
+## Connections
 
-| Nom | Type | Portée | Cible |
+| Name | Type | Scope | Target |
 | --- | --- | --- | --- |
 | Fils externe | FILE | Package | C:\demo\Fils externe.dtsx |
 
-## Tâches
+## Tasks
 
-| Chemin | Type | Connexion | Désactivée | Package appelé |
+| Path | Type | Connection | Disabled | Called package |
 | --- | --- | --- | --- | --- |
 | SEQ Enchainement | STOCK:SEQUENCE |  |  |  |
 | SEQ Enchainement\PET Fils projet | Microsoft.ExecutePackageTask |  |  | 01_Récupération & contrôle.dtsx |

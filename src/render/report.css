@@ -1,6 +1,6 @@
-/* Système visuel « Atelier » : papier chaud, rail sombre, bleu-vert pour l'action,
-   ambre pour les écritures, IBM Plex. Toutes les couleurs passent par ces jetons,
-   redéfinis pour le thème sombre ; le rail reste sombre dans les deux. */
+/* "Atelier" visual system: warm paper, dark rail, teal for actions, amber for writes,
+   IBM Plex. Every colour goes through these tokens, redefined for the dark theme; the
+   rail stays dark in both. */
 :root {
   --font: "IBM Plex Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
   --mono: "IBM Plex Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
@@ -31,7 +31,7 @@
   --rail-hover: #2a3038;
   --rail-line: #2e353e;
   --rail-active: #0b6e6d;
-  /* Statuts du mapping, du plus sûr (0) au moins sûr (3). */
+  /* Mapping statuses, from the safest (0) to the least safe (3). */
   --status-0: #0b6e6d;
   --status-1: #5fa8a7;
   --status-2: #d9a441;
@@ -91,13 +91,13 @@ a:hover { color: var(--accent-hover); }
 pre { white-space: pre-wrap; }
 
 h2 { margin: 0; font-size: 1.375rem; font-weight: 600; letter-spacing: -.01em; }
-/* Titres de section : petites capitales, ils structurent sans crier. */
+/* Section titles: small capitals, they structure without shouting. */
 h3 {
   margin: 2rem 0 .75rem; color: var(--muted); font-size: .75rem; font-weight: 600;
   letter-spacing: .06em; text-transform: uppercase;
 }
 
-/* ---------- Rail de navigation à gauche, vue à droite : seule la vue défile ---------- */
+/* ---------- Navigation rail on the left, view on the right: only the view scrolls ---------- */
 .app { display: grid; grid-template-columns: 15rem minmax(0, 1fr); height: 100vh; }
 .sr-only {
   position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
@@ -110,6 +110,14 @@ h3 {
 .brand h1 { margin: 0; color: #fff; font-size: 1rem; font-weight: 700; letter-spacing: -.01em; }
 .rail .path { margin-top: .15rem; color: var(--rail-muted); font-size: .72rem; }
 .rail :focus-visible { outline-color: #7fd1cf; }
+/* Language switch (i18n.js): two small buttons under the analyzed folder. */
+.lang { display: flex; gap: 2px; margin-top: .5rem; }
+.lang button {
+  padding: .1rem .45rem; border: 1px solid var(--rail-line); border-radius: 4px; background: none;
+  color: var(--rail-muted); font: inherit; font-size: .7rem; cursor: pointer;
+}
+.lang button:hover { color: #fff; }
+.lang button[aria-pressed="true"] { background: var(--rail-active); color: #fff; }
 .totals {
   display: flex; flex-wrap: wrap; gap: .4rem; margin-top: auto; padding: .9rem .5rem 0;
   border-top: 1px solid var(--rail-line); text-decoration: none;
@@ -131,7 +139,7 @@ h3 {
 .tabs a[aria-current="page"] .count { color: #d2eceb; }
 .tabs .count:empty { display: none; }
 
-/* Recherche globale : liste de résultats sous le champ, plus large que le rail. */
+/* Global search: result list under the field, wider than the rail. */
 .search { position: relative; }
 .search input[type="search"] {
   width: 100%; min-width: 0; max-width: none; height: 2.4rem;
@@ -158,7 +166,7 @@ h3 {
 .search-results .more, .search-results .empty { margin: .2rem .6rem .4rem; color: var(--muted); font-size: .8rem; }
 mark { background: var(--avertissement-bg); color: inherit; border-radius: 2px; }
 
-/* Onglet Packages : un bloc pliable par projet, une ligne par package. */
+/* Packages tab: one foldable block per project, one line per package. */
 .package-list {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(26rem, 1fr)); align-items: start;
   gap: .75rem 1rem; padding-bottom: 1.5rem;
@@ -186,8 +194,8 @@ mark { background: var(--avertissement-bg); color: inherit; border-radius: 2px; 
   color: var(--muted); font-family: var(--mono); font-size: .75rem;
 }
 
-/* Onglet Colonnes : la requête en haut ; dessous les colonnes trouvées et, quand une
-   colonne ou une table est ouverte, sa page à droite. Chaque panneau défile seul. */
+/* Columns tab: the query at the top; below, the columns found and, when a column or a
+   table is open, its page on the right. Each panel scrolls on its own. */
 .col-query { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .6rem 1rem; }
 .col-field { display: flex; flex-direction: column; gap: .25rem; flex: 0 1 16rem; min-width: 12rem; font-weight: 600; font-size: .85rem; }
 .col-field.col-text { flex: 1 1 24rem; }
@@ -216,7 +224,7 @@ mark { background: var(--avertissement-bg); color: inherit; border-radius: 2px; 
   background: var(--info-bg); color: var(--info); font-size: .75rem; white-space: nowrap;
 }
 .pk.w { background: var(--avertissement-bg); color: var(--avertissement); }
-/* Page ouverte à côté : la colonne Base cède la place. */
+/* Page open next to it: the Database column makes room. */
 @container (max-width: 44rem) { .col-table :is(th, td):nth-child(3) { display: none; } }
 .col-note {
   margin: 0 0 .6rem; padding: .5rem .8rem; border-radius: var(--radius-sm);
@@ -287,7 +295,7 @@ mark { background: var(--avertissement-bg); color: inherit; border-radius: 2px; 
 }
 .chips a:hover { border-color: var(--accent); }
 
-/* Matrice d'une table : une ligne par colonne, une colonne par package. */
+/* Table matrix: one row per column, one column per package. */
 .legend-marks { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; margin: 1rem 0 .6rem; padding: 0; list-style: none; font-size: .85rem; }
 .legend-marks li { display: flex; align-items: center; gap: .4rem; }
 .matrix-box { overflow-x: auto; }
@@ -307,13 +315,13 @@ mark { background: var(--avertissement-bg); color: inherit; border-radius: 2px; 
 .mark.c { background: var(--info-bg); color: var(--info); }
 .mark.none { color: var(--wire); }
 
-/* ---------- Vues ---------- */
+/* ---------- Views ---------- */
 .content { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .view { display: flex; flex: 1; flex-direction: column; gap: 1rem; min-height: 0; padding: 1.5rem 2rem; }
-/* `hidden` l'emporte toujours, même sur un `display` plus spécifique. */
+/* `hidden` always wins, even over a more specific `display`. */
 [hidden] { display: none !important; }
-/* Pas de marge haute sur une vue qui défile : rien ne doit passer au-dessus des
-   en-têtes de tableau collés en haut. */
+/* No top margin on a scrolling view: nothing must go above the table headers stuck
+   at the top. */
 .view.scroll { display: block; overflow-y: auto; padding-top: 0; }
 .view.scroll > h2 { margin: 1.5rem 0 1.25rem; }
 .view-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1rem; }
@@ -323,7 +331,7 @@ mark { background: var(--avertissement-bg); color: inherit; border-radius: 2px; 
 .sub.scroll { overflow-y: auto; }
 .stage-slot { display: flex; flex: 1; min-height: 0; }
 
-/* Onglets du package : soulignés, comme les onglets Fluent. */
+/* Package tabs: underlined, like Fluent tabs. */
 .subtabs { display: flex; gap: .25rem; }
 .subtabs a {
   display: flex; align-items: center; gap: .4rem; padding: .45rem .8rem; border-radius: var(--radius-sm);
@@ -342,12 +350,12 @@ mark { background: var(--avertissement-bg); color: inherit; border-radius: 2px; 
   white-space: nowrap;
 }
 .count { background: var(--info-bg); color: var(--muted); }
-.badge.erreur { color: var(--erreur); background: var(--erreur-bg); }
-.badge.avertissement { color: var(--avertissement); background: var(--avertissement-bg); }
+.badge.error { color: var(--erreur); background: var(--erreur-bg); }
+.badge.warning { color: var(--avertissement); background: var(--avertissement-bg); }
 .badge.info { color: var(--info); background: var(--info-bg); }
 
-/* ---------- Vue d'ensemble : bandeau de chiffres, puis panneaux ---------- */
-/* Le fond du bandeau, visible entre les cases (1px), dessine les séparateurs. */
+/* ---------- Overview: band of figures, then panels ---------- */
+/* The band background, visible between the cells (1px), draws the separators. */
 .cards {
   display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; overflow: hidden;
   background: var(--border); border: 1px solid var(--border); border-radius: var(--radius);
@@ -361,11 +369,11 @@ mark { background: var(--avertissement-bg); color: inherit; border-radius: 2px; 
   color: var(--text); font-size: 1.75rem; font-weight: 600; line-height: 1.2; letter-spacing: -.02em;
   font-variant-numeric: tabular-nums;
 }
-.card.erreur strong { color: var(--erreur); }
-.card.avertissement strong { color: var(--avertissement); }
+.card.error strong { color: var(--erreur); }
+.card.warning strong { color: var(--avertissement); }
 
 .panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(26rem, 1fr)); gap: 1rem; margin-top: 1rem; align-items: start; }
-/* Un tableau trop large défile dans son panneau, pas toute la page. */
+/* A table too wide scrolls in its panel, not the whole page. */
 .panel {
   min-width: 0; overflow-x: auto; padding: 1.1rem 1.25rem;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
@@ -402,7 +410,7 @@ mark { background: var(--avertissement-bg); color: inherit; border-radius: 2px; 
 button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: #fff; }
 
-/* ---------- Tableaux : en-tête fixe au défilement, lignes survolables ---------- */
+/* ---------- Tables: header fixed on scroll, hoverable rows ---------- */
 table {
   width: 100%; margin-bottom: 1rem; border-collapse: separate; border-spacing: 0;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
@@ -417,21 +425,21 @@ tbody tr:last-child td { border-bottom: 0; }
 tbody tr:hover td { background: var(--surface-2); }
 td a { text-decoration: none; }
 td a:hover { text-decoration: underline; }
-/* Constats de lint : règle en code, message lisible. */
+/* Lint findings: rule as code, readable message. */
 .lint td:first-child { width: 1%; white-space: nowrap; }
 .lint td:nth-child(2) { font-family: var(--mono); font-size: .78rem; color: var(--muted); white-space: nowrap; }
-/* Chemins : coupés après les séparateurs (<wbr>), ailleurs seulement en dernier recours. */
+/* Paths: broken after the separators (<wbr>), elsewhere only as a last resort. */
 .lint td:nth-child(3) { min-width: 14rem; overflow-wrap: anywhere; }
 .lint td:nth-child(4) { min-width: 12rem; overflow-wrap: anywhere; }
 
-/* Dans la page d'un package, le fichier est le même pour toutes les lignes. */
+/* In a package page, the file is the same for every row. */
 .pkg-lint th:nth-child(3), .pkg-lint td:nth-child(3) { display: none; }
 
-.lint.hide-erreur tr.erreur,
-.lint.hide-avertissement tr.avertissement,
+.lint.hide-error tr.error,
+.lint.hide-warning tr.warning,
 .lint.hide-info tr.info { display: none; }
 
-/* ---------- Contrôles ---------- */
+/* ---------- Controls ---------- */
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin-bottom: .75rem; }
 .toolbar label { display: inline-flex; align-items: center; gap: .35rem; color: var(--muted); cursor: pointer; }
 input[type="checkbox"] { accent-color: var(--accent); }
@@ -445,7 +453,7 @@ input[type="search"]:focus, select:focus { border-color: var(--accent); outline:
 button { cursor: pointer; font-weight: 500; }
 button:hover { border-color: var(--accent); color: var(--accent); }
 
-/* Lignage : canevas façon Power Automate (blocs, bandeaux de Data Flow, panneau). */
+/* Lineage: Power Automate-like canvas (blocks, Data Flow bands, panel). */
 .project-select { max-width: 22rem; }
 .stage {
   position: relative; flex: 1; min-height: 0; overflow: hidden;
@@ -530,7 +538,7 @@ button:hover { border-color: var(--accent); color: var(--accent); }
 }
 .zoom button { width: 34px; height: 34px; padding: 0; border: 0; border-radius: 0; font-size: 16px; }
 .zoom button + button { border-top: 1px solid var(--border); }
-/* Légende : panneau repliable à côté du zoom, limité à ce que la vue contient. */
+/* Legend: foldable panel next to the zoom, limited to what the view contains. */
 .legend {
   position: absolute; left: 56px; bottom: 12px; z-index: 1; width: 16.5rem; max-height: calc(100% - 72px);
   overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
@@ -576,7 +584,7 @@ kbd {
   border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 4px; background: var(--surface-2);
 }
 
-/* Règles de lint : une fiche par règle, soulignée quand on y arrive depuis un constat. */
+/* Lint rules: one card per rule, highlighted when reached from a finding. */
 .rules { display: grid; grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr)); gap: 1rem; padding-bottom: 1.5rem; }
 .rule {
   display: flex; flex-direction: column; gap: .6rem; padding: 1rem 1.1rem; scroll-margin: 1rem;
@@ -628,7 +636,7 @@ kbd {
   background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
   font-family: var(--mono); font-size: 11.5px; line-height: 1.45;
 }
-/* Retrait suspendu : la flèche reste à sa profondeur, le texte revient sous lui-même. */
+/* Hanging indent: the arrow stays at its depth, the text wraps under itself. */
 .trace div { padding-left: calc(var(--depth, 0) * 12px + 14px); text-indent: -14px; overflow-wrap: anywhere; }
 .trace div + div { margin-top: 2px; }
 .links { display: flex; flex-direction: column; gap: 6px; }
@@ -653,7 +661,7 @@ a.action:hover { border-color: var(--accent); }
 .md table { margin-bottom: 1rem; }
 
 .md h1 { display: none; }
-/* Inventaire : sections du Markdown, titres en texte courant (pas en capitales). */
+/* Inventory: Markdown sections, titles as running text (not in capitals). */
 .md h2, .md h3 { margin: 1.5rem 0 .6rem; color: var(--text); letter-spacing: 0; text-transform: none; }
 .md h2 { font-size: 1rem; }
 .md h3 { font-size: .95rem; }
@@ -661,8 +669,8 @@ a.action:hover { border-color: var(--accent); }
 .muted { color: var(--muted); font-size: .9rem; }
 .empty { color: var(--muted); font-style: italic; }
 
-/* Écran étroit : le rail passe en bandeau au-dessus, l'onglet Colonnes défile d'un bloc,
-   la page ouverte avant les résultats. */
+/* Narrow screen: the rail becomes a band on top, the Columns tab scrolls as one block,
+   the open page before the results. */
 @media (max-width: 50rem) {
   .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
   .rail { flex-direction: row; flex-wrap: wrap; align-items: center; overflow: visible; padding: .6rem .75rem; }

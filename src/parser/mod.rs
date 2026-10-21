@@ -1,4 +1,4 @@
-//! XML SSIS -> modèle. Aucune logique métier ici.
+//! SSIS XML -> model. No business logic here.
 
 pub mod secrets;
 
@@ -14,24 +14,24 @@ use crate::model::{
 };
 use secrets::{is_secret_name, redact_secrets, summarize_connection_string};
 
-/// Premier format SSIS 2012 (attributs `DTS:` au lieu d'éléments `DTS:Property`).
+/// First SSIS 2012 format (`DTS:` attributes instead of `DTS:Property` elements).
 const MIN_FORMAT_VERSION: u32 = 6;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ParseError {
-    #[error("XML invalide : {0}")]
+    #[error("invalid XML: {0}")]
     Xml(#[from] quick_xml::Error),
-    #[error("attribut XML invalide : {0}")]
+    #[error("invalid XML attribute: {0}")]
     Attribute(#[from] quick_xml::events::attributes::AttrError),
-    #[error("format de package {0} non supporté (SSIS 2012 ou plus récent requis)")]
+    #[error("unsupported package format {0} (SSIS 2012 or later required)")]
     UnsupportedFormat(u32),
-    #[error("ce fichier n'est pas un package SSIS")]
+    #[error("this file is not an SSIS package")]
     NotAPackage,
-    #[error("ce fichier n'est pas un gestionnaire de connexion SSIS")]
+    #[error("this file is not an SSIS connection manager")]
     NotAConnectionManager,
 }
 
-/// Lit un `.dtsx`. `file` est laissé vide : c'est à l'appelant de le remplir.
+/// Reads a `.dtsx`. `file` is left empty: the caller fills it in.
 pub fn parse_package(xml: &str) -> Result<Package, ParseError> {
     let doc = read(xml)?;
     let root = doc.root.ok_or(ParseError::NotAPackage)?;
@@ -54,7 +54,7 @@ pub fn parse_package(xml: &str) -> Result<Package, ParseError> {
     })
 }
 
-/// Lit un `.conmgr` (gestionnaire de connexion de projet).
+/// Reads a `.conmgr` (project connection manager).
 pub fn parse_conmgr(xml: &str) -> Result<ConnectionManager, ParseError> {
     let doc = read(xml)?;
     match (doc.root, doc.connections.into_iter().next()) {
@@ -83,14 +83,14 @@ struct Document {
     expressions: Vec<PropertyExpression>,
 }
 
-/// `DTS:ConnectionManager` en cours ; `depth` compte l'élément imbriqué
-/// (`ObjectData/DTS:ConnectionManager`) qui porte la chaîne de connexion.
+/// `DTS:ConnectionManager` being read; `depth` counts the nested element
+/// (`ObjectData/DTS:ConnectionManager`) holding the connection string.
 struct ConnectionDraft {
     manager: ConnectionManager,
     depth: usize,
 }
 
-/// Propriétés de composant utiles au lignage ; les autres ne sont pas lues.
+/// Component properties useful to the lineage; the others are not read.
 const COMPONENT_PROPERTIES: [&str; 8] = [
     "AccessMode",
     "FetchXML",
@@ -102,14 +102,14 @@ const COMPONENT_PROPERTIES: [&str; 8] = [
     "UserComponentTypeName",
 ];
 
-/// Hôte des composants .NET (ADO.NET, Script, KingswaySoft…) : la vraie classe
-/// est dans la propriété `UserComponentTypeName`.
+/// Host of .NET components (ADO.NET, Script, KingswaySoft…): the real class
+/// is in the `UserComponentTypeName` property.
 const MANAGED_HOST: &str = "Microsoft.ManagedComponentHost";
 
-/// Classes du format 2012/2014 (`{GUID}`, [MS-DTSX2] PipelineComponentComponentClassIDEnum)
-/// et leur nom depuis SSIS 2016, que le lignage et le lint reconnaissent.
-// shortcut: seules les classes vues dans les packages réels ou testées par le code ;
-// un autre composant Microsoft 2012 garde son GUID et compte comme tiers.
+/// Classes of the 2012/2014 format (`{GUID}`, [MS-DTSX2] PipelineComponentComponentClassIDEnum)
+/// and their name since SSIS 2016, which the lineage and the lint recognize.
+// shortcut: only the classes seen in real packages or tested by the code;
+// another Microsoft 2012 component keeps its GUID and counts as third-party.
 const LEGACY_CLASSES: [(&str, &str); 15] = [
     (
         "{165A526D-D5DE-47FF-96A6-F8274C19826B}",
@@ -164,7 +164,7 @@ const LEGACY_CLASSES: [(&str, &str); 15] = [
     ),
 ];
 
-/// Nom 2016 d'une classe de composant, quel que soit le format du package.
+/// 2016 name of a component class, whatever the package format.
 fn class_name(id: &str) -> &str {
     LEGACY_CLASSES
         .iter()
@@ -180,17 +180,17 @@ struct ComponentDraft {
     properties: BTreeMap<String, String>,
     has_input: bool,
     has_output: bool,
-    /// Profondeur sous `<component>` : 2 = `<properties><property>` du composant
-    /// (les propriétés de colonnes sont plus profondes).
+    /// Depth under `<component>`: 2 = `<properties><property>` of the component
+    /// (column properties are deeper).
     depth: usize,
     inputs: Vec<Column>,
     outputs: Vec<Column>,
-    /// Colonne en cours de lecture : la dernière de `inputs` (`true`) ou d'`outputs`.
+    /// Column being read: the last one of `inputs` (`true`) or `outputs`.
     open_column: Option<bool>,
     in_error_output: bool,
 }
 
-/// Propriétés de colonne qui disent d'où vient la colonne.
+/// Column properties telling where the column comes from.
 const COLUMN_PROPERTIES: [&str; 4] = [
     "CopyFromReferenceColumn",
     "Expression",
@@ -199,7 +199,7 @@ const COLUMN_PROPERTIES: [&str; 4] = [
 ];
 
 impl ComponentDraft {
-    /// Rôle déduit de la structure : marche aussi pour les composants tiers.
+    /// Role inferred from the structure: also works for third-party components.
     fn finish(self) -> Component {
         let role = match (self.has_input, self.has_output) {
             (false, _) => Role::Source,
@@ -216,7 +216,7 @@ impl ComponentDraft {
         Component {
             ref_id: self.ref_id,
             name: self.name,
-            // ponytail: « connu » = composant Microsoft ; une liste par classe si un tiers doit compter.
+            // shortcut: "known" = Microsoft component; a per-class list if a third party must count.
             known: class_id.starts_with("Microsoft."),
             class_id,
             role,
@@ -228,7 +228,7 @@ impl ComponentDraft {
         }
     }
 
-    /// Colonne en cours de lecture, à qui reviennent ses propriétés.
+    /// Column being read, which its properties belong to.
     fn open_column(&mut self) -> Option<&mut Column> {
         match self.open_column? {
             true => self.inputs.last_mut(),
@@ -257,7 +257,7 @@ fn read(xml: &str) -> Result<Document, ParseError> {
     }
 }
 
-/// `&amp;` -> `&`, `&#xE9;` -> `é` ; une entité inconnue reste telle quelle.
+/// `&amp;` -> `&`, `&#xE9;` -> `é`; an unknown entity stays as is.
 fn entity(r: &BytesRef) -> Result<String, ParseError> {
     if let Some(c) = r.resolve_char_ref()? {
         return Ok(c.to_string());
@@ -266,8 +266,8 @@ fn entity(r: &BytesRef) -> Result<String, ParseError> {
     Ok(resolve_predefined_entity(&name).map_or_else(|| format!("&{name};"), str::to_owned))
 }
 
-/// Élément dont on lit le texte. Le texte arrive en plusieurs morceaux
-/// (`Text`, `GeneralRef`) dès qu'il contient une entité.
+/// Element whose text is read. The text comes in several pieces
+/// (`Text`, `GeneralRef`) as soon as it contains an entity.
 #[derive(Clone, Copy)]
 enum Capture {
     FormatVersion,
@@ -280,8 +280,8 @@ enum Capture {
     Expression,
 }
 
-// ponytail: éléments repérés par nom local, sans résolution de namespace :
-// les préfixes (`DTS:`, `SQLTask:`) sont fixes dans les packages SSIS.
+// shortcut: elements matched by local name, without namespace resolution:
+// the prefixes (`DTS:`, `SQLTask:`) are fixed in SSIS packages.
 #[derive(Default)]
 struct Reading {
     doc: Document,
@@ -291,10 +291,10 @@ struct Reading {
     in_execute_package: bool,
     capture: Option<Capture>,
     captured: String,
-    /// Propriétés définies par une expression : (tâche, `DTS:Name`), résolues à la
-    /// fin car les composants d'un Data Flow sont lus après ses expressions.
+    /// Properties set by an expression: (task, `DTS:Name`), resolved at the end
+    /// because the components of a Data Flow are read after its expressions.
     expressions: Vec<(usize, String)>,
-    /// Variable, paramètre ou expression de propriété en cours (valeur lue ensuite).
+    /// Variable, parameter or property expression being read (value read next).
     variable: Option<Variable>,
     parameter: Option<Parameter>,
     expression: Option<PropertyExpression>,
@@ -345,7 +345,7 @@ impl Reading {
             }
             "ExecutePackageTask" => self.in_execute_package = true,
             "PackageName" if self.in_execute_package => self.begin(Capture::CalledPackage),
-            // Référence externe : connexion FILE (ou OLE DB pour msdb) vers le package.
+            // External reference: FILE connection (or OLE DB for msdb) to the package.
             "Connection" if self.in_execute_package => self.begin(Capture::PackageConnection),
             "SqlTaskData" => self.start_sql_task(e)?,
             "component" => self.component = Some(start_component(e)?),
@@ -362,8 +362,8 @@ impl Reading {
         c.depth += 1;
         match local {
             "connection" => {
-                // Le GUID fait foi (c'est lui que SSIS résout) ; le nom de
-                // `connectionManagerRefId` reste figé après un renommage.
+                // The GUID is authoritative (SSIS resolves it); the name in
+                // `connectionManagerRefId` stays frozen after a rename.
                 let reference = attr(e, "connectionManagerID")?
                     .filter(|r| !r.is_empty())
                     .or(attr(e, "connectionManagerRefId")?);
@@ -375,7 +375,7 @@ impl Reading {
                 c.in_error_output = error;
                 c.has_output |= !error;
             }
-            // Sortie d'erreur : `ErrorCode`, `ErrorColumn`… ne sont pas des données.
+            // Error output: `ErrorCode`, `ErrorColumn`… are not data.
             "outputColumn" if c.in_error_output => {}
             "inputColumn" | "outputColumn" => {
                 let is_input = local == "inputColumn";
@@ -467,12 +467,12 @@ impl Reading {
         doc
     }
 
-    /// Expression de propriété d'une connexion, d'une tâche ou du package. Celles des
-    /// tâches servent aussi au lignage (requête ou propriété de composant calculée).
+    /// Property expression of a connection, a task or the package. Task ones also
+    /// feed the lineage (computed query or component property).
     fn start_expression(&mut self, e: &BytesStart) -> Result<(), ParseError> {
         let property = attr(e, "Name")?.unwrap_or_default();
         let owner = match (&self.connection, self.open_executables.last()) {
-            (Some(draft), _) => format!("connexion {}", draft.manager.name),
+            (Some(draft), _) => format!("connection {}", draft.manager.name),
             (None, Some(&i)) => {
                 self.expressions.push((i, property.clone()));
                 self.doc.executables[i].path().to_owned()
@@ -488,8 +488,8 @@ impl Reading {
         Ok(())
     }
 
-    /// `DTS:Variable` : portée (tâche ouverte), nom qualifié et, si elle est calculée,
-    /// son expression ; la valeur suit dans `DTS:VariableValue`.
+    /// `DTS:Variable`: scope (open task), qualified name and, when computed, its
+    /// expression; the value follows in `DTS:VariableValue`.
     fn start_variable(&mut self, e: &BytesStart) -> Result<(), ParseError> {
         let namespace = attr(e, "Namespace")?.unwrap_or_else(|| "User".to_owned());
         let name = format!(
@@ -616,8 +616,8 @@ impl Reading {
         };
         let value = std::mem::take(&mut self.captured).trim().to_owned();
         match (capture, self.open_executables.last().copied()) {
-            // Valeurs de conception : un nom de secret masque tout, sinon `password=…`
-            // est masqué dans le texte ; un paramètre sensible n'a pas de valeur.
+            // Design-time values: a secret name masks everything, otherwise `password=…`
+            // is masked in the text; a sensitive parameter has no value.
             (Capture::VariableValue, _) => {
                 if let Some(v) = self.variable.as_mut() {
                     v.value = displayable(&v.name, &value);
@@ -668,8 +668,8 @@ impl Reading {
     }
 }
 
-/// Valeur affichable d'une variable ou d'un paramètre : `***` pour un nom de secret,
-/// sinon le texte avec `password=` masqué ; rien si elle est vide.
+/// Displayable value of a variable or a parameter: `***` for a secret name,
+/// otherwise the text with `password=` masked; nothing when empty.
 fn displayable(name: &str, value: &str) -> Option<String> {
     if value.is_empty() {
         return None;
@@ -698,7 +698,7 @@ fn start_component(e: &BytesStart) -> Result<ComponentDraft, ParseError> {
     })
 }
 
-/// Colonnes citées dans une propriété de colonne : `LOWER(#{…Columns[email]})`.
+/// Columns used in a column property: `LOWER(#{…Columns[email]})`.
 fn column_refs(text: &str) -> impl Iterator<Item = String> + '_ {
     text.split("#{")
         .skip(1)
@@ -706,14 +706,14 @@ fn column_refs(text: &str) -> impl Iterator<Item = String> + '_ {
         .map(|(id, _)| id.to_owned())
 }
 
-/// Nom de la colonne de table d'un identifiant `…ExternalColumns[nom]`.
+/// Table column name of an `…ExternalColumns[name]` identifier.
 fn external_name(id: &str) -> Option<String> {
     let (_, name) = id.rsplit_once("ExternalColumns[")?;
     Some(name.strip_suffix(']').unwrap_or(name).to_owned())
 }
 
-/// Expression de Data Flow `[Composant].[Propriété]`, si la propriété est dans
-/// la liste blanche.
+/// Data Flow expression `[Component].[Property]`, when the property is in the
+/// allow-list.
 fn component_property(name: &str) -> Option<(&str, &'static str)> {
     let (component, property) = name
         .strip_prefix('[')?
@@ -723,7 +723,7 @@ fn component_property(name: &str) -> Option<(&str, &'static str)> {
     Some((component, known))
 }
 
-/// Composant d'une extrémité de lien : `Package\DFT\Comp.Outputs[Sortie]` -> `Package\DFT\Comp`.
+/// Component of a path endpoint: `Package\DFT\Comp.Outputs[Output]` -> `Package\DFT\Comp`.
 fn owner(endpoint: &str) -> Option<&str> {
     endpoint
         .rfind(".Outputs[")
@@ -738,7 +738,7 @@ fn connection_ref(reference: String) -> Option<ConnectionRef> {
     })
 }
 
-/// Valeur d'un attribut repéré par son nom local (`DTS:ObjectName` -> `ObjectName`).
+/// Value of an attribute matched by its local name (`DTS:ObjectName` -> `ObjectName`).
 pub(crate) fn attr(e: &BytesStart, local: &str) -> Result<Option<String>, ParseError> {
     for a in e.attributes() {
         let a = a?;
@@ -758,7 +758,7 @@ mod tests {
     const MINIMAL: &str = include_str!("../../tests/fixtures/minimal.dtsx");
 
     fn minimal() -> Package {
-        parse_package(MINIMAL).expect("fixture minimale valide")
+        parse_package(MINIMAL).expect("valid minimal fixture")
     }
 
     fn refs(conns: &[crate::model::ConnectionRef]) -> Vec<&str> {
@@ -924,7 +924,7 @@ mod tests {
 
     #[test]
     fn component_connection_prefers_guid_over_ref_id() {
-        // SSIS résout par GUID ; le nom de `connectionManagerRefId` peut être périmé.
+        // SSIS resolves by GUID; the name in `connectionManagerRefId` may be stale.
         let p = minimal();
         let source = &p.executables[2].components[0];
         assert_eq!(
@@ -947,7 +947,7 @@ mod tests {
     #[test]
     fn reads_package_called_by_execute_package_tasks() {
         let p = parse_package(include_str!("../../tests/fixtures/orchestrateur.dtsx"))
-            .expect("orchestrateur");
+            .expect("orchestrator");
         let calls: Vec<_> = p
             .executables
             .iter()
@@ -1202,7 +1202,7 @@ mod tests {
                     Some("INSERT INTO dbo.Journal SELECT id FROM stg.Source"),
                     Some("\"INSERT INTO dbo.Journal SELECT id FROM \" + @[User::Table]")
                 ),
-                // Nom de secret : valeur masquée.
+                // Secret name: value masked.
                 ("", "User::MotDePasse", Some("***"), None),
                 ("SQL Variable", "User::Lot", Some("42"), None),
             ]
@@ -1243,7 +1243,7 @@ mod tests {
             found,
             vec![
                 (
-                    "connexion Entrepot",
+                    "connection Entrepot",
                     "ConnectionString",
                     "@[$Package::Chaine]"
                 ),

@@ -4,23 +4,23 @@ expression: "render::markdown(&inventory(&fixture(\"project\")).0)"
 ---
 # Chargement (Chargement.dtsx, format 8)
 
-## Connexions
+## Connections
 
-| Nom | Type | Portée | Cible |
+| Name | Type | Scope | Target |
 | --- | --- | --- | --- |
-| Cible | OLEDB | Projet | Data Source=srv-demo;Initial Catalog=Cible;Provider=SQLNCLI11.1 |
-| Source CSV | FLATFILE | Projet | D:\demo\entree.csv |
+| Cible | OLEDB | Project | Data Source=srv-demo;Initial Catalog=Cible;Provider=SQLNCLI11.1 |
+| Source CSV | FLATFILE | Project | D:\demo\entree.csv |
 
-## Tâches
+## Tasks
 
-| Chemin | Type | Connexion | Désactivée |
+| Path | Type | Connection | Disabled |
 | --- | --- | --- | --- |
 | SQL Creer table | Microsoft.ExecuteSQLTask | Cible |  |
 | DFT Alimentation | Microsoft.Pipeline |  |  |
 
 ### Data Flow DFT Alimentation
 
-| Composant | Classe | Rôle | Connexion |
+| Component | Class | Role | Connection |
 | --- | --- | --- | --- |
 | SRC Fichier | Microsoft.FlatFileSource | Source | Source CSV |
 | DST Cible | Microsoft.OLEDBDestination | Destination | Cible |

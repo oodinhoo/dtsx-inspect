@@ -1,23 +1,23 @@
-//! Référence de connexion introuvable (connexion supprimée ou renommée), ou
-//! marquée `{GUID}:invalid` par SSDT : la connexion manquait à l'ouverture du
-//! package et la référence n'a pas été réassociée depuis.
+//! Connection reference not found (connection deleted or renamed), or marked
+//! `{GUID}:invalid` by SSDT: the connection was missing when the package was opened
+//! and the reference has not been reassigned since.
 
 use super::{components, finding, tasks, Finding, Rule, RuleDoc, Severity};
 use crate::inventory::Inventory;
 use crate::lineage::Lineage;
 use crate::model::ConnectionRef;
 
-pub struct ConnexionNonResolue;
+pub struct UnresolvedConnection;
 
 const DOC: RuleDoc = RuleDoc {
-    id: "connexion-non-resolue",
-    severity: Severity::Erreur,
-    title: "Référence de connexion introuvable ou marquée invalide",
-    why: "La tâche ou le composant pointe vers une connexion supprimée ou renommée, ou que SSDT a marquée « :invalid » faute de la trouver à l'ouverture : le package échoue à la validation ou à l'exécution.",
-    fix: "Ouvrir le package dans SSDT et réassocier la connexion de la tâche ou du composant, ou recréer le gestionnaire de connexion manquant.",
+    id: "unresolved-connection",
+    severity: Severity::Error,
+    title: "Connection reference not found or marked invalid",
+    why: "The task or component points to a deleted or renamed connection, or one SSDT marked \":invalid\" because it could not find it on opening: the package fails at validation or at run time.",
+    fix: "Open the package in SSDT and reassign the connection of the task or component, or recreate the missing connection manager.",
 };
 
-impl Rule for ConnexionNonResolue {
+impl Rule for UnresolvedConnection {
     fn doc(&self) -> &'static RuleDoc {
         &DOC
     }
@@ -39,9 +39,9 @@ impl Rule for ConnexionNonResolue {
 
 fn message(r: &ConnectionRef) -> Option<String> {
     match &r.resolved {
-        None => Some(format!("connexion {} introuvable", r.reference)),
+        None => Some(format!("connection {} not found", r.reference)),
         Some(name) if r.reference.ends_with(":invalid") => Some(format!(
-            "référence vers « {name} » marquée invalide : la réassocier dans SSDT"
+            "reference to \"{name}\" marked invalid: reassign it in SSDT"
         )),
         Some(_) => None,
     }

@@ -1,5 +1,5 @@
-//! Assemble l'inventaire d'un fichier ou d'un dossier : lecture, parsing,
-//! résolution des références de connexion.
+//! Builds the inventory of a file or a folder: reading, parsing, resolving
+//! connection references.
 
 use std::collections::BTreeMap;
 use std::iter::once;
@@ -20,13 +20,13 @@ const SQL_EXTENSION: &str = "sql";
 pub struct Inventory {
     pub project_connections: Vec<ConnectionManager>,
     pub packages: Vec<Package>,
-    /// Procédures et vues des scripts `.sql` trouvés (projet de base de données),
-    /// pour suivre dans le lignage les procédures appelées par les packages.
+    /// Procedures and views of the `.sql` scripts found (database project), to trace
+    /// in the lineage the procedures called by the packages.
     #[serde(skip)]
     pub sql_scripts: Vec<SqlDefinition>,
 }
 
-/// Procédure ou vue définie dans un script `.sql`.
+/// Procedure or view defined in a `.sql` script.
 #[derive(Debug)]
 pub struct SqlDefinition {
     pub file: String,
@@ -43,20 +43,20 @@ pub enum FileErrorKind {
     Walk(#[from] walkdir::Error),
     #[error(transparent)]
     Parse(#[from] ParseError),
-    #[error("aucun package .dtsx trouvé")]
+    #[error("no .dtsx package found")]
     NoPackage,
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("{path} : {kind}")]
+#[error("{path}: {kind}")]
 pub struct FileError {
     pub path: String,
     #[source]
     pub kind: FileErrorKind,
 }
 
-/// Inventorie un `.dtsx` (avec les `.conmgr` et `.sql` de son dossier) ou un
-/// dossier (récursivement). Un fichier illisible n'arrête pas les autres.
+/// Inventories a `.dtsx` (with the `.conmgr` and `.sql` files of its folder) or a
+/// folder (recursively). An unreadable file does not stop the others.
 pub fn inventory(path: &Path) -> (Inventory, Vec<FileError>) {
     let (files, walk_errors) = collect_files(path);
     let (scripts, files): (Vec<_>, Vec<_>) = files
@@ -67,7 +67,7 @@ pub fn inventory(path: &Path) -> (Inventory, Vec<FileError>) {
         .into_iter()
         .partition(|f| has_extension(&f.path, CONMGR_EXTENSION));
     let (project_connections, conmgr_errors) = parse_all(&conmgrs, parse_conmgr);
-    // Un projet SSIS = un dossier : ses `.conmgr` sont à côté de ses `.dtsx`.
+    // One SSIS project = one folder: its `.conmgr` files sit next to its `.dtsx` files.
     let mut by_project: BTreeMap<&Path, Vec<ConnectionManager>> = BTreeMap::new();
     for (found, cm) in &project_connections {
         by_project
@@ -111,7 +111,7 @@ pub fn inventory(path: &Path) -> (Inventory, Vec<FileError>) {
     )
 }
 
-/// Retrouve la connexion désignée par une référence SSIS.
+/// Finds the connection designated by an SSIS reference.
 pub fn resolve<'a>(
     reference: &str,
     package: &'a [ConnectionManager],
@@ -124,7 +124,7 @@ pub fn resolve<'a>(
     if let Some(name) = named("Project.ConnectionManagers[") {
         return project.iter().find(|c| c.name == name);
     }
-    // `:invalid` : marque de SSDT (connexion absente à l'ouverture), signalée par le lint.
+    // `:invalid`: SSDT marker (connection missing when opened), reported by the lint.
     let id = reference
         .trim_end_matches(":invalid")
         .trim_end_matches(":external");
@@ -137,7 +137,7 @@ pub fn resolve<'a>(
         .find(|c| c.id.eq_ignore_ascii_case(id))
 }
 
-/// Fichier SSIS trouvé, avec son chemin affiché (relatif, séparateurs `/`).
+/// SSIS file found, with its displayed path (relative, `/` separators).
 struct Found {
     path: PathBuf,
     display: String,
@@ -149,7 +149,7 @@ fn collect_files(path: &Path) -> (Vec<Found>, Vec<FileError>) {
     }
     let dir = dir_of(path);
     let (siblings, errors) = walk(dir, 1);
-    // Même forme de chemin que walkdir, pour dédoublonner un `.conmgr` passé en argument.
+    // Same path shape as walkdir, to deduplicate a `.conmgr` passed as argument.
     let package_path = dir.join(path.file_name().unwrap_or_default());
     let package = Found {
         path: package_path.clone(),
@@ -163,7 +163,7 @@ fn collect_files(path: &Path) -> (Vec<Found>, Vec<FileError>) {
     (files, errors)
 }
 
-/// Dossier d'un fichier, `.` pour un nom sans dossier.
+/// Folder of a file, `.` for a name without folder.
 fn dir_of(path: &Path) -> &Path {
     match path.parent() {
         Some(parent) if !parent.as_os_str().is_empty() => parent,
@@ -216,7 +216,7 @@ fn parse_all<T>(
     (parsed, errors)
 }
 
-/// Procédures et vues des scripts. Un script sans définition n'en donne aucune.
+/// Procedures and views of the scripts. A script without a definition gives none.
 fn read_scripts(files: &[Found]) -> (Vec<SqlDefinition>, Vec<FileError>) {
     let mut found = Vec::new();
     let mut errors = Vec::new();
@@ -239,8 +239,8 @@ fn read_scripts(files: &[Found]) -> (Vec<SqlDefinition>, Vec<FileError>) {
     (found, errors)
 }
 
-/// Texte d'un script : UTF-16 si son BOM l'annonce (SSDT), sinon UTF-8 ; un octet
-/// invalide (script enregistré en ANSI) devient `�` sans gêner la lecture des noms.
+/// Text of a script: UTF-16 when its BOM says so (SSDT), UTF-8 otherwise; an invalid
+/// byte (script saved as ANSI) becomes `�` without hindering the reading of names.
 fn decode(bytes: &[u8]) -> String {
     if let Some(utf16) = bytes.strip_prefix(&[0xFF, 0xFE]) {
         let (pairs, _) = utf16.as_chunks::<2>();
@@ -251,11 +251,11 @@ fn decode(bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes).into_owned()
 }
 
-/// Résout chaque référence et ajoute aux connexions du package celles du
-/// projet qu'il utilise.
+/// Resolves each reference and adds to the package connections the project ones it
+/// uses.
 fn resolve_package(package: Package, project: &[ConnectionManager]) -> Package {
     let find = |r: &ConnectionRef| resolve(&r.reference, &package.connections, project);
-    // ponytail: O(connexions projet × références), quelques centaines au plus par package.
+    // shortcut: O(project connections × references), a few hundred at most per package.
     let used: Vec<ConnectionManager> = project
         .iter()
         .filter(|cm| {
@@ -302,9 +302,9 @@ fn all_refs(executables: &[Executable]) -> impl Iterator<Item = &ConnectionRef> 
     })
 }
 
-/// `obj` ou `bin` d'un projet dont les `.dtsx` sources sont dans le dossier parent :
-/// copie de compilation de Visual Studio, qui ferait compter chaque package deux fois.
-/// Sans sources à côté (seule la copie existe), le dossier est lu.
+/// `obj` or `bin` of a project whose source `.dtsx` files are in the parent folder:
+/// Visual Studio build copy, which would count each package twice. Without sources
+/// next to it (only the copy exists), the folder is read.
 fn is_build_copy(dir: &Path) -> bool {
     let named = dir
         .file_name()
@@ -319,7 +319,7 @@ fn is_build_copy(dir: &Path) -> bool {
             })
 }
 
-/// Dossier où Visual Studio recopie les packages à la compilation (`obj`, `bin`).
+/// Folder where Visual Studio copies the packages when building (`obj`, `bin`).
 pub(crate) fn is_build_dir(name: &str) -> bool {
     name.eq_ignore_ascii_case("obj") || name.eq_ignore_ascii_case("bin")
 }
@@ -362,7 +362,7 @@ mod tests {
     fn fixtures() -> (Vec<ConnectionManager>, Vec<ConnectionManager>) {
         (
             vec![cm("{AAAA-1}", "Local", Scope::Package)],
-            vec![cm("{BBBB-2}", "Projet", Scope::Project)],
+            vec![cm("{BBBB-2}", "Shared", Scope::Project)],
         )
     }
 
@@ -374,17 +374,17 @@ mod tests {
     #[test]
     fn resolves_guids_case_insensitively_with_external_suffix() {
         assert_eq!(name_of("{aaaa-1}").as_deref(), Some("Local"));
-        assert_eq!(name_of("{bbbb-2}:external").as_deref(), Some("Projet"));
+        assert_eq!(name_of("{bbbb-2}:external").as_deref(), Some("Shared"));
     }
 
     #[test]
     fn resolves_references_marked_invalid_by_the_designer() {
-        // SSDT ajoute `:invalid` quand la connexion manquait à l'ouverture ; le GUID
-        // désigne toujours la connexion (le lint, lui, signale la marque).
-        assert_eq!(name_of("{bbbb-2}:invalid").as_deref(), Some("Projet"));
+        // SSDT adds `:invalid` when the connection was missing on opening; the GUID
+        // still designates the connection (the lint reports the marker).
+        assert_eq!(name_of("{bbbb-2}:invalid").as_deref(), Some("Shared"));
         assert_eq!(
             name_of("{bbbb-2}:external:invalid").as_deref(),
-            Some("Projet")
+            Some("Shared")
         );
     }
 
@@ -395,16 +395,16 @@ mod tests {
             Some("Local")
         );
         assert_eq!(
-            name_of("Project.ConnectionManagers[Projet]").as_deref(),
-            Some("Projet")
+            name_of("Project.ConnectionManagers[Shared]").as_deref(),
+            Some("Shared")
         );
-        assert_eq!(name_of("Package.ConnectionManagers[Projet]"), None);
+        assert_eq!(name_of("Package.ConnectionManagers[Shared]"), None);
     }
 
     #[test]
     fn leaves_unknown_references_unresolved() {
         assert_eq!(name_of("{DEAD}"), None);
-        assert_eq!(name_of("@[User::Connexion]"), None);
+        assert_eq!(name_of("@[User::Connection]"), None);
         assert_eq!(name_of(""), None);
     }
 }

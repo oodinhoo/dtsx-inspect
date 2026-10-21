@@ -5,7 +5,7 @@ fn run(args: &[&str]) -> Output {
         .args(args)
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .output()
-        .expect("lancement du binaire")
+        .expect("running the binary")
 }
 
 fn stdout(output: &Output) -> String {
@@ -33,7 +33,7 @@ fn inventory_json_is_valid_json() {
     let out = run(&["inventory", "tests/fixtures/project", "--format", "json"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    let value: serde_json::Value = serde_json::from_slice(&out.stdout).expect("JSON valide");
+    let value: serde_json::Value = serde_json::from_slice(&out.stdout).expect("valid JSON");
     assert_eq!(value["packages"][0]["name"], "Chargement");
 }
 
@@ -45,11 +45,11 @@ fn never_prints_secrets() {
         assert!(stdout(&out).contains("Demo_Minimal"), "{format}");
         assert!(
             !stdout(&out).contains("s3cr3t"),
-            "fuite sur stdout en {format}"
+            "leak on stdout in {format}"
         );
         assert!(
             !stderr(&out).contains("s3cr3t"),
-            "fuite sur stderr en {format}"
+            "leak on stderr in {format}"
         );
     }
 }
@@ -78,10 +78,10 @@ fn lineage_prints_mermaid_without_secrets_or_sql() {
     assert!(out.status.success(), "{}", stderr(&out));
     let text = stdout(&out);
     assert!(text.starts_with("flowchart LR"), "{text}");
-    assert!(!text.contains("s3cr3t"), "fuite de secret");
+    assert!(!text.contains("s3cr3t"), "secret leak");
     assert!(
         !text.contains("SELECT c.id"),
-        "le texte SQL ne doit pas être affiché"
+        "the SQL text must not be displayed"
     );
 }
 
@@ -102,15 +102,10 @@ fn lineage_focus_shows_only_the_chain_of_a_table() {
 
 #[test]
 fn lineage_focus_without_match_fails() {
-    let out = run(&[
-        "lineage",
-        "tests/fixtures/lineage",
-        "--focus",
-        "inexistante",
-    ]);
+    let out = run(&["lineage", "tests/fixtures/lineage", "--focus", "missing"]);
 
     assert_eq!(out.status.code(), Some(1));
-    assert!(stderr(&out).contains("inexistante"), "{}", stderr(&out));
+    assert!(stderr(&out).contains("missing"), "{}", stderr(&out));
 }
 
 #[test]
@@ -120,10 +115,10 @@ fn lint_fails_on_errors_and_prints_one_line_per_finding() {
     assert_eq!(out.status.code(), Some(1));
     let text = stdout(&out);
     assert!(
-        text.contains("erreur[connexion-non-resolue] minimal.dtsx : SQL Ancienne purge : "),
+        text.contains("error[unresolved-connection] minimal.dtsx: SQL Ancienne purge: "),
         "{text}"
     );
-    assert!(!text.contains("s3cr3t"), "fuite de secret");
+    assert!(!text.contains("s3cr3t"), "secret leak");
 }
 
 #[test]
@@ -131,7 +126,7 @@ fn lint_passes_on_a_clean_package() {
     let out = run(&["lint", "tests/fixtures/broken/valide.dtsx"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
-    assert_eq!(stdout(&out), "0 erreur(s), 0 avertissement(s), 0 info(s)\n");
+    assert_eq!(stdout(&out), "0 error(s), 0 warning(s), 0 info(s)\n");
 }
 
 #[test]
@@ -144,20 +139,20 @@ fn lineage_reports_broken_files() {
 
 #[test]
 fn calls_prints_the_package_call_graph_in_mermaid() {
-    let out = run(&["calls", "tests/fixtures/appels"]);
+    let out = run(&["calls", "tests/fixtures/calls"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     let chart = stdout(&out);
     assert!(chart.starts_with("flowchart LR\n"), "{chart}");
     assert!(chart.contains("\"Orchestrateur\""), "{chart}");
-    assert!(chart.contains("02_Absent.dtsx (introuvable)"), "{chart}");
+    assert!(chart.contains("02_Absent.dtsx (not found)"), "{chart}");
 }
 
 #[test]
 fn columns_traces_a_column_upstream_and_downstream() {
     let out = run(&[
         "columns",
-        "tests/fixtures/colonnes",
+        "tests/fixtures/columns",
         "--of",
         "dbo.Clients.email",
     ]);
@@ -165,31 +160,31 @@ fn columns_traces_a_column_upstream_and_downstream() {
     assert!(out.status.success(), "{}", stderr(&out));
     let trace = stdout(&out);
     assert!(trace.starts_with("Entrepot : dbo.Clients.email"), "{trace}");
-    assert!(trace.contains("← expression : FF Clients.email"), "{trace}");
+    assert!(trace.contains("← expression: FF Clients.email"), "{trace}");
     assert!(
-        trace.contains("→ Unir tout : UNI Fusion.courriel"),
+        trace.contains("→ Union All: UNI Fusion.courriel"),
         "{trace}"
     );
 }
 
 #[test]
 fn columns_without_match_fails() {
-    let out = run(&["columns", "tests/fixtures/colonnes", "--of", "inexistante"]);
+    let out = run(&["columns", "tests/fixtures/columns", "--of", "missing"]);
 
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("inexistante"), "{}", stderr(&out));
+    assert!(stderr(&out).contains("missing"), "{}", stderr(&out));
 }
 
 #[test]
 fn order_prints_the_waves_deduced_from_the_data() {
-    let out = run(&["order", "tests/fixtures/ordre"]);
+    let out = run(&["order", "tests/fixtures/order"]);
 
     assert!(out.status.success(), "{}", stderr(&out));
     let text = stdout(&out);
-    let first = text.find("## Vague 1").expect("vague 1");
+    let first = text.find("## Wave 1").expect("wave 1");
     let second = text
-        .find("- Charger — après Extraire")
-        .expect("Charger après Extraire");
+        .find("- Charger — after Extraire")
+        .expect("Charger after Extraire");
     assert!(first < second, "{text}");
 }
 
@@ -197,29 +192,29 @@ fn order_prints_the_waves_deduced_from_the_data() {
 fn diff_fails_only_when_the_lineage_regresses() {
     let same = run(&[
         "diff",
-        "tests/fixtures/colonnes_sql",
-        "tests/fixtures/colonnes_sql",
+        "tests/fixtures/columns_sql",
+        "tests/fixtures/columns_sql",
     ]);
     let regressed = run(&[
         "diff",
-        "tests/fixtures/diff/avant",
-        "tests/fixtures/diff/apres",
+        "tests/fixtures/diff/before",
+        "tests/fixtures/diff/after",
     ]);
 
     assert!(same.status.success(), "{}", stderr(&same));
     assert!(
-        stdout(&same).contains("Aucune différence de lignage."),
+        stdout(&same).contains("No lineage difference."),
         "{}",
         stdout(&same)
     );
     assert!(!regressed.status.success());
     assert!(
-        stdout(&regressed).contains("## Liens disparus (1)"),
+        stdout(&regressed).contains("## Removed links (1)"),
         "{}",
         stdout(&regressed)
     );
     assert!(
-        stderr(&regressed).contains("régression"),
+        stderr(&regressed).contains("regression"),
         "{}",
         stderr(&regressed)
     );
@@ -228,15 +223,15 @@ fn diff_fails_only_when_the_lineage_regresses() {
 #[test]
 fn mapping_writes_the_csv_to_a_file_or_the_console() {
     let file = std::env::temp_dir().join("dtsx-inspect-mapping-test.csv");
-    let file_arg = file.to_str().expect("chemin UTF-8");
+    let file_arg = file.to_str().expect("UTF-8 path");
 
-    let written = run(&["mapping", "tests/fixtures/colonnes_sql", "--out", file_arg]);
-    let printed = run(&["mapping", "tests/fixtures/colonnes_sql"]);
+    let written = run(&["mapping", "tests/fixtures/columns_sql", "--out", file_arg]);
+    let printed = run(&["mapping", "tests/fixtures/columns_sql"]);
 
     assert!(written.status.success(), "{}", stderr(&written));
-    let csv = std::fs::read_to_string(&file).expect("CSV écrit");
-    std::fs::remove_file(&file).expect("nettoyage");
-    assert!(csv.starts_with("\u{feff}Projet;Package;"), "{csv}");
+    let csv = std::fs::read_to_string(&file).expect("CSV written");
+    std::fs::remove_file(&file).expect("cleanup");
+    assert!(csv.starts_with("\u{feff}Project;Package;"), "{csv}");
     assert!(csv.contains("Entrepot : dbo.Archive.email"), "{csv}");
     assert!(stdout(&written).is_empty(), "{}", stdout(&written));
     assert_eq!(stdout(&printed), csv);

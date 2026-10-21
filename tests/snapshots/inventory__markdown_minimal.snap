@@ -4,9 +4,9 @@ expression: "render::markdown(&inventory(&fixture(\"minimal.dtsx\")).0)"
 ---
 # Demo_Minimal (minimal.dtsx, format 8)
 
-## Connexions
+## Connections
 
-| Nom | Type | Portée | Cible |
+| Name | Type | Scope | Target |
 | --- | --- | --- | --- |
 | Entrepot | OLEDB | Package | Data Source=srv-demo;Initial Catalog=Entrepot;Provider=SQLNCLI11.1 |
 | Fichier clients | FLATFILE | Package | C:\demo\clients.csv |
@@ -14,23 +14,23 @@ expression: "render::markdown(&inventory(&fixture(\"minimal.dtsx\")).0)"
 
 ## Variables
 
-| Portée | Nom | Valeur | Expression |
+| Scope | Name | Value | Expression |
 | --- | --- | --- | --- |
 | package | User::NbLignes | 0 |  |
 
-## Tâches
+## Tasks
 
-| Chemin | Type | Connexion | Désactivée |
+| Path | Type | Connection | Disabled |
 | --- | --- | --- | --- |
 | SEQ Chargement | STOCK:SEQUENCE |  |  |
 | SEQ Chargement\SQL Vider staging | Microsoft.ExecuteSQLTask | Entrepot |  |
 | SEQ Chargement\DFT Clients | Microsoft.Pipeline |  |  |
-| SQL Ancienne purge | Microsoft.ExecuteSQLTask | {BBBBBBBB-0000-0000-0000-00000000DEAD} (non résolue) | oui |
+| SQL Ancienne purge | Microsoft.ExecuteSQLTask | {BBBBBBBB-0000-0000-0000-00000000DEAD} (unresolved) | yes |
 | EventHandlers\[OnError\]\SQL Journaliser erreur | Microsoft.ExecuteSQLTask | Entrepot |  |
 
 ### Data Flow SEQ Chargement\DFT Clients
 
-| Composant | Classe | Rôle | Connexion |
+| Component | Class | Role | Connection |
 | --- | --- | --- | --- |
 | FF Clients | Microsoft.FlatFileSource | Source | Fichier clients |
 | DER Ajout date | Microsoft.DerivedColumn | Transformation |  |

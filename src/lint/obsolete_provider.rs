@@ -1,4 +1,4 @@
-//! Fournisseur OLE DB abandonné : SQL Native Client (`SQLNCLI*`) et `SQLOLEDB`.
+//! Discontinued OLE DB provider: SQL Native Client (`SQLNCLI*`) and `SQLOLEDB`.
 
 use std::collections::HashSet;
 
@@ -7,26 +7,26 @@ use crate::inventory::Inventory;
 use crate::lineage::Lineage;
 use crate::model::{ConnectionManager, Scope};
 
-pub struct FournisseurObsolete;
+pub struct ObsoleteProvider;
 
 const DOC: RuleDoc = RuleDoc {
-    id: "fournisseur-obsolete",
-    severity: Severity::Avertissement,
-    title: "Fournisseur OLE DB abandonné (SQLNCLI, SQLOLEDB)",
-    why: "SQL Server Native Client et SQLOLEDB ne sont plus maintenus par Microsoft : ni correctifs de sécurité, ni prise en charge garantie des versions récentes de TLS et de SQL Server.",
-    fix: "Passer la connexion au fournisseur MSOLEDBSQL (Microsoft OLE DB Driver for SQL Server).",
+    id: "obsolete-provider",
+    severity: Severity::Warning,
+    title: "Discontinued OLE DB provider (SQLNCLI, SQLOLEDB)",
+    why: "SQL Server Native Client and SQLOLEDB are no longer maintained by Microsoft: no security fixes, and no guaranteed support for recent TLS and SQL Server versions.",
+    fix: "Switch the connection to the MSOLEDBSQL provider (Microsoft OLE DB Driver for SQL Server).",
 };
 
 const OBSOLETE: [&str; 2] = ["sqlncli", "sqloledb"];
 
-impl Rule for FournisseurObsolete {
+impl Rule for ObsoleteProvider {
     fn doc(&self) -> &'static RuleDoc {
         &DOC
     }
 
     fn check(&self, inventory: &Inventory, _lineage: &Lineage) -> Vec<Finding> {
-        // Une connexion de projet est recopiée dans chaque package qui l'utilise :
-        // signalée une fois par projet, sous le dossier du projet.
+        // A project connection is copied into each package using it: reported once
+        // per project, under the project folder.
         let mut seen = HashSet::new();
         inventory
             .packages
@@ -44,9 +44,10 @@ impl Rule for FournisseurObsolete {
     }
 }
 
-/// Dossier du projet d'un package (`FINANCE/x.dtsx` -> `FINANCE`), `projet` à la racine.
+/// Project folder of a package (`FINANCE/x.dtsx` -> `FINANCE`), `project` at the root.
 fn project(file: &str) -> &str {
-    file.rsplit_once('/').map_or("projet", |(folder, _)| folder)
+    file.rsplit_once('/')
+        .map_or("project", |(folder, _)| folder)
 }
 
 fn obsolete(file: &str, c: &ConnectionManager) -> Option<Finding> {
@@ -56,8 +57,8 @@ fn obsolete(file: &str, c: &ConnectionManager) -> Option<Finding> {
         finding(
             &DOC,
             file,
-            format!("connexion {}", c.name),
-            format!("fournisseur {provider} abandonné par Microsoft, passer à MSOLEDBSQL"),
+            format!("connection {}", c.name),
+            format!("provider {provider} discontinued by Microsoft, switch to MSOLEDBSQL"),
         )
     })
 }

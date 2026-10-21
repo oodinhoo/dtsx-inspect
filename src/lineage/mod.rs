@@ -1,4 +1,4 @@
-//! Lignage : graphe jeux de données -> composants / tâches SQL -> jeux de données.
+//! Lineage: datasets -> components / SQL tasks -> datasets graph.
 
 pub mod columns;
 pub mod order;
@@ -23,20 +23,20 @@ pub enum DatasetKind {
     Table,
     File,
     Entity,
-    /// Procédure stockée appelée ; ses tables viennent de sa définition (`.sql`).
+    /// Called stored procedure; its tables come from its definition (`.sql`).
     Procedure,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Node {
-    /// Table, fichier ou entité Dynamics, partagé entre les packages.
+    /// Table, file or Dynamics entity, shared across packages.
     Dataset {
         kind: DatasetKind,
         label: String,
-        /// Serveur d'une table ou d'une procédure, lu dans la chaîne de connexion.
+        /// Server of a table or a procedure, read from the connection string.
         server: Option<String>,
     },
-    /// Composant d'un Data Flow (`flow` = chemin lisible du Data Flow).
+    /// Data Flow component (`flow` = readable path of the Data Flow).
     Component {
         package: usize,
         flow: String,
@@ -56,7 +56,7 @@ impl Node {
         }
     }
 
-    /// Package d'un composant ou d'une tâche ; un jeu de données n'en a pas.
+    /// Package of a component or a task; a dataset has none.
     pub fn package(&self) -> Option<usize> {
         match self {
             Node::Component { package, .. } | Node::SqlTask { package, .. } => Some(*package),
@@ -67,18 +67,18 @@ impl Node {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Edge {
-    /// Lien déduit d'une requête construite par expression (valeur à la conception).
+    /// Link inferred from a query built by an expression (design-time value).
     pub from_expression: bool,
-    /// Création de la table (`CREATE TABLE`) : aucune donnée ne passe par ce lien.
+    /// Table creation (`CREATE TABLE`): no data goes through this link.
     pub creates: bool,
 }
 
-/// Ce qui n'a pas pu être suivi (SQL non analysé, requête en variable…).
+/// What could not be traced (SQL not analyzed, query in a variable…).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Note {
-    /// Index dans `Lineage::packages` : deux packages peuvent porter le même nom.
+    /// Index in `Lineage::packages`: two packages can have the same name.
     pub package: usize,
-    /// Tâche ou composant.
+    /// Task or component.
     pub step: String,
     pub reason: String,
 }
@@ -86,7 +86,7 @@ pub struct Note {
 #[derive(Debug, Default)]
 pub struct Lineage {
     pub graph: DiGraph<Node, Edge>,
-    /// Noms des packages, indexés comme `Node::*::package`.
+    /// Package names, indexed like `Node::*::package`.
     pub packages: Vec<String>,
     pub notes: Vec<Note>,
 }
@@ -111,8 +111,8 @@ pub fn lineage(inventory: &Inventory) -> Lineage {
     builder.lineage
 }
 
-/// Ne garde que ce qui alimente ou consomme les jeux de données dont le libellé
-/// contient `needle` (sans casse). `None` si aucun ne correspond.
+/// Keeps only what feeds or consumes the datasets whose label contains `needle`
+/// (case-insensitive). `None` if none matches.
 pub fn focus(lineage: &Lineage, needle: &str) -> Option<Lineage> {
     let g = &lineage.graph;
     let needle = needle.to_lowercase();
@@ -148,20 +148,20 @@ pub fn focus(lineage: &Lineage, needle: &str) -> Option<Lineage> {
 enum Direction {
     Read,
     Write,
-    /// `CREATE TABLE` : la tâche prépare la table sans y écrire de données.
+    /// `CREATE TABLE`: the task prepares the table without writing data to it.
     Create,
 }
 
-/// Jeu de données, identifié par son genre, son serveur et son libellé sans casse.
+/// Dataset, identified by its kind, its server and its case-insensitive label.
 struct DatasetRef {
     kind: DatasetKind,
     label: String,
     server: Option<String>,
 }
 
-/// Base visée par une connexion : serveur et base de sa chaîne (valeur de conception),
-/// à défaut le nom de la connexion. Deux connexions vers la même base donnent donc
-/// les mêmes nœuds, et deux bases homonymes sur deux serveurs des nœuds distincts.
+/// Database targeted by a connection: server and database of its string (design-time
+/// value), falling back to the connection name. Two connections to the same database
+/// thus give the same nodes, and two same-named databases on two servers distinct ones.
 struct Database {
     server: Option<String>,
     name: String,
@@ -251,12 +251,12 @@ impl<'a> Builder<'a> {
                     } else {
                         "destination"
                     };
-                    let note = format!("{role} sans jeu de données identifié");
+                    let note = format!("{role} without an identified dataset");
                     self.note(package_index, &c.name, &note);
                 }
                 Ok(found) => {
-                    // ponytail: une expression sur une propriété que le mode d'accès
-                    // ne lit pas compte aussi ; suivre la propriété lue si ça gêne.
+                    // shortcut: an expression on a property the access mode does not
+                    // read counts too; follow the property actually read if it matters.
                     let from_expression = !c.expressions.is_empty();
                     self.attach(package_index, &c.name, node, found, from_expression);
                 }
@@ -271,7 +271,7 @@ impl<'a> Builder<'a> {
             Err(note) => return self.note(index, &task.name, &note),
         };
         let Ok(found) = sql::tables(text) else {
-            return self.note(index, &task.name, "SQL non analysé");
+            return self.note(index, &task.name, "SQL not analyzed");
         };
         let database = database_of(package, &task.connections);
         let found = datasets(&found, database.as_ref());
@@ -285,8 +285,8 @@ impl<'a> Builder<'a> {
         self.attach(index, &task.name, node, found, from_expression);
     }
 
-    /// Relie l'étape à ses jeux de données ; une procédure sans définition unique
-    /// est signalée.
+    /// Links the step to its datasets; a procedure without a single definition is
+    /// reported.
     fn attach(
         &mut self,
         package: usize,
@@ -303,12 +303,12 @@ impl<'a> Builder<'a> {
                     .map_or(d.label.as_str(), |(_, n)| n);
                 let defined = self.definitions(&d.label, Defined::Procedure);
                 let note = match defined.as_slice() {
-                    [] => Some(format!("procédure stockée {name}, non suivie")),
+                    [] => Some(format!("stored procedure {name}, not traced")),
                     [_] => None,
                     several => {
                         let files: Vec<&str> = several.iter().map(|s| s.file.as_str()).collect();
                         Some(format!(
-                            "procédure stockée {name} définie dans plusieurs scripts ({}), non suivie",
+                            "stored procedure {name} defined in several scripts ({}), not traced",
                             files.join(", ")
                         ))
                     }
@@ -321,8 +321,8 @@ impl<'a> Builder<'a> {
         }
     }
 
-    /// Définitions (`.sql`) de la procédure ou de la vue d'un nœud, retrouvées par
-    /// son libellé. La base est ignorée : les scripts la précisent rarement.
+    /// Definitions (`.sql`) of the procedure or view of a node, found by its label.
+    /// The database is ignored: scripts rarely specify it.
     fn definitions(&self, label: &str, defined: Defined) -> Vec<&'a SqlDefinition> {
         let Some(name) = label
             .split_once(" : ")
@@ -336,11 +336,11 @@ impl<'a> Builder<'a> {
             .collect()
     }
 
-    /// Tables des procédures et des vues définies dans un script `.sql`, et
-    /// procédures qu'elles appellent : ajoutées en fin de graphe, elles sont lues par
-    /// la même boucle. Une définition en double n'est pas suivie (on ne devine pas).
-    // ponytail: une procédure appelée seulement par une procédure n'a pas de package :
-    // sans définition unique, elle reste un nœud sans note.
+    /// Tables of the procedures and views defined in a `.sql` script, and procedures
+    /// they call: added at the end of the graph, they are read by the same loop. A
+    /// duplicate definition is not traced (no guessing).
+    // shortcut: a procedure called only by a procedure has no package: without a
+    // single definition, it stays a node without a note.
     fn expand_definitions(&mut self) {
         let mut next = 0;
         while next < self.lineage.graph.node_count() {
@@ -362,7 +362,7 @@ impl<'a> Builder<'a> {
             let [defined] = self.definitions(label, defined)[..] else {
                 continue;
             };
-            // Le corps vit dans la base et sur le serveur de la procédure ou de la vue.
+            // The body lives in the database and on the server of the procedure or view.
             let database = label.split_once(" : ").map(|(db, _)| Database {
                 server: server.clone(),
                 name: db.to_owned(),
@@ -382,9 +382,9 @@ impl<'a> Builder<'a> {
     }
 }
 
-/// Requête exécutée par une tâche SQL, et si elle est calculée par expression ; `Err` :
-/// pourquoi elle n'est pas suivie. Lue dans une variable : sa valeur ; calculée par
-/// expression, c'est la valeur à la conception, comme pour une requête en expression.
+/// Query run by an SQL task, and whether it is computed by an expression; `Err`: why
+/// it is not traced. Read from a variable: its value; computed by an expression, the
+/// design-time value, as for a query in an expression.
 pub(super) fn statement<'a>(
     package: &'a Package,
     task: &Executable,
@@ -394,13 +394,13 @@ pub(super) fn statement<'a>(
         SqlOrigin::Direct => Ok((sql.text.as_str(), false)),
         SqlOrigin::Expression => Ok((sql.text.as_str(), true)),
         SqlOrigin::Variable => variable(package, task, &sql.text)
-            .ok_or_else(|| format!("requête dans la variable {}, non suivie", sql.text)),
-        SqlOrigin::File => Err("requête dans un fichier, non suivie".to_owned()),
+            .ok_or_else(|| format!("query in variable {}, not traced", sql.text)),
+        SqlOrigin::File => Err("query in a file, not traced".to_owned()),
     }
 }
 
-/// Valeur de la variable `name` vue depuis la tâche (la plus proche l'emporte, comme
-/// dans SSIS), et si elle est calculée par expression. Valeur masquée : rien.
+/// Value of the variable `name` seen from the task (the closest wins, as in SSIS),
+/// and whether it is computed by an expression. Masked value: nothing.
 fn variable<'p>(package: &'p Package, task: &Executable, name: &str) -> Option<(&'p str, bool)> {
     let path = task.path();
     let visible =
@@ -414,8 +414,8 @@ fn variable<'p>(package: &'p Package, task: &Executable, name: &str) -> Option<(
     Some((value, v.expression.is_some()))
 }
 
-/// Tables créées, lues, écrites puis procédures appelées. Créations d'abord : une
-/// table créée puis remplie garde son lien d'écriture.
+/// Tables created, read, written, then called procedures. Creations first: a table
+/// created then filled keeps its write link.
 fn datasets(found: &Tables, database: Option<&Database>) -> Vec<(DatasetRef, Direction)> {
     let tables = [
         (&found.creates, Direction::Create),
@@ -432,7 +432,7 @@ fn datasets(found: &Tables, database: Option<&Database>) -> Vec<(DatasetRef, Dir
     tables.chain(procedures).collect()
 }
 
-/// Jeux de données lus ou écrits par un composant de Data Flow.
+/// Datasets read or written by a Data Flow component.
 fn component_datasets(
     c: &Component,
     package: &Package,
@@ -458,14 +458,14 @@ fn component_datasets(
     table_or_query(c, database_of(package, &c.connections).as_ref(), direction)
 }
 
-/// Source KingswaySoft : entité unique (`SourceType` 0) ou requête FetchXML (1).
+/// KingswaySoft source: single entity (`SourceType` 0) or FetchXML query (1).
 fn dynamics(
     c: &Component,
     connection: Option<&str>,
     direction: Direction,
 ) -> Result<Vec<(DatasetRef, Direction)>, String> {
     if direction == Direction::Write {
-        return Err("destination Dynamics non suivie".to_owned());
+        return Err("Dynamics destination not traced".to_owned());
     }
     let props = &c.properties;
     let entities = match props.get("SourceType").map(String::as_str) {
@@ -487,7 +487,7 @@ fn dynamics(
         .collect())
 }
 
-/// `AccessMode` du composant, 0 (table) s'il est absent.
+/// `AccessMode` of the component, 0 (table) when absent.
 pub fn access_mode(c: &Component) -> u32 {
     c.properties
         .get("AccessMode")
@@ -495,9 +495,9 @@ pub fn access_mode(c: &Component) -> u32 {
         .unwrap_or(0)
 }
 
-/// Requête réellement exécutée par un composant : `SqlCommand` en mode commande
-/// SQL (`AccessMode` 2), et toujours pour Lookup et OLE DB Command. Une commande
-/// restée d'un ancien mode d'accès n'est pas retenue.
+/// Query actually run by a component: `SqlCommand` in SQL command mode
+/// (`AccessMode` 2), and always for Lookup and OLE DB Command. A command left over
+/// from a former access mode is not kept.
 pub fn sql_command(c: &Component) -> Option<&str> {
     let always_sql = matches!(
         c.class_id.as_str(),
@@ -510,7 +510,7 @@ pub fn sql_command(c: &Component) -> Option<&str> {
         .filter(|_| access_mode(c) == 2 || always_sql)
 }
 
-/// OLE DB, ADO.NET, Lookup, OLE DB Command… : requête (`SqlCommand`) ou table (`OpenRowset`).
+/// OLE DB, ADO.NET, Lookup, OLE DB Command…: query (`SqlCommand`) or table (`OpenRowset`).
 fn table_or_query(
     c: &Component,
     database: Option<&Database>,
@@ -520,8 +520,8 @@ fn table_or_query(
     let props = &c.properties;
     let access = access_mode(c);
     if let Some(command) = sql_command(c) {
-        let found = sql::tables(command).map_err(|_| "SQL non analysé".to_owned())?;
-        // Destination en mode commande SQL : le SELECT désigne la table écrite.
+        let found = sql::tables(command).map_err(|_| "SQL not analyzed".to_owned())?;
+        // Destination in SQL command mode: the SELECT designates the written table.
         let reads = found.reads.iter().map(|t| (table(t, database), direction));
         let writes = found
             .writes
@@ -533,14 +533,14 @@ fn table_or_query(
             .map(|p| (procedure(p, database), Direction::Write));
         return Ok(reads.chain(writes).chain(procedures).collect());
     }
-    // AccessMode « …depuis une variable » (OLE DB : source 1 et 3, destination 1 et 4).
+    // AccessMode "…from a variable" (OLE DB: source 1 and 3, destination 1 and 4).
     let from_variable = match class {
         "Microsoft.OLEDBSource" => matches!(access, 1 | 3),
         "Microsoft.OLEDBDestination" => matches!(access, 1 | 4),
         _ => false,
     };
     if from_variable {
-        return Err("table ou requête dans une variable, non suivie".to_owned());
+        return Err("table or query in a variable, not traced".to_owned());
     }
     let object = props
         .get("OpenRowset")
@@ -552,8 +552,8 @@ fn table_or_query(
         .collect())
 }
 
-/// Table : la base vient du nom en trois parties, sinon de la connexion ; le serveur,
-/// de la connexion.
+/// Table: the database comes from the three-part name, otherwise from the connection;
+/// the server, from the connection.
 fn table(t: &TableName, database: Option<&Database>) -> DatasetRef {
     let name = t
         .database
@@ -595,11 +595,11 @@ fn entity(crm: &str, name: &str) -> DatasetRef {
     }
 }
 
-/// Entités d'une requête FetchXML (`<entity name>` et `<link-entity name>`).
+/// Entities of a FetchXML query (`<entity name>` and `<link-entity name>`).
 fn fetch_entities(fetch_xml: &str) -> Vec<String> {
     let mut reader = Reader::from_str(fetch_xml);
     let mut entities: Vec<String> = Vec::new();
-    // ponytail: un FetchXML mal formé donne les entités lues jusqu'à l'erreur.
+    // shortcut: a malformed FetchXML gives the entities read up to the error.
     while let Ok(event) = reader.read_event() {
         match event {
             Event::Start(e) | Event::Empty(e)

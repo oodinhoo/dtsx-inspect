@@ -1,90 +1,90 @@
-//! Règles de lint (anti-patterns SSIS) : une règle = un fichier, trait `Rule`.
+//! Lint rules (SSIS anti-patterns): one rule = one file, `Rule` trait.
 
-mod chargement_sans_fast_load;
-mod colonnes_inutiles;
-mod commande_ligne_a_ligne;
-mod connexion_non_resolue;
-mod fournisseur_obsolete;
-mod insert_select_etoile;
-mod lignage_incomplet;
-mod nom_par_defaut;
-mod package_non_renomme;
-mod tache_desactivee;
-mod tri_dans_le_flux;
+mod default_name;
+mod disabled_task;
+mod incomplete_lineage;
+mod insert_select_star;
+mod no_fast_load;
+mod obsolete_provider;
+mod row_by_row_command;
+mod sort_in_data_flow;
+mod unrenamed_package;
+mod unresolved_connection;
+mod unused_columns;
 
 use std::fmt;
 
 use crate::inventory::Inventory;
 use crate::lineage::Lineage;
 use crate::model::{Component, Executable, Package};
-use chargement_sans_fast_load::ChargementSansFastLoad;
-use colonnes_inutiles::ColonnesInutiles;
-use commande_ligne_a_ligne::CommandeLigneALigne;
-use connexion_non_resolue::ConnexionNonResolue;
-use fournisseur_obsolete::FournisseurObsolete;
-use insert_select_etoile::InsertSelectEtoile;
-use lignage_incomplet::LignageIncomplet;
-use nom_par_defaut::NomParDefaut;
-use package_non_renomme::PackageNonRenomme;
-use tache_desactivee::TacheDesactivee;
-use tri_dans_le_flux::TriDansLeFlux;
+use default_name::DefaultName;
+use disabled_task::DisabledTask;
+use incomplete_lineage::IncompleteLineage;
+use insert_select_star::InsertSelectStar;
+use no_fast_load::NoFastLoad;
+use obsolete_provider::ObsoleteProvider;
+use row_by_row_command::RowByRowCommand;
+use sort_in_data_flow::SortInDataFlow;
+use unrenamed_package::UnrenamedPackage;
+use unresolved_connection::UnresolvedConnection;
+use unused_columns::UnusedColumns;
 
-// ponytail: toutes les règles toujours actives ; un `--rules regles.toml`
-// (activation, gravité) viendra quand une règle gênera quelqu'un.
+// shortcut: every rule always on; a `--rules rules.toml` (enabling, severity) will
+// come when a rule bothers someone.
 const RULES: [&dyn Rule; 11] = [
-    &ChargementSansFastLoad,
-    &ColonnesInutiles,
-    &CommandeLigneALigne,
-    &ConnexionNonResolue,
-    &FournisseurObsolete,
-    &InsertSelectEtoile,
-    &LignageIncomplet,
-    &NomParDefaut,
-    &PackageNonRenomme,
-    &TacheDesactivee,
-    &TriDansLeFlux,
+    &DefaultName,
+    &DisabledTask,
+    &IncompleteLineage,
+    &InsertSelectStar,
+    &NoFastLoad,
+    &ObsoleteProvider,
+    &RowByRowCommand,
+    &SortInDataFlow,
+    &UnrenamedPackage,
+    &UnresolvedConnection,
+    &UnusedColumns,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Severity {
-    Erreur,
-    Avertissement,
+    Error,
+    Warning,
     Info,
 }
 
 impl fmt::Display for Severity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
-            Severity::Erreur => "erreur",
-            Severity::Avertissement => "avertissement",
+            Severity::Error => "error",
+            Severity::Warning => "warning",
             Severity::Info => "info",
         })
     }
 }
 
-/// Constat d'une règle. Ne contient jamais de SQL ni de chaîne de connexion.
+/// Finding of a rule. Never contains SQL or a connection string.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Finding {
     pub rule: &'static str,
     pub severity: Severity,
-    /// Fichier du package, ou `projet` pour une connexion de projet.
+    /// Package file, or `project` for a project connection.
     pub file: String,
-    /// Tâche, composant ou connexion concernés.
+    /// Task, component or connection concerned.
     pub location: String,
     pub message: String,
 }
 
-/// Fiche d'une règle, montrée dans la page « Règles de lint » du rapport. Ses
-/// constats en reprennent l'identifiant et la gravité.
+/// Card of a rule, shown on the "Lint rules" page of the report. Its findings take
+/// its identifier and severity.
 #[derive(Debug)]
 pub struct RuleDoc {
     pub id: &'static str,
     pub severity: Severity,
-    /// Ce que la règle signale.
+    /// What the rule reports.
     pub title: &'static str,
-    /// Pourquoi c'est un problème.
+    /// Why it is a problem.
     pub why: &'static str,
-    /// Comment le corriger.
+    /// How to fix it.
     pub fix: &'static str,
 }
 
@@ -93,12 +93,12 @@ pub trait Rule {
     fn check(&self, inventory: &Inventory, lineage: &Lineage) -> Vec<Finding>;
 }
 
-/// Fiches de toutes les règles, dans l'ordre alphabétique de leur fichier.
+/// Cards of all rules, in the alphabetical order of their file.
 pub fn rules() -> impl Iterator<Item = &'static RuleDoc> {
     RULES.iter().map(|r| r.doc())
 }
 
-/// Tâches et conteneurs de tous les packages.
+/// Tasks and containers of all packages.
 fn tasks(inventory: &Inventory) -> impl Iterator<Item = (&Package, &Executable)> {
     inventory
         .packages
@@ -106,8 +106,8 @@ fn tasks(inventory: &Inventory) -> impl Iterator<Item = (&Package, &Executable)>
         .flat_map(|p| p.executables.iter().map(move |e| (p, e)))
 }
 
-/// Composants de Data Flow de tous les packages, avec leur emplacement
-/// (`Data Flow\Composant`), pour les règles qui portent sur un composant.
+/// Data Flow components of all packages, with their location (`Data Flow\Component`),
+/// for the rules about a component.
 fn components(inventory: &Inventory) -> impl Iterator<Item = (&Package, String, &Component)> {
     inventory.packages.iter().flat_map(|p| {
         p.executables.iter().flat_map(move |e| {
@@ -128,7 +128,7 @@ fn finding(doc: &RuleDoc, file: &str, location: String, message: impl Into<Strin
     }
 }
 
-/// Toutes les règles, triées par fichier puis emplacement.
+/// All rules, sorted by file then location.
 pub fn lint(inventory: &Inventory, lineage: &Lineage) -> Vec<Finding> {
     let mut findings: Vec<Finding> = RULES
         .iter()

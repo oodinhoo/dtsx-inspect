@@ -6,8 +6,8 @@ use crate::calls::{Call, Callee};
 use crate::inventory::Inventory;
 use crate::lineage::{DatasetKind, Lineage, Node};
 
-/// Appels de packages : un nœud par package concerné, la tâche sur la flèche, les
-/// packages absents du dossier en pointillés.
+/// Package calls: one node per package concerned, the task on the arrow, packages
+/// missing from the folder dashed.
 pub fn calls_mermaid(inventory: &Inventory, calls: &[Call]) -> String {
     let package = |i: usize| {
         let name = inventory.packages.get(i).map_or("?", |p| p.name.as_str());
@@ -28,7 +28,7 @@ pub fn calls_mermaid(inventory: &Inventory, calls: &[Call]) -> String {
                         missing.len() - 1
                     }
                 };
-                let label = escape(&format!("{name} (introuvable)"));
+                let label = escape(&format!("{name} (not found)"));
                 (format!("m{n}"), format!("[\"{label}\"]:::missing"))
             }
         };
@@ -54,13 +54,13 @@ pub fn calls_mermaid(inventory: &Inventory, calls: &[Call]) -> String {
     lines.join("\n") + "\n"
 }
 
-/// `flowchart LR` : jeux de données à part (partagés entre packages), un
-/// sous-graphe par package et un par Data Flow.
+/// `flowchart LR`: datasets apart (shared across packages), one subgraph per package
+/// and one per Data Flow.
 pub fn mermaid(lineage: &Lineage) -> String {
     let g = &lineage.graph;
     let mut lines = vec![
         "flowchart LR".to_owned(),
-        "  %% Pointillés : requête construite par expression (valeur à la conception).".to_owned(),
+        "  %% Dashed: query built by an expression (design-time value).".to_owned(),
     ];
     for i in g.node_indices() {
         if matches!(g[i], Node::Dataset { .. }) {
@@ -72,7 +72,7 @@ pub fn mermaid(lineage: &Lineage) -> String {
     }
     for e in g.edge_references() {
         let arrow = match e.weight() {
-            w if w.creates => "-. crée .->",
+            w if w.creates => "-. creates .->",
             w if w.from_expression => "-.->",
             _ => "-->",
         };
@@ -87,8 +87,8 @@ pub fn mermaid(lineage: &Lineage) -> String {
             .packages
             .get(note.package)
             .map_or("?", String::as_str);
-        let note = format!("{package} : {} : {}", note.step, note.reason);
-        lines.push(format!("  %% Non suivi : {}", clean(&note)));
+        let note = format!("{package}: {}: {}", note.step, note.reason);
+        lines.push(format!("  %% Not traced: {}", clean(&note)));
     }
     lines.join("\n") + "\n"
 }
@@ -131,7 +131,7 @@ fn package(lineage: &Lineage, p: usize, name: &str) -> Vec<String> {
 
 fn node(i: NodeIndex, n: &Node) -> String {
     let label = match n.label().trim() {
-        "" => "(sans nom)".to_owned(),
+        "" => "(unnamed)".to_owned(),
         text => escape(text),
     };
     let id = i.index();
@@ -157,7 +157,7 @@ fn node(i: NodeIndex, n: &Node) -> String {
     }
 }
 
-/// Libellé entre guillemets : `#` d'abord, il sert aux codes d'entité Mermaid.
+/// Quoted label: `#` first, it is used by Mermaid entity codes.
 fn escape(text: &str) -> String {
     clean(text)
         .replace('#', "#35;")
@@ -177,7 +177,7 @@ mod tests {
             flow: "DFT".into(),
             name: String::new(),
         };
-        assert_eq!(node(NodeIndex::new(3), &unnamed), "n3[\"(sans nom)\"]");
+        assert_eq!(node(NodeIndex::new(3), &unnamed), "n3[\"(unnamed)\"]");
     }
 
     #[test]

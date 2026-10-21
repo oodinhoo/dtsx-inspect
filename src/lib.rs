@@ -1,4 +1,4 @@
-//! dtsx-inspect : analyse de packages SSIS (`.dtsx`).
+//! dtsx-inspect: analysis of SSIS packages (`.dtsx`).
 
 pub mod calls;
 pub mod inventory;

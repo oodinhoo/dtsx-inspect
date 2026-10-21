@@ -13,7 +13,7 @@ fn pair(r: &ConnectionRef) -> (&str, Option<&str>) {
     (r.reference.as_str(), r.resolved.as_deref())
 }
 
-/// Références de connexion du package, tâches puis composants, dans l'ordre.
+/// Connection references of the package, tasks then components, in order.
 fn resolved(package: &Package) -> Vec<(&str, Option<&str>)> {
     package
         .executables
@@ -76,8 +76,8 @@ fn conmgr_given_as_path_is_not_counted_twice() {
     assert_eq!(errors.len(), 1, "{errors:?}");
 }
 
-/// Deux projets voisins ont chacun une connexion `Cible` : chaque package ne
-/// voit que celles de son dossier, et liste celles qu'il utilise.
+/// Two neighbour projects each have a `Cible` connection: each package only sees
+/// those of its folder, and lists the ones it uses.
 #[test]
 fn each_package_only_sees_the_connections_of_its_own_project() {
     let (inv, errors) = inventory(&fixture("multi"));
@@ -178,20 +178,23 @@ fn json_project() {
 
 #[test]
 fn skips_build_copies_when_sources_are_next_to_them() {
-    // `obj\Development` est recopié par Visual Studio : sans les ignorer, chaque
-    // package compterait deux fois. Un projet sans sources garde sa copie.
+    // `obj\Development` is copied by Visual Studio: without skipping it, each package
+    // would count twice. A project without sources keeps its copy.
     let (inv, errors) = inventory(&fixture("build_copy"));
     assert!(errors.is_empty(), "{errors:?}");
     let files: Vec<&str> = inv.packages.iter().map(|p| p.file.as_str()).collect();
     assert_eq!(
         files,
-        vec!["Projet/Paquet.dtsx", "Seul/obj/Development/Seul.dtsx"]
+        vec![
+            "Project/Paquet.dtsx",
+            "Standalone/obj/Development/Seul.dtsx"
+        ]
     );
 }
 
 #[test]
 fn reads_procedures_and_views_of_sql_scripts_whatever_their_encoding() {
-    // Charger.sql : UTF-8 avec BOM ; Purger.sql : UTF-16 (fréquent sous SSDT).
+    // Charger.sql: UTF-8 with BOM; Purger.sql: UTF-16 (common with SSDT).
     let (inv, errors) = inventory(&fixture("procedures"));
     assert!(errors.is_empty(), "{errors:?}");
     let scripts: Vec<(&str, String)> = inv
@@ -219,15 +222,15 @@ fn markdown_lists_parameters_variables_and_expressions_without_secrets() {
     let md = render::markdown(&inv);
 
     for expected in [
-        "## Paramètres",
-        "| Jeton | (sensible) |",
+        "## Parameters",
+        "| Jeton | (sensitive) |",
         "## Variables",
         "| User::RequeteCalculee |",
         "| SQL Variable | User::Lot | 42 |",
         "## Expressions",
-        r"| connexion Entrepot | ConnectionString | @\[$Package::Chaine\] |",
+        r"| connection Entrepot | ConnectionString | @\[$Package::Chaine\] |",
     ] {
-        assert!(md.contains(expected), "{expected} absent de :\n{md}");
+        assert!(md.contains(expected), "{expected} missing from:\n{md}");
     }
     assert!(!md.contains("s3cr3t"), "{md}");
 }

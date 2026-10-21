@@ -1,27 +1,27 @@
-//! Appels de packages : chaque tâche Execute Package et le package qu'elle lance.
+//! Package calls: each Execute Package task and the package it runs.
 
 use crate::inventory::Inventory;
 use crate::model::{Executable, Package};
 
-/// Appel d'un package par une tâche Execute Package.
+/// Call of a package by an Execute Package task.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Call {
-    /// Index du package appelant dans `Inventory::packages`.
+    /// Index of the calling package in `Inventory::packages`.
     pub caller: usize,
-    /// Chemin de la tâche dans l'appelant.
+    /// Path of the task in the caller.
     pub task: String,
     pub callee: Callee,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Callee {
-    /// Index du package appelé dans `Inventory::packages`.
+    /// Index of the called package in `Inventory::packages`.
     Package(usize),
-    /// Absent du dossier analysé : nom du fichier attendu, ou cible non renseignée.
+    /// Not in the analyzed folder: expected file name, or no target set.
     Missing(String),
 }
 
-/// Appels de tous les packages, dans l'ordre des packages puis de leurs tâches.
+/// Calls of all packages, in package order then task order.
 pub fn calls(inventory: &Inventory) -> Vec<Call> {
     inventory
         .packages
@@ -41,7 +41,7 @@ pub fn calls(inventory: &Inventory) -> Vec<Call> {
 }
 
 fn callee(inventory: &Inventory, caller: &Package, task: &Executable) -> Callee {
-    // Référence de projet : un package du même projet, donc du même dossier.
+    // Project reference: a package of the same project, hence of the same folder.
     if let Some(name) = &task.called_package {
         let wanted = file_name(name);
         let home = folder(&caller.file);
@@ -50,8 +50,8 @@ fn callee(inventory: &Inventory, caller: &Package, task: &Executable) -> Callee 
         })
         .map_or_else(|| Callee::Missing(wanted.to_owned()), Callee::Package);
     }
-    // Référence externe : le fichier d'une connexion FILE, retrouvé par son nom.
-    // ponytail: deux packages de même nom dans deux projets : le premier l'emporte.
+    // External reference: the file of a FILE connection, found by its name.
+    // shortcut: two same-named packages in two projects: the first one wins.
     let target = task
         .connections
         .first()
@@ -59,7 +59,7 @@ fn callee(inventory: &Inventory, caller: &Package, task: &Executable) -> Callee 
         .and_then(|name| caller.connections.iter().find(|m| m.name == name))
         .and_then(|m| m.target.as_deref());
     let Some(path) = target else {
-        return Callee::Missing("cible non renseignée".to_owned());
+        return Callee::Missing("no target set".to_owned());
     };
     let wanted = file_name(path);
     find(inventory, |p| {
@@ -72,12 +72,12 @@ fn find(inventory: &Inventory, matches: impl Fn(&Package) -> bool) -> Option<usi
     inventory.packages.iter().position(matches)
 }
 
-/// Dossier d'un chemin affiché (`Projet/x.dtsx` -> `Projet`), vide à la racine.
+/// Folder of a displayed path (`Project/x.dtsx` -> `Project`), empty at the root.
 fn folder(path: &str) -> &str {
     path.rsplit_once('/').map_or("", |(folder, _)| folder)
 }
 
-/// Nom de fichier d'un chemin Windows ou affiché (`D:\a\x.dtsx`, `Projet/x.dtsx`).
+/// File name of a Windows or displayed path (`D:\a\x.dtsx`, `Project/x.dtsx`).
 fn file_name(path: &str) -> &str {
     path.rsplit(['/', '\\']).next().unwrap_or(path).trim()
 }

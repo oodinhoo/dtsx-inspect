@@ -1,5 +1,5 @@
-//! Lignage d'une colonne en texte : d'où elle vient (←) puis où elle va (→),
-//! une étape par ligne, avec la façon dont chaque colonne donne la suivante.
+//! Lineage of a column as text: where it comes from (←) then where it goes (→), one
+//! step per line, with how each column gives the next one.
 
 use petgraph::graph::NodeIndex;
 use petgraph::visit::EdgeRef;
@@ -8,8 +8,8 @@ use petgraph::Direction;
 use super::clean;
 use crate::lineage::columns::{ColumnLineage, ColumnNode};
 
-/// Colonnes de table ou de fichier dont le nom complet (`Base : schéma.table.colonne`)
-/// contient `needle` (sans casse) ; `None` si aucune.
+/// Table or file columns whose full name (`Database : schema.table.column`) contains
+/// `needle` (case-insensitive); `None` if none.
 pub fn column_trace(lineage: &ColumnLineage, needle: &str) -> Option<String> {
     let g = &lineage.graph;
     let needle = needle.to_lowercase();
@@ -39,7 +39,7 @@ pub fn column_trace(lineage: &ColumnLineage, needle: &str) -> Option<String> {
     Some(out)
 }
 
-/// Une ligne par colonne voisine, puis ses propres voisines, en profondeur.
+/// One line per neighbour column, then its own neighbours, depth first.
 fn walk(
     lineage: &ColumnLineage,
     node: NodeIndex,
@@ -50,27 +50,27 @@ fn walk(
     let g = &lineage.graph;
     let upstream = direction == Direction::Incoming;
     let arrow = if upstream { "←" } else { "→" };
-    // Branches dans l'ordre alphabétique : une sortie stable d'une analyse à l'autre.
+    // Branches in alphabetical order: an output stable from one analysis to the next.
     let mut edges: Vec<_> = g
         .edges_directed(node, direction)
         .map(|e| (if upstream { e.source() } else { e.target() }, *e.weight()))
         .collect();
     edges.sort_by_cached_key(|(next, _)| describe(lineage, *next));
     for (next, how) in edges {
-        // Colonne produite sans colonne amont connue (composant script…).
+        // Column produced without a known upstream column (script component…).
         let unknown = upstream
             && matches!(g[next], ColumnNode::Step { .. })
             && g.edges_directed(next, Direction::Incoming).next().is_none();
-        let suffix = if unknown { ", origine inconnue" } else { "" };
+        let suffix = if unknown { ", unknown origin" } else { "" };
         let line = format!(
-            "{}{arrow} {} : {}{suffix}",
+            "{}{arrow} {}: {}{suffix}",
             "  ".repeat(path.len()),
             how.label(),
             describe(lineage, next)
         );
         out.push_str(&clean(&line));
         if path.contains(&next) {
-            out.push_str(" (boucle)\n");
+            out.push_str(" (loop)\n");
             continue;
         }
         out.push('\n');
@@ -80,7 +80,7 @@ fn walk(
     }
 }
 
-/// `Base : dbo.Table.colonne`, ou `Composant.colonne (Package › Data Flow)`.
+/// `Database : dbo.Table.column`, or `Component.column (Package › Data Flow)`.
 pub(super) fn describe(lineage: &ColumnLineage, i: NodeIndex) -> String {
     match &lineage.graph[i] {
         ColumnNode::Dataset {

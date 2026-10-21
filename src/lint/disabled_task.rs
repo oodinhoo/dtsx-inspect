@@ -1,20 +1,20 @@
-//! Tâche désactivée : code mort, ou oubli avant la mise en production.
+//! Disabled task: dead code, or forgotten before going to production.
 
 use super::{finding, tasks, Finding, Rule, RuleDoc, Severity};
 use crate::inventory::Inventory;
 use crate::lineage::Lineage;
 
-pub struct TacheDesactivee;
+pub struct DisabledTask;
 
 const DOC: RuleDoc = RuleDoc {
-    id: "tache-desactivee",
+    id: "disabled-task",
     severity: Severity::Info,
-    title: "Tâche désactivée",
-    why: "Code mort qui reste déployé, ou tâche qu'on a oublié de réactiver avant la mise en production.",
-    fix: "Supprimer la tâche si elle ne sert plus ; sinon la réactiver, ou noter dans une annotation pourquoi elle est désactivée.",
+    title: "Disabled task",
+    why: "Dead code that stays deployed, or a task someone forgot to enable again before going to production.",
+    fix: "Delete the task if it is no longer used; otherwise enable it again, or note in an annotation why it is disabled.",
 };
 
-impl Rule for TacheDesactivee {
+impl Rule for DisabledTask {
     fn doc(&self) -> &'static RuleDoc {
         &DOC
     }
@@ -27,7 +27,7 @@ impl Rule for TacheDesactivee {
                     &DOC,
                     &p.file,
                     e.path().to_owned(),
-                    "tâche désactivée, à supprimer si elle ne sert plus",
+                    "disabled task, delete it if it is no longer used",
                 )
             })
             .collect()

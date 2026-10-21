@@ -1,6 +1,6 @@
-//! Réduction d'une chaîne de connexion à ce qui peut être affiché.
+//! Reduces a connection string to what can be displayed.
 
-/// Liste blanche : toute autre clé (mot de passe, jeton, secret…) est ignorée.
+/// Allow-list: any other key (password, token, secret…) is ignored.
 const DISPLAYABLE_KEYS: [&str; 5] = [
     "data source",
     "server",
@@ -9,8 +9,8 @@ const DISPLAYABLE_KEYS: [&str; 5] = [
     "provider",
 ];
 
-/// Ne garde que serveur, base et fournisseur. Une chaîne sans `clé=valeur`
-/// est un chemin de fichier et reste telle quelle.
+/// Keeps only server, database and provider. A string without `key=value`
+/// is a file path and stays as is.
 pub fn summarize_connection_string(raw: &str) -> Option<String> {
     let raw = raw.trim();
     if raw.is_empty() {
@@ -27,24 +27,24 @@ pub fn summarize_connection_string(raw: &str) -> Option<String> {
     (!kept.is_empty()).then(|| kept.join(";"))
 }
 
-/// Mots qui, dans un nom de variable ou de paramètre, annoncent un secret.
+/// Words that, in a variable or parameter name, announce a secret (English and French).
 const SECRET_NAMES: [&str; 6] = ["password", "pwd", "motdepasse", "secret", "token", "jeton"];
 
-/// `User::MotDePasse`, `Api_Token`… : la valeur ne doit pas être affichée.
+/// `User::Password`, `Api_Token`…: the value must not be displayed.
 pub fn is_secret_name(name: &str) -> bool {
     let compact = name.to_lowercase().replace(['_', '-', ' '], "");
     SECRET_NAMES.iter().any(|s| compact.contains(s))
 }
 
-/// Clés dont la valeur est masquée dans un texte libre (SQL, FetchXML).
+/// Keys whose value is masked in free text (SQL, FetchXML).
 const SECRET_KEYS: [&str; 2] = ["password", "pwd"];
 
-/// Masque la valeur de `password=` / `pwd=` (casse ignorée) dans un texte libre :
+/// Masks the value of `password=` / `pwd=` (case-insensitive) in free text:
 /// `OPENROWSET(…, 'Server=x;Pwd=secret')`, `CREATE LOGIN … PASSWORD = 'x'`.
-// ponytail: repère les clés connues seulement ; un secret sous un autre nom passe.
+// shortcut: only known keys are spotted; a secret under another name gets through.
 pub fn redact_secrets(text: &str) -> String {
-    // `to_ascii_lowercase` garde les positions d'octets : on cherche dans `lower`
-    // et on découpe `text` aux mêmes indices.
+    // `to_ascii_lowercase` keeps byte positions: search in `lower` and slice `text`
+    // at the same indices.
     let lower = text.to_ascii_lowercase();
     let mut out = String::with_capacity(text.len());
     let mut copied = 0;
@@ -77,7 +77,7 @@ pub fn redact_secrets(text: &str) -> String {
     out
 }
 
-/// Longueur d'une valeur entre guillemets, guillemet doublé (`''` en SQL) compris.
+/// Length of a quoted value, doubled quote (`''` in SQL) included.
 fn quoted_len(value: &str, quote: char) -> usize {
     let mut chars = value.char_indices().skip(1).peekable();
     while let Some((i, c)) = chars.next() {
@@ -91,7 +91,7 @@ fn quoted_len(value: &str, quote: char) -> usize {
     value.len()
 }
 
-/// Retire d'une URL les identifiants (`user:pw@`) et la requête (`?sig=…`).
+/// Removes credentials (`user:pw@`) and the query (`?sig=…`) from a URL.
 fn redact_url(value: &str) -> String {
     if !value.contains("://") {
         return value.to_owned();
@@ -109,9 +109,8 @@ fn redact_url(value: &str) -> String {
     format!("{scheme}{rest}")
 }
 
-/// Découpe `clé=valeur;…` en respectant les valeurs entre guillemets ou
-/// accolades (ODBC), pour qu'un `;` dans un mot de passe ne crée pas une
-/// fausse clé affichable.
+/// Splits `key=value;…` honouring quoted or braced (ODBC) values, so that a `;`
+/// in a password cannot create a fake displayable key.
 fn pairs(raw: &str) -> Vec<(&str, &str)> {
     let closing = |open: char| if open == '{' { '}' } else { open };
     let mut found = Vec::new();
@@ -175,8 +174,8 @@ mod tests {
     #[test]
     fn keeps_file_path_as_is() {
         assert_eq!(
-            summarize(r"D:\demo\entree.csv").as_deref(),
-            Some(r"D:\demo\entree.csv")
+            summarize(r"D:\demo\input.csv").as_deref(),
+            Some(r"D:\demo\input.csv")
         );
     }
 
@@ -210,14 +209,14 @@ mod tests {
             "CREATE LOGIN l WITH PASSWORD = ***, CHECK_POLICY = OFF"
         );
         assert_eq!(
-            redact("password={x;y} et pwd = \"z\""),
-            "password=*** et pwd = ***"
+            redact("password={x;y} and pwd = \"z\""),
+            "password=*** and pwd = ***"
         );
         assert_eq!(
             redact("SELECT PasswordHash FROM t"),
             "SELECT PasswordHash FROM t"
         );
-        // Chaîne Unicode T-SQL : `N'…'`.
+        // T-SQL Unicode string: `N'…'`.
         assert_eq!(
             redact("CREATE LOGIN l WITH PASSWORD = N'a''b', DEFAULT_DATABASE = d"),
             "CREATE LOGIN l WITH PASSWORD = ***, DEFAULT_DATABASE = d"
@@ -229,6 +228,7 @@ mod tests {
     fn recognises_secret_names() {
         use super::is_secret_name;
         for name in [
+            "User::Password",
             "User::MotDePasse",
             "Mot_de_passe",
             "ApiToken",
@@ -237,7 +237,7 @@ mod tests {
         ] {
             assert!(is_secret_name(name), "{name}");
         }
-        for name in ["User::Requete", "Chaine", "Passerelle"] {
+        for name in ["User::Query", "Chaine", "Passerelle"] {
             assert!(!is_secret_name(name), "{name}");
         }
     }

@@ -1,8 +1,8 @@
-// Lignage interactif : carte d'un projet (gauche → droite) et flux d'un package
-// (haut → bas). Clic maintenu pour se déplacer, molette pour zoomer, clic sur un
-// bloc pour sa chaîne amont / aval et ses détails. Placement : ELK (CDN).
-// Piloté par report.js via `window.lineage` (le graphe est déplacé dans la vue affichée).
-// Les textes viennent des packages : jamais insérés en HTML sans `esc`.
+// Interactive lineage: map of a project (left → right) and flow of a package
+// (top → bottom). Hold the click to pan, wheel to zoom, click a block for its upstream /
+// downstream chain and its details. Layout: ELK (CDN).
+// Driven by report.js through `window.lineage` (the graph is moved into the shown view).
+// Texts come from the packages: never inserted as HTML without `esc`.
 (() => {
   const source = document.getElementById("lineage-data");
   const stage = document.querySelector(".stage");
@@ -17,9 +17,9 @@
   const inspector = stage.querySelector(".inspector");
   const SIZE = { map: [220, 60], flow: [260, 60] };
   const KINDS = {
-    table: "Table", file: "Fichier", entity: "Entité Dynamics", proc: "Procédure stockée", source: "Composant source",
-    transform: "Transformation", dest: "Composant destination", sql: "Tâche SQL",
-    untracked: "Étape non suivie",
+    table: "Table", file: "File", entity: "Dynamics entity", proc: "Stored procedure", source: "Source component",
+    transform: "Transformation", dest: "Destination component", sql: "SQL task",
+    untracked: "Untraced step",
   };
   const ICONS = {
     table: '<svg viewBox="0 0 16 16"><ellipse cx="8" cy="3.8" rx="5" ry="2"/><path d="M3 3.8v8.4c0 1.1 2.2 2 5 2s5-.9 5-2V3.8"/><path d="M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/></svg>',
@@ -40,7 +40,7 @@
 
   let mode = "map";
   let flowPackage = null;
-  // Bloc dont on n'affiche que la chaîne amont / aval (« Isoler la chaîne »).
+  // Block whose upstream / downstream chain alone is shown ("Isolate the chain").
   let isolated = null;
   let nodes = [];
   let edges = [];
@@ -51,31 +51,31 @@
   let cam = { x: 0, y: 0, k: 1 };
   const elk = window.ELK ? new window.ELK() : null;
 
-  // Packages qui ont des blocs de lignage.
+  // Packages having lineage blocks.
   const withBlocks = [...new Set(data.nodes.map((n) => n.package).filter((p) => p != null))];
 
-  // Projet du package, calculé comme pour l'arborescence. Au-delà de MAP_LIMIT blocs, la
-  // carte complète bloque le navigateur (22 s pour 5 000 blocs) : elle s'ouvre sur un projet.
+  // Project of the package, computed as for the sidebar. Beyond MAP_LIMIT blocks, the full
+  // map freezes the browser (22 s for 5,000 blocks): it opens on one project.
   const MAP_LIMIT = 1500;
   const ALL = "*";
   const projectOf = (p) => data.projects[p] ?? "";
   const projects = [...new Set(withBlocks.map(projectOf))].sort((a, b) => a.localeCompare(b));
-  const projectSelect = document.querySelector("#carte .project-select");
+  const projectSelect = document.querySelector("#map .project-select");
   const tooBig = data.nodes.length > MAP_LIMIT;
-  projectSelect.add(new Option(`Tous les projets${tooBig ? " (lent)" : ""}`, ALL));
-  for (const project of projects) projectSelect.add(new Option(project || "(racine)", project));
-  // Ouverture sur le projet qui a le plus de packages.
+  projectSelect.add(new Option(`All projects${tooBig ? " (slow)" : ""}`, ALL));
+  for (const project of projects) projectSelect.add(new Option(project || "(root)", project));
+  // Opens on the project having the most packages.
   const largest = projects.reduce((best, project) => {
     const size = (q) => withBlocks.filter((p) => projectOf(p) === q).length;
     return size(project) > size(best) ? project : best;
   }, projects[0]);
   const defaultProject = tooBig && projects.length > 1 ? largest : ALL;
-  projectSelect.addEventListener("change", () => (location.hash = `#carte/${encodeURIComponent(projectSelect.value)}`));
+  projectSelect.addEventListener("change", () => (location.hash = `#map/${encodeURIComponent(projectSelect.value)}`));
 
-  // Jeu de données touché par au moins HUB_PACKAGES packages (journal d'exécution…) :
-  // sur la carte, une copie par package, sinon tout converge vers lui en étoile.
-  // ponytail: le seuil est fixe ; le rendre réglable si une vraie table de référence
-  // partagée gagne à rester en un seul bloc.
+  // Dataset touched by at least HUB_PACKAGES packages (execution log…): on the map, one
+  // copy per package, otherwise everything converges to it in a star.
+  // shortcut: the threshold is fixed; make it configurable if a real shared reference
+  // table is better kept as a single block.
   const HUB_PACKAGES = 5;
   function splitHubs(allNodes, allEdges) {
     const touching = new Map();
@@ -108,7 +108,7 @@
     return [out, edgesOut];
   }
 
-  // Les blocs des packages retenus et les jeux de données qu'ils touchent.
+  // The blocks of the kept packages and the datasets they touch.
   function scoped(keepPackage) {
     const own = new Set(data.nodes.filter((n) => n.package != null && keepPackage(n.package)).map((n) => n.id));
     const keep = new Set(own);
@@ -132,7 +132,7 @@
     return [n, e];
   }
 
-  // Projets dont des packages touchent un jeu de données, d'après le graphe complet.
+  // Projects whose packages touch a dataset, according to the full graph.
   function projectsUsing(datasetId) {
     const count = new Map();
     for (const [a, b] of data.edges) {
@@ -140,14 +140,14 @@
       const p = other == null ? null : data.nodes[other].package;
       if (p != null) count.set(projectOf(p), (count.get(projectOf(p)) ?? new Set()).add(p));
     }
-    return [...count].sort(([a], [b]) => a.localeCompare(b)).map(([project, pkgs]) => `${project || "(racine)"} (${pkgs.size})`);
+    return [...count].sort(([a], [b]) => a.localeCompare(b)).map(([project, pkgs]) => `${project || "(root)"} (${pkgs.size})`);
   }
 
-  // Mise en page ELK (algorithme « layered ») : les Data Flows sont de vrais
-  // conteneurs, les liens sont orthogonaux et ceux qui convergent fusionnent.
+  // ELK layout ("layered" algorithm): Data Flows are real containers, links are
+  // orthogonal and converging ones merge.
   async function layout(nodes, edges) {
     const [w, h] = SIZE[mode];
-    // Une entrée et une sortie par bloc : les liens qui y arrivent fusionnent en un tronc.
+    // One input and one output per block: the links arriving there merge into a trunk.
     const [inSide, outSide] = mode === "map" ? ["WEST", "EAST"] : ["NORTH", "SOUTH"];
     const block = (n) => ({
       id: String(n.id),
@@ -165,7 +165,7 @@
       if (n.group == null) top.push(block(n));
       else members.set(n.group, [...(members.get(n.group) ?? []), block(n)]);
     }
-    // Espacements répétés sur les cadres : ELK ne les hérite pas du graphe.
+    // Spacings repeated on the frames: ELK does not inherit them from the graph.
     const spacing = {
       "elk.spacing.nodeNode": "24",
       "elk.layered.spacing.nodeNodeBetweenLayers": "48",
@@ -184,12 +184,12 @@
       children: top.concat([...members].map(([id, children]) => ({
         id: "g" + id,
         children,
-        // Haut : place du bandeau de titre.
+        // Top: room for the title band.
         layoutOptions: { "elk.padding": "[top=50,left=16,bottom=16,right=16]", ...spacing },
       }))),
       edges: edges.map(([a, b], i) => ({ id: "e" + i, sources: [`${a}:out`], targets: [`${b}:in`] })),
     });
-    // Coordonnées ELK relatives au conteneur : on les rend absolues.
+    // ELK coordinates relative to the container: made absolute.
     const origin = new Map([["root", { x: 0, y: 0 }]]);
     const pos = new Map();
     const groups = [];
@@ -214,11 +214,11 @@
   const place = (el, b) =>
     Object.assign(el.style, { left: b.x + "px", top: b.y + "px", width: b.w + "px", height: b.h + "px" });
 
-  // La mise en page est asynchrone : seul le dernier dessin demandé s'affiche.
+  // The layout is asynchronous: only the last requested drawing shows.
   let drawing = 0;
   async function draw(select = null) {
     const ticket = ++drawing;
-    // Pendant le calcul, l'ancien graphe est estompé : il ne doit pas passer pour le nouveau.
+    // During the computation, the old graph is dimmed: it must not pass for the new one.
     canvas.classList.add("busy");
     const [nextNodes, nextEdges] = visible();
     const placed = await layout(nextNodes, nextEdges);
@@ -244,7 +244,7 @@
       el.title = n.title;
       place(el, pos.get(n.id));
       const sub = mode === "map" && n.package != null ? `${n.sub} · ${packageName(n)}` : n.sub;
-      const flag = n.note ? "non suivi" : n.expression ? "expression" : n.shared ? `${n.shared} packages` : "";
+      const flag = n.note ? "not traced" : n.expression ? "expression" : n.shared ? `${n.shared} packages` : "";
       el.innerHTML = `${tile(n.kind)}<span class="text"><span class="title">${esc(n.title)}</span>`
         + `<span class="sub">${esc(sub)}</span></span>`
         + (flag ? `<span class="flag">${flag}</span>` : "");
@@ -265,7 +265,7 @@
     for (const [from, to, dashed, creates] of edges) {
       const points = routes.get(`${from}>${to}`) ?? [];
       if (points.length < 2) continue;
-      // Tracé orthogonal, coins arrondis.
+      // Orthogonal path, rounded corners.
       let d = `M${points[0].x} ${points[0].y}`;
       for (let i = 1; i < points.length - 1; i++) {
         const [a, p, b] = [points[i - 1], points[i], points[i + 1]];
@@ -287,7 +287,7 @@
     }
   }
 
-  // Amont et aval complets d'un bloc.
+  // Full upstream and downstream of a block.
   function chain(id, among = edges) {
     const keep = new Set([id]);
     for (const forward of [true, false]) {
@@ -307,8 +307,8 @@
   }
 
   let selected = null;
-  // Met en avant les blocs de `keep` et estompe les autres (`null` : rien d'estompé).
-  // `hot` : liens internes en couleur, pour la chaîne du bloc sélectionné.
+  // Highlights the blocks of `keep` and dims the others (`null`: nothing dimmed).
+  // `hot`: inner links in colour, for the chain of the selected block.
   function emphasize(keep, hot = true) {
     world.querySelectorAll(".node").forEach((el) => {
       el.classList.toggle("selected", Number(el.dataset.id) === selected);
@@ -325,7 +325,7 @@
   const emphasizeSelection = () => emphasize(selected == null ? null : chain(selected));
 
   function choose(id) {
-    // Bloc absent de la vue (lien vers un autre package, bloc filtré) : rien de choisi.
+    // Block missing from the view (link to another package, filtered block): nothing chosen.
     selected = byId.has(id) ? id : null;
     emphasizeSelection();
     if (selected == null) {
@@ -338,30 +338,30 @@
           const other = byId.get(i);
           return `<button data-goto="${i}">${tile(other.kind)}<span>${esc(other.title)}</span><span class="go">›</span></button>`;
         }).join("")}</div>`
-      : '<p class="empty">Aucun</p>';
+      : '<p class="empty">None</p>';
     const up = edges.filter(([, b]) => b === id).map(([a]) => a);
     const down = edges.filter(([a]) => a === id).map(([, b]) => b);
     const isData = ["table", "file", "entity", "proc"].includes(n.kind);
-    const usedBy = isData && projects.length > 1 ? [["Projets", projectsUsing(n.origin ?? n.id).join(", ")]] : [];
-    const props = (n.package != null ? [["Package", packageName(n)], ["Fichier", data.files[n.package]]] : [])
+    const usedBy = isData && projects.length > 1 ? [["Projects", projectsUsing(n.origin ?? n.id).join(", ")]] : [];
+    const props = (n.package != null ? [["Package", packageName(n)], ["File", data.files[n.package]]] : [])
       .concat(n.props, usedBy);
-    const isolate = `<button class="action" data-isolate>${isolated === id ? "Afficher tout le graphe" : "Isoler la chaîne"}</button>`;
+    const isolate = `<button class="action" data-isolate>${isolated === id ? "Show the whole graph" : "Isolate the chain"}</button>`;
     const pages = n.package == null ? "" : (mode === "map"
-      ? `<a class="action" href="#p/${n.package}/flux">Voir le flux du package ${esc(packageName(n))}</a>`
-      : "") + `<a class="action" href="#p/${n.package}/inventaire">Voir dans l'inventaire</a>`;
+      ? `<a class="action" href="#p/${n.package}/flow">See the flow of package ${esc(packageName(n))}</a>`
+      : "") + `<a class="action" href="#p/${n.package}/inventory">See in the inventory</a>`;
     const actions = `<section class="actions">${isolate}${pages}</section>`;
     inspector.innerHTML = `
       <div class="inspector-head">${tile(n.kind)}<div><h3>${esc(n.title)}</h3><p>${esc(KINDS[n.kind] ?? "")}</p></div>
-        <button class="close" title="Fermer (Échap)" aria-label="Fermer">×</button></div>
+        <button class="close" title="Close (Esc)" aria-label="Close">×</button></div>
       ${actions}
       ${n.note ? `<section><p class="note">${esc(n.note)}</p></section>` : ""}
-      ${n.shared ? `<section><p class="note">Touché par ${n.shared} packages : la carte en montre une copie par package, avec ses seuls liens. Le flux de chaque package les détaille.</p></section>` : ""}
-      ${n.expression ? '<section><p class="note">Construit par expression : la valeur affichée est celle de la conception, elle peut différer à l\'exécution.</p></section>' : ""}
-      <section><h4>Propriétés</h4><dl class="props">${props.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></section>
-      ${n.query ? `<section><h4>${esc(n.query.title)}</h4><pre class="query">${esc(n.query.text)}</pre><button class="action" data-copy>Copier</button></section>` : ""}
+      ${n.shared ? `<section><p class="note">Touched by ${n.shared} packages: the map shows one copy per package, with its own links only. The flow of each package details them.</p></section>` : ""}
+      ${n.expression ? '<section><p class="note">Built by an expression: the value shown is the design-time one, it can differ at run time.</p></section>' : ""}
+      <section><h4>Properties</h4><dl class="props">${props.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></section>
+      ${n.query ? `<section><h4>${esc(n.query.title)}</h4><pre class="query">${esc(n.query.text)}</pre><button class="action" data-copy>Copy</button></section>` : ""}
       ${columnsSection(n)}
-      <section><h4>${isData ? "Alimenté par" : "En amont"}</h4>${links(up)}</section>
-      <section><h4>${isData ? "Consommé par" : "En aval"}</h4>${links(down)}</section>`;
+      <section><h4>${isData ? "Fed by" : "Upstream"}</h4>${links(up)}</section>
+      <section><h4>${isData ? "Consumed by" : "Downstream"}</h4>${links(down)}</section>`;
     inspector.classList.add("open");
   }
 
@@ -378,12 +378,12 @@
       draw(selected);
     } else if (target.dataset.copy !== undefined) {
       navigator.clipboard?.writeText(inspector.querySelector(".query").textContent);
-      target.textContent = "Copié";
+      target.textContent = "Copied";
     } else if (target.dataset.column !== undefined) {
       inspector.querySelectorAll(".column-list button").forEach((b) => b.classList.toggle("active", b === target));
       const trace = inspector.querySelector(".trace");
-      // Une étape par ligne, en retrait suspendu : une ligne longue revient à la ligne
-      // sous son propre texte. `textContent` : les noms viennent des packages.
+      // One step per line, with a hanging indent: a long line wraps under its own text.
+      // `textContent`: the names come from the packages.
       trace.replaceChildren(...columnTrace(Number(target.dataset.column)).map(([depth, text]) => {
         const line = document.createElement("div");
         line.style.setProperty("--depth", depth);
@@ -394,33 +394,33 @@
       inspector.querySelector(".column-page")?.remove();
       trace.after(Object.assign(document.createElement("a"), {
         className: "action column-page",
-        href: `#colonnes/c/${target.dataset.column}`,
-        textContent: "Ouvrir la page de la colonne",
+        href: `#columns/c/${target.dataset.column}`,
+        textContent: "Open the column page",
       }));
     }
   });
 
-  // ---------- Lignage par colonne : liste d'un bloc et chaîne d'une colonne ----------
-  // `data.columns[i]` = [colonne, description complète, produite par un composant].
+  // ---------- Column lineage: list of a block and chain of a column ----------
+  // `data.columns[i]` = [column, full description, produced by a component].
   const columnsIn = new Map();
   const columnsOut = new Map();
   for (const [from, to, how] of data.column_edges ?? []) {
     columnsIn.set(to, [...(columnsIn.get(to) ?? []), [from, how]]);
     columnsOut.set(from, [...(columnsOut.get(from) ?? []), [to, how]]);
   }
-  // Une colonne très partagée peut avoir des milliers de descendants : la chaîne
-  // affichée s'arrête là, le reste reste consultable en ligne de commande.
+  // A widely shared column can have thousands of descendants: the chain shown stops
+  // there, the rest stays available on the command line.
   const TRACE_LINES = 300;
 
   function columnsSection(n) {
     const ids = [...(n.columns ?? [])].sort((a, b) => data.columns[a][0].localeCompare(data.columns[b][0]));
     if (!ids.length) return "";
     const buttons = ids.map((c) => `<button data-column="${c}">${esc(data.columns[c][0])}</button>`).join("");
-    return `<section><h4>Colonnes (${ids.length})</h4><p class="muted">Cliquer une colonne : d'où elle vient (←), où elle va (→).</p>
+    return `<section><h4>Columns (${ids.length})</h4><p class="muted">Click a column: where it comes from (←), where it goes (→).</p>
       <div class="column-list">${buttons}</div><div class="trace" hidden></div></section>`;
   }
 
-  // Même contenu que `dtsx-inspect columns --of` : [profondeur, texte] par étape.
+  // Same content as `dtsx-inspect columns --of`: [depth, text] per step.
   function columnTrace(start) {
     const lines = [[0, data.columns[start][1]]];
     const walk = (node, upstream, path) => {
@@ -430,43 +430,43 @@
         if (lines.length > TRACE_LINES) return;
         const unknown = upstream && data.columns[other][2] && !columnsIn.has(other);
         const loop = path.includes(other);
-        lines.push([path.length, `${upstream ? "←" : "→"} ${how} : ${data.columns[other][1]}`
-          + `${unknown ? ", origine inconnue" : ""}${loop ? " (boucle)" : ""}`]);
+        lines.push([path.length, `${upstream ? "←" : "→"} ${how}: ${data.columns[other][1]}`
+          + `${unknown ? ", unknown origin" : ""}${loop ? " (loop)" : ""}`]);
         if (!loop) walk(other, upstream, [...path, other]);
       }
     };
     walk(start, true, [start]);
     walk(start, false, [start]);
-    if (lines.length > TRACE_LINES) lines.push([0, `… chaîne tronquée à ${TRACE_LINES} lignes (dtsx-inspect columns --of pour la suite)`]);
-    else if (lines.length === 1) lines.push([1, "Aucune colonne liée : ni origine ni usage connus."]);
+    if (lines.length > TRACE_LINES) lines.push([0, `… chain cut at ${TRACE_LINES} lines (dtsx-inspect columns --of for the rest)`]);
+    else if (lines.length === 1) lines.push([1, "No linked column: neither origin nor use known."]);
     return lines;
   }
 
-  // ---------- Légende : seulement ce que la vue affichée contient ----------
+  // ---------- Legend: only what the shown view contains ----------
   const legend = stage.querySelector(".legend");
   const legendBody = legend.querySelector(".legend-body");
-  // Repliée ou dépliée, d'un rapport à l'autre (stockage local indisponible : ouverte).
-  const LEGEND_KEY = "dtsx-inspect.legende";
+  // Collapsed or expanded, from one report to the next (local storage unavailable: open).
+  const LEGEND_KEY = "dtsx-inspect.legend";
   try {
-    if (localStorage.getItem(LEGEND_KEY) === "repliee") legend.open = false;
+    if (localStorage.getItem(LEGEND_KEY) === "collapsed") legend.open = false;
   } catch {}
   legend.addEventListener("toggle", () => {
     try {
-      localStorage.setItem(LEGEND_KEY, legend.open ? "depliee" : "repliee");
+      localStorage.setItem(LEGEND_KEY, legend.open ? "expanded" : "collapsed");
     } catch {}
   });
-  // Libellés courts : la légende tient sur deux colonnes à côté du graphe.
+  // Short labels: the legend fits in two columns next to the graph.
   const SHORT = {
-    table: "Table", file: "Fichier", entity: "Entité", proc: "Procédure", source: "Source",
-    transform: "Transformation", dest: "Destination", sql: "Tâche SQL", untracked: "Non suivie",
+    table: "Table", file: "File", entity: "Entity", proc: "Procedure", source: "Source",
+    transform: "Transformation", dest: "Destination", sql: "SQL task", untracked: "Not traced",
   };
   const KEYS = [
-    ["Glisser", "déplacer"],
-    ["Molette", "zoomer"],
-    ["Clic", "détails"],
-    ["F", "tout voir"],
-    ["Échap", "fermer"],
-    ["Entrée", "chercher"],
+    ["Drag", "pan"],
+    ["Wheel", "zoom"],
+    ["Click", "details"],
+    ["F", "see all"],
+    ["Esc", "close"],
+    ["Enter", "search"],
   ];
   const wire = (cls, marker) =>
     `<svg class="wire-sample" viewBox="0 0 40 10" aria-hidden="true"><path class="${cls}" d="M2 5H32" marker-end="url(#${marker})"/></svg>`;
@@ -474,30 +474,30 @@
   function drawLegend() {
     const kinds = Object.keys(KINDS).filter((k) => nodes.some((n) => n.kind === k));
     const blocks = kinds.map((k) =>
-      `<li data-kind="${k}" title="${esc(KINDS[k])} : survoler pour les repérer">${tile(k)}<span>${SHORT[k]}</span></li>`);
-    if (groups.length) blocks.push('<li title="Cadre qui regroupe les composants d\'un Data Flow"><span class="frame-sample"></span><span>Data Flow</span></li>');
+      `<li data-kind="${k}" title="${esc(KINDS[k])}: hover to spot them">${tile(k)}<span>${SHORT[k]}</span></li>`);
+    if (groups.length) blocks.push('<li title="Frame grouping the components of a Data Flow"><span class="frame-sample"></span><span>Data Flow</span></li>');
     const marks = [
-      [nodes.some((n) => n.note), "non suivi", "lignage interrompu (raison au clic)"],
-      [nodes.some((n) => n.expression), "expression", "requête calculée par expression"],
-      [nodes.some((n) => n.shared), "N packages", "table partagée, une copie par package"],
+      [nodes.some((n) => n.note), "not traced", "lineage interrupted (reason on click)"],
+      [nodes.some((n) => n.expression), "expression", "query computed by an expression"],
+      [nodes.some((n) => n.shared), "N packages", "shared table, one copy per package"],
     ].filter(([shown]) => shown)
       .map(([, flag, text]) => `<li><span class="flag-sample">${flag}</span><span>${text}</span></li>`);
     const links = [
-      [true, wire("", "lineage-arrow"), "données"],
-      [edges.some((e) => e[2]), wire("dashed", "lineage-arrow"), "par expression"],
-      [edges.some((e) => e[3]), wire("creates", "lineage-arrow"), "création de table"],
-      [edges.length > 0, wire("hot", "lineage-arrow-hot"), "chaîne sélectionnée"],
+      [true, wire("", "lineage-arrow"), "data"],
+      [edges.some((e) => e[2]), wire("dashed", "lineage-arrow"), "by expression"],
+      [edges.some((e) => e[3]), wire("creates", "lineage-arrow"), "table creation"],
+      [edges.length > 0, wire("hot", "lineage-arrow-hot"), "selected chain"],
     ].filter(([shown]) => shown)
       .map(([, sample, text]) => `<li>${sample}<span>${text}</span></li>`);
     const section = (title, items, cls = "") =>
       (items.length ? `<h4>${title}</h4><ul class="${cls}">${items.join("")}</ul>` : "");
-    legendBody.innerHTML = section("Blocs", blocks, "two") + section("Repères", marks)
-      + section("Liens", links)
-      + `<h4>Commandes</h4><p class="keys">${KEYS.map(([k, v]) => `<span><kbd>${k}</kbd> ${v}</span>`).join("")}</p>`;
+    legendBody.innerHTML = section("Blocks", blocks, "two") + section("Markers", marks)
+      + section("Links", links)
+      + `<h4>Controls</h4><p class="keys">${KEYS.map(([k, v]) => `<span><kbd>${k}</kbd> ${v}</span>`).join("")}</p>`;
     legend.hidden = nodes.length === 0;
   }
 
-  // Survol d'un genre de bloc : ses blocs restent nets, le reste s'estompe.
+  // Hovering a block kind: its blocks stay sharp, the rest dims.
   legendBody.addEventListener("pointerover", (event) => {
     const kind = event.target.closest("[data-kind]")?.dataset.kind;
     if (!kind) return;
@@ -508,21 +508,21 @@
     if (from && !from.contains(event.relatedTarget)) emphasizeSelection();
   });
 
-  // ---------- Déplacement (clic maintenu) et zoom ----------
+  // ---------- Panning (held click) and zoom ----------
   function apply() {
     world.style.transform = `translate(${cam.x}px, ${cam.y}px) scale(${cam.k})`;
     canvas.style.backgroundSize = `${20 * cam.k}px ${20 * cam.k}px`;
     canvas.style.backgroundPosition = `${cam.x}px ${cam.y}px`;
   }
-  // `readable` : si tout faire tenir rendrait les blocs illisibles, on part du
-  // coin haut gauche à un zoom lisible ; le bouton ⤢ montre toujours l'ensemble.
+  // `readable`: if fitting everything would make the blocks unreadable, start from the
+  // top left corner at a readable zoom; the ⤢ button always shows everything.
   const READABLE_ZOOM = 0.4;
   function fit(readable = false) {
     const items = [...pos.values(), ...groups];
     if (!items.length) return;
     const x0 = Math.min(...items.map((i) => i.x)), y0 = Math.min(...items.map((i) => i.y));
     const x1 = Math.max(...items.map((i) => i.x + i.w)), y1 = Math.max(...items.map((i) => i.y + i.h));
-    // Légende dépliée : le graphe se cadre à sa droite pour ne rien cacher dessous.
+    // Legend expanded: the graph frames itself to its right so nothing hides under it.
     const left = legend.open && !legend.hidden ? legend.offsetLeft + legend.offsetWidth : 0;
     const W = canvas.clientWidth - left, H = canvas.clientHeight;
     const k = Math.max(0.1, Math.min(1, (W - 80) / (x1 - x0), (H - 80) / (y1 - y0)));
@@ -587,22 +587,22 @@
     zoomAt(how === "in" ? 1.2 : 1 / 1.2, canvas.clientWidth / 2, canvas.clientHeight / 2);
   }));
 
-  // ---------- Recherche et interface pour report.js ----------
+  // ---------- Search and interface for report.js ----------
   let lastHit = -1;
   stage.querySelector(".stage-search").addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
     const query = event.target.value.trim().toLowerCase();
     const hits = nodes.filter((n) => `${n.title} ${n.sub}`.toLowerCase().includes(query));
     if (!hits.length) return;
-    // Entrée de nouveau : résultat suivant.
+    // Enter again: next result.
     const hit = hits[(hits.findIndex((n) => n.id === lastHit) + 1) % hits.length];
     lastHit = hit.id;
     choose(hit.id);
     center(hit.id);
   });
 
-  // Le graphe n'est redessiné que si la vue demandée change : revenir sur le flux
-  // d'un package garde le cadrage et la sélection. `select` : bloc à ouvrir (recherche).
+  // The graph is redrawn only if the requested view changes: coming back to the flow of a
+  // package keeps the framing and the selection. `select`: block to open (search).
   let shown = null;
   function show(next, pkg = null, select = null) {
     const key = next === "flow" ? `flow:${pkg}` : `map:${projectSelect.value}`;
@@ -618,7 +618,7 @@
   }
 
   if (elk) canvas.querySelector(".offline").hidden = true;
-  // Appelé par report.js une fois la vue affichée (le placement se mesure).
+  // Called by report.js once the view is shown (the layout gets measured).
   window.lineage = {
     mount: (slot) => slot.append(stage),
     map(project) {
@@ -631,7 +631,7 @@
     },
     close: () => choose(null),
     fit: () => fit(false),
-    // Pour columns.js et search.js : mêmes données, mêmes échappement et icônes.
+    // For columns.js and search.js: same data, same escaping and icons.
     data,
     esc,
     tile,

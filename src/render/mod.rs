@@ -1,4 +1,4 @@
-//! Sorties de l'inventaire.
+//! Inventory outputs.
 
 mod columns;
 mod diff;
@@ -20,18 +20,18 @@ pub use order::order_markdown;
 use crate::inventory::Inventory;
 use crate::lint::{Finding, Severity};
 
-/// Une ligne de sortie ne doit pas pouvoir en ouvrir une autre.
+/// An output line must not be able to open another one.
 fn clean(text: &str) -> String {
     text.replace(['\r', '\n'], " ")
 }
 
-/// `1 tâche`, `2 tâches` (en français, 0 est au singulier).
+/// `1 task`, `0 tasks`, `2 tasks`.
 fn plural(count: usize, word: &str) -> String {
-    let s = if count > 1 { "s" } else { "" };
+    let s = if count == 1 { "" } else { "s" };
     format!("{count} {word}{s}")
 }
 
-/// `Projet / Package`, ou le package seul à la racine du dossier analysé.
+/// `Project / Package`, or the package alone at the root of the analyzed folder.
 fn qualified(project: &str, package: &str) -> String {
     if project.is_empty() {
         package.to_owned()
@@ -44,23 +44,23 @@ pub fn json(inventory: &Inventory) -> Result<String, serde_json::Error> {
     serde_json::to_string_pretty(inventory)
 }
 
-/// Un constat par ligne (`gravité[règle] fichier : emplacement : message`), puis le total.
+/// One finding per line (`severity[rule] file: location: message`), then the total.
 pub fn findings(findings: &[Finding]) -> String {
     let count = |severity| findings.iter().filter(|f| f.severity == severity).count();
     let lines: String = findings
         .iter()
         .map(|f| {
             let line = format!(
-                "{}[{}] {} : {} : {}",
+                "{}[{}] {}: {}: {}",
                 f.severity, f.rule, f.file, f.location, f.message
             );
             clean(&line) + "\n"
         })
         .collect();
     format!(
-        "{lines}{} erreur(s), {} avertissement(s), {} info(s)\n",
-        count(Severity::Erreur),
-        count(Severity::Avertissement),
+        "{lines}{} error(s), {} warning(s), {} info(s)\n",
+        count(Severity::Error),
+        count(Severity::Warning),
         count(Severity::Info)
     )
 }

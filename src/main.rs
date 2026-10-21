@@ -15,72 +15,72 @@ use dtsx_inspect::{inventory, render};
 #[command(
     name = "dtsx-inspect",
     version,
-    about = "Analyse de packages SSIS (.dtsx)"
+    about = "Analysis of SSIS packages (.dtsx): inventory, lineage, lint, HTML report"
 )]
 struct Cli {
-    /// Sans commande : choix d'un dossier puis rapport HTML dans le navigateur
+    /// Without a command: pick a folder, then the HTML report opens in the browser
     #[command(subcommand)]
     command: Option<Command>,
 }
 
 #[derive(Subcommand)]
 enum Command {
-    /// Liste connexions, tâches et composants de Data Flow
+    /// Lists connections, tasks and Data Flow components
     Inventory {
-        /// Fichier .dtsx ou dossier (parcouru récursivement)
+        /// .dtsx file or folder (walked recursively)
         path: PathBuf,
         #[arg(long, value_enum, default_value_t = Format::Md)]
         format: Format,
     },
-    /// Lignage en Mermaid : fichiers, tables et entités -> composants et tâches SQL
+    /// Lineage as Mermaid: files, tables and entities -> components and SQL tasks
     Lineage {
-        /// Fichier .dtsx ou dossier (parcouru récursivement)
+        /// .dtsx file or folder (walked recursively)
         path: PathBuf,
-        /// Seulement l'amont et l'aval des tables, fichiers ou entités dont le
-        /// nom contient ce texte (sans casse), par exemple `dbo.Clients`
+        /// Only the upstream and downstream of the tables, files or entities whose
+        /// name contains this text (case-insensitive), for instance `dbo.Customers`
         #[arg(long)]
         focus: Option<String>,
     },
-    /// Anti-patterns SSIS (code de sortie 1 si une erreur est trouvée)
+    /// SSIS anti-patterns (exit code 1 when an error is found)
     Lint {
-        /// Fichier .dtsx ou dossier (parcouru récursivement)
+        /// .dtsx file or folder (walked recursively)
         path: PathBuf,
     },
-    /// Appels de packages (tâches Execute Package) en Mermaid
+    /// Package calls (Execute Package tasks) as Mermaid
     Calls {
-        /// Dossier du projet, ou parent de plusieurs projets
+        /// Project folder, or parent of several projects
         path: PathBuf,
     },
-    /// Lignage d'une colonne dans les Data Flows : d'où elle vient, où elle va
+    /// Lineage of a column in the Data Flows: where it comes from, where it goes
     Columns {
-        /// Fichier .dtsx ou dossier (parcouru récursivement)
+        /// .dtsx file or folder (walked recursively)
         path: PathBuf,
-        /// Colonnes de table ou de fichier dont le nom contient ce texte (sans
-        /// casse), par exemple `dbo.Clients.email`
+        /// Table or file columns whose name contains this text (case-insensitive),
+        /// for instance `dbo.Customers.email`
         #[arg(long)]
         of: String,
     },
-    /// Fiche de mapping source → cible en CSV pour Excel (`;`, UTF-8 avec BOM)
+    /// Source → target mapping sheet as CSV for Excel (`;`, UTF-8 with BOM)
     Mapping {
-        /// Fichier .dtsx ou dossier (parcouru récursivement)
+        /// .dtsx file or folder (walked recursively)
         path: PathBuf,
-        /// Fichier CSV à écrire ; sans lui, le CSV sort sur la console
+        /// CSV file to write; without it, the CSV goes to the console
         #[arg(long)]
         out: Option<PathBuf>,
     },
-    /// Ordre d'exécution déduit des données : un package après ceux qui écrivent les
-    /// tables qu'il lit, par vagues, avec les cycles et les tables à charger avant
+    /// Execution order inferred from the data: a package after those writing the
+    /// tables it reads, in waves, with the cycles and the tables to load first
     Order {
-        /// Fichier .dtsx ou dossier (parcouru récursivement)
+        /// .dtsx file or folder (walked recursively)
         path: PathBuf,
     },
-    /// Compare le lignage de deux dossiers, serveurs mis à part (code de sortie 1 si un
-    /// lien ou un package a disparu, ou si un lien est moins bien suivi)
+    /// Compares the lineage of two folders, servers aside (exit code 1 when a link or a
+    /// package disappeared, or when a link is traced less well)
     Diff {
-        /// Dossier avant les modifications
-        avant: PathBuf,
-        /// Dossier après les modifications
-        apres: PathBuf,
+        /// Folder before the changes
+        before: PathBuf,
+        /// Folder after the changes
+        after: PathBuf,
     },
 }
 
@@ -99,7 +99,7 @@ const OPENER: &str = "xdg-open";
 
 fn main() -> anyhow::Result<ExitCode> {
     let Some(command) = Cli::parse().command else {
-        // Lancé par double-clic : la console se ferme aussitôt, l'erreur passe par une boîte.
+        // Started by double-click: the console closes at once, the error goes through a dialog.
         if let Err(error) = report() {
             rfd::MessageDialog::new()
                 .set_level(rfd::MessageLevel::Error)
@@ -127,9 +127,7 @@ fn main() -> anyhow::Result<ExitCode> {
                 Some(needle) => match lineage::focus(&full, &needle) {
                     Some(focused) => (render::mermaid(&focused), errors, None),
                     None => {
-                        let failure = format!(
-                            "aucune table, aucun fichier ni aucune entité ne contient « {needle} »"
-                        );
+                        let failure = format!("no table, file or entity contains \"{needle}\"");
                         (String::new(), errors, Some(failure))
                     }
                 },
@@ -140,9 +138,9 @@ fn main() -> anyhow::Result<ExitCode> {
             let findings = lint(&inventory, &lineage(&inventory));
             let blocking = findings
                 .iter()
-                .filter(|f| f.severity == Severity::Erreur)
+                .filter(|f| f.severity == Severity::Error)
                 .count();
-            let failure = (blocking > 0).then(|| format!("{blocking} erreur(s) de lint"));
+            let failure = (blocking > 0).then(|| format!("{blocking} lint error(s)"));
             (render::findings(&findings), errors, failure)
         }
         Command::Calls { path } => {
@@ -155,8 +153,7 @@ fn main() -> anyhow::Result<ExitCode> {
             match render::column_trace(&column_lineage(&inventory), &of) {
                 Some(trace) => (trace, errors, None),
                 None => {
-                    let failure =
-                        format!("aucune colonne de table ni de fichier ne contient « {of} »");
+                    let failure = format!("no table or file column contains \"{of}\"");
                     (String::new(), errors, Some(failure))
                 }
             }
@@ -165,10 +162,10 @@ fn main() -> anyhow::Result<ExitCode> {
             let (inventory, errors) = inventory(&path);
             let csv = render::mapping_csv(&inventory, &column_lineage(&inventory));
             match out {
-                // Console redirigée par PowerShell : réencodée, d'où `--out` pour Excel.
+                // Console redirected by PowerShell: re-encoded, hence `--out` for Excel.
                 Some(file) => {
                     std::fs::write(&file, csv)
-                        .with_context(|| format!("écriture de {}", file.display()))?;
+                        .with_context(|| format!("writing {}", file.display()))?;
                     (String::new(), errors, None)
                 }
                 None => (csv, errors, None),
@@ -179,13 +176,13 @@ fn main() -> anyhow::Result<ExitCode> {
             let order = execution_order(&lineage(&inventory));
             (render::order_markdown(&inventory, &order), errors, None)
         }
-        Command::Diff { avant, apres } => {
-            let (before, mut errors) = inventory(&avant);
-            let (after, more) = inventory(&apres);
+        Command::Diff { before, after } => {
+            let (before, mut errors) = inventory(&before);
+            let (after, more) = inventory(&after);
             errors.extend(more);
             let (report, regression) = render::mapping_diff(&before, &after);
             let failure =
-                regression.then(|| "régression du lignage entre les deux dossiers".to_owned());
+                regression.then(|| "lineage regression between the two folders".to_owned());
             (report, errors, failure)
         }
     };
@@ -195,7 +192,7 @@ fn main() -> anyhow::Result<ExitCode> {
         .map(ToString::to_string)
         .chain(failure.clone())
     {
-        eprintln!("erreur : {error}");
+        eprintln!("error: {error}");
     }
     Ok(if errors.is_empty() && failure.is_none() {
         ExitCode::SUCCESS
@@ -204,10 +201,10 @@ fn main() -> anyhow::Result<ExitCode> {
     })
 }
 
-/// Choix d'un dossier, rapport HTML (lint, lignage, inventaire) ouvert dans le navigateur.
+/// Picks a folder, opens the HTML report (lint, lineage, inventory) in the browser.
 fn report() -> anyhow::Result<()> {
     let Some(dir) = rfd::FileDialog::new()
-        .set_title("Dossier de packages SSIS à analyser")
+        .set_title("Folder of SSIS packages to analyze")
         .pick_folder()
     else {
         return Ok(());
@@ -221,10 +218,10 @@ fn report() -> anyhow::Result<()> {
         &lint(&inventory, &lineage),
         &errors,
     );
-    // ponytail: un seul rapport, écrasé à chaque lancement ; « Enregistrer sous » du navigateur pour le garder.
+    // shortcut: a single report, overwritten at each run; the browser's "Save as" keeps it.
     let out = std::env::temp_dir().join("dtsx-inspect.html");
     std::fs::write(&out, page)?;
-    // `spawn` et pas `status` : explorer.exe sort en code 1 même quand tout va bien.
+    // `spawn` and not `status`: explorer.exe exits with code 1 even when all is fine.
     std::process::Command::new(OPENER).arg(&out).spawn()?;
     Ok(())
 }

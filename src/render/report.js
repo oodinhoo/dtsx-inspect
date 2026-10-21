@@ -1,55 +1,55 @@
-// Navigation du rapport : un onglet par espace, la recherche globale en haut (search.js).
-// L'adresse décrit la vue (#vue, #carte/PROJET, #colonnes/c|t/INDICE[?filtres], #packages,
-// #p/INDICE/flux|inventaire|lint[/BLOC], #qualite, #regles/RÈGLE) : liens
-// partageables et bouton Précédent. Sans les scripts du CDN, tout marche sauf le graphe
-// et la mise en forme de l'inventaire.
+// Report navigation: one tab per space, the global search at the top (search.js).
+// The address describes the view (#overview, #map/PROJECT, #columns/c|t/INDEX[?filters],
+// #packages, #p/INDEX/flow|inventory|lint[/BLOCK], #quality, #rules/RULE): shareable
+// links and Back button. Without the CDN scripts, everything works except the graph and
+// the inventory formatting.
 (() => {
   const views = [...document.querySelectorAll(".view")];
   const tabs = [...document.querySelectorAll(".tabs a")];
   const packageView = document.getElementById("package");
   const search = document.getElementById("global-search");
   const lineage = window.lineage;
-  const SUBS = ["flux", "inventaire", "lint"];
-  // Espace de chaque début d'adresse ; une règle s'affiche dans l'onglet Qualité.
+  const SUBS = ["flow", "inventory", "lint"];
+  // Space of each address start; a rule shows in the Quality tab.
   const TARGETS = {
-    carte: "carte", colonnes: "colonnes", packages: "packages", p: "package",
-    qualite: "qualite", regles: "qualite",
+    map: "map", columns: "columns", packages: "packages", p: "package",
+    quality: "quality", rules: "quality",
   };
 
   function route() {
-    // `?q=…&base=…` : les filtres de l'onglet Colonnes, gardés dans l'adresse.
+    // `?q=…&base=…`: the Columns tab filters, kept in the address.
     const [path, query] = location.hash.slice(1).split("?");
     const [view, arg, sub, block] = path.split("/").map(decodeURIComponent);
-    const target = TARGETS[view] ?? "vue";
+    const target = TARGETS[view] ?? "overview";
     views.forEach((v) => (v.hidden = v.id !== target));
-    // La page d'un package se trouve sous l'onglet Packages.
+    // A package page sits under the Packages tab.
     const tab = target === "package" ? "packages" : target;
     for (const a of tabs) {
       if (a.dataset.tab === tab) a.setAttribute("aria-current", "page");
       else a.removeAttribute("aria-current");
     }
-    if (target === "carte") {
-      lineage?.mount(document.querySelector("#carte .stage-slot"));
+    if (target === "map") {
+      lineage?.mount(document.querySelector("#map .stage-slot"));
       lineage?.map(arg);
-    } else if (target === "colonnes") {
+    } else if (target === "columns") {
       window.columns?.show(arg, Number(sub), new URLSearchParams(query));
     } else if (target === "package") {
-      showPackage(Number(arg), SUBS.includes(sub) ? sub : "flux", block == null ? null : Number(block));
-    } else if (view === "regles") {
+      showPackage(Number(arg), SUBS.includes(sub) ? sub : "flow", block == null ? null : Number(block));
+    } else if (view === "rules") {
       showRule(arg);
     }
   }
 
-  // Fiche d'une règle (lien depuis un constat) : amenée à l'écran et soulignée.
+  // Card of a rule (link from a finding): brought on screen and highlighted.
   function showRule(id) {
-    const rule = id && document.getElementById(`regle-${id}`);
+    const rule = id && document.getElementById(`rule-${id}`);
     document.querySelectorAll(".rule.focus").forEach((r) => r.classList.remove("focus"));
     if (!rule) return;
     rule.classList.add("focus");
     rule.scrollIntoView({ block: "center" });
   }
 
-  // « Voir N constats » : le tableau de l'onglet Qualité filtré sur la règle, gravité affichée.
+  // "See N findings": the Quality tab table filtered on the rule, severity shown.
   document.querySelectorAll("[data-show-rule]").forEach((button) =>
     button.addEventListener("click", () => {
       const box = document.querySelector(`[data-severity="${button.dataset.ruleSeverity}"]`);
@@ -60,12 +60,12 @@
       const filter = document.querySelector("[data-filter='lint-rows']");
       filter.value = button.dataset.showRule;
       filter.dispatchEvent(new Event("input"));
-      location.hash = "#qualite";
+      location.hash = "#quality";
       requestAnimationFrame(() => document.getElementById("lint-rows").scrollIntoView({ block: "start" }));
     })
   );
 
-  // `block` : bloc du flux à ouvrir (résultat de la recherche globale).
+  // `block`: block of the flow to open (global search result).
   function showPackage(index, sub, block) {
     const template = document.getElementById(`pkg-${index}`);
     if (!template) return (location.hash = "#packages");
@@ -80,10 +80,10 @@
       a.setAttribute("aria-selected", a.dataset.sub === sub);
     }
     for (const panel of packageView.querySelectorAll(".sub")) panel.hidden = panel.dataset.sub !== sub;
-    if (sub === "flux") {
-      lineage?.mount(packageView.querySelector(".sub[data-sub='flux']"));
+    if (sub === "flow") {
+      lineage?.mount(packageView.querySelector(".sub[data-sub='flow']"));
       lineage?.flow(index, Number.isInteger(block) ? block : null);
-    } else if (sub === "inventaire") {
+    } else if (sub === "inventory") {
       packageView.querySelector(".md-host").replaceChildren(rendered(template));
     } else {
       packageView.querySelector(".pkg-lint tbody").replaceChildren(...rows.map((r) => r.cloneNode(true)));
@@ -91,7 +91,7 @@
     }
   }
 
-  // `<` neutralisé : un nom de package ne doit pas pouvoir injecter de HTML.
+  // `<` neutralized: a package name must not be able to inject HTML.
   function rendered(template) {
     const markdown = template.content.querySelector("pre").textContent;
     const div = document.createElement("div");
@@ -103,8 +103,8 @@
 
   addEventListener("hashchange", route);
 
-  // Filtre de l'onglet Packages : nom ou chemin du package, nom du projet. Les projets
-  // trouvés se déplient ; filtre vidé, tout se replie.
+  // Packages tab filter: package name or path, project name. Matching projects unfold;
+  // filter cleared, everything folds back.
   const packageFilter = document.getElementById("package-filter");
   packageFilter?.addEventListener("input", () => {
     const query = packageFilter.value.trim().toLowerCase();
@@ -121,10 +121,10 @@
     }
   });
 
-  // Constats de lint de l'onglet Qualité : gravités et filtre texte.
+  // Lint findings of the Quality tab: severities and text filter.
   document.querySelectorAll("[data-severity]").forEach((box) =>
     box.addEventListener("change", () =>
-      document.querySelector("#qualite table.lint").classList.toggle("hide-" + box.dataset.severity, !box.checked)
+      document.querySelector("#quality table.lint").classList.toggle("hide-" + box.dataset.severity, !box.checked)
     )
   );
   document.querySelectorAll("[data-filter]").forEach((input) =>
@@ -136,7 +136,7 @@
     })
   );
 
-  // Raccourcis : / cherche partout (comme Ctrl K), Échap ferme le panneau, F ajuste le graphe.
+  // Shortcuts: / searches everywhere (like Ctrl K), Escape closes the panel, F fits the graph.
   addEventListener("keydown", (event) => {
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     if (event.target.matches?.("input, select, textarea")) {

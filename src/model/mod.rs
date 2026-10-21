@@ -1,4 +1,4 @@
-//! Types du domaine SSIS, sans logique.
+//! SSIS domain types, without logic.
 
 use std::collections::BTreeMap;
 
@@ -11,8 +11,8 @@ pub enum Scope {
     Project,
 }
 
-/// Gestionnaire de connexion. `target` ne contient jamais de secret
-/// (voir `parser::secrets`).
+/// Connection manager. `target` never contains a secret
+/// (see `parser::secrets`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ConnectionManager {
     pub id: String,
@@ -23,8 +23,8 @@ pub struct ConnectionManager {
 }
 
 impl ConnectionManager {
-    /// Valeur de la première des `keys` présente dans la chaîne affichable (`target`),
-    /// casse ignorée : `setting(&["data source", "server"])`.
+    /// Value of the first of `keys` present in the displayable string (`target`),
+    /// case-insensitive: `setting(&["data source", "server"])`.
     pub fn setting(&self, keys: &[&str]) -> Option<&str> {
         let target = self.target.as_deref()?;
         keys.iter().find_map(|key| {
@@ -36,8 +36,8 @@ impl ConnectionManager {
     }
 }
 
-/// Référence brute vers une connexion (`{GUID}`, `{GUID}:external`,
-/// `Project.ConnectionManagers[Nom]`…) et le nom résolu s'il est connu.
+/// Raw reference to a connection (`{GUID}`, `{GUID}:external`,
+/// `Project.ConnectionManagers[Name]`…) and the resolved name when known.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ConnectionRef {
     pub reference: String,
@@ -57,44 +57,44 @@ pub struct Component {
     pub ref_id: String,
     pub name: String,
     pub class_id: String,
-    /// `false` = composant tiers ou inconnu (KingswaySoft…), gardé avec son `class_id`.
+    /// `false` = third-party or unknown component (KingswaySoft…), kept with its `class_id`.
     pub known: bool,
     pub role: Role,
     pub connections: Vec<ConnectionRef>,
-    /// Propriétés utiles au lignage (liste blanche du parseur). Hors du JSON : seul
-    /// le panneau de détails du rapport HTML les montre, mots de passe masqués.
+    /// Properties useful to the lineage (parser allow-list). Not in the JSON: only the
+    /// details panel of the HTML report shows them, with passwords masked.
     #[serde(skip)]
     pub properties: BTreeMap<String, String>,
-    /// Propriétés de la liste blanche définies par une expression du Data Flow
-    /// (`[Composant].[SqlCommand]`) : leur valeur est celle de la conception.
+    /// Allow-listed properties set by a Data Flow expression
+    /// (`[Component].[SqlCommand]`): their value is the design-time one.
     #[serde(skip)]
     pub expressions: Vec<String>,
-    /// Colonnes lues (entrées) et produites (sorties), pour le lignage par colonne.
+    /// Columns read (inputs) and produced (outputs), for the column lineage.
     #[serde(skip)]
     pub inputs: Vec<Column>,
     #[serde(skip)]
     pub outputs: Vec<Column>,
 }
 
-/// Colonne d'entrée ou de sortie d'un composant de Data Flow.
+/// Input or output column of a Data Flow component.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Column {
-    /// Sortie : son identifiant (`lineageId`). Entrée : celui de la colonne de
-    /// sortie amont qu'elle lit.
+    /// Output: its identifier (`lineageId`). Input: the one of the upstream output
+    /// column it reads.
     pub lineage: String,
     pub name: String,
-    /// Colonne de la table ou du fichier (`…ExternalColumns[nom]`) : lue par une
-    /// sortie de source, écrite par une entrée de destination.
+    /// Table or file column (`…ExternalColumns[name]`): read by a source output,
+    /// written by a destination input.
     pub external: Option<String>,
-    /// Sortie calculée : colonnes amont citées (expression, conversion).
+    /// Derived output: upstream columns it uses (expression, conversion).
     pub sources: Vec<String>,
-    /// Sortie de recherche : colonne copiée de la table de référence.
+    /// Lookup output: column copied from the reference table.
     pub reference: Option<String>,
-    /// Entrée d'Unir tout : colonne de sortie qu'elle alimente.
+    /// Union All input: output column it feeds.
     pub feeds: Option<String>,
 }
 
-/// Lien du Data Flow entre deux composants (`ref_id`).
+/// Data Flow path between two components (`ref_id`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataPath {
     pub from: String,
@@ -103,24 +103,24 @@ pub struct DataPath {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SqlOrigin {
-    /// Saisie directe.
+    /// Typed in directly.
     Direct,
-    /// Construite par une expression : `text` est la valeur évaluée à la conception.
+    /// Built by an expression: `text` is the value evaluated at design time.
     Expression,
-    /// Lue dans une variable : `text` est le nom de la variable.
+    /// Read from a variable: `text` is the variable name.
     Variable,
-    /// Lue dans un fichier : `text` est la connexion du fichier.
+    /// Read from a file: `text` is the file connection.
     File,
 }
 
-/// Requête d'une Execute SQL Task.
+/// Query of an Execute SQL Task.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SqlStatement {
     pub text: String,
     pub origin: SqlOrigin,
 }
 
-/// Tâche ou conteneur. La hiérarchie se lit dans `ref_id`.
+/// Task or container. The hierarchy is read from `ref_id`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Executable {
     pub ref_id: String,
@@ -128,7 +128,7 @@ pub struct Executable {
     pub executable_type: String,
     pub disabled: bool,
     pub connections: Vec<ConnectionRef>,
-    /// Execute Package Task : package du projet appelé (`<PackageName>`).
+    /// Execute Package Task: called project package (`<PackageName>`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub called_package: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -140,7 +140,7 @@ pub struct Executable {
 }
 
 impl Executable {
-    /// Chemin lisible : `Package\SEQ\Tâche` -> `SEQ\Tâche`.
+    /// Readable path: `Package\SEQ\Task` -> `SEQ\Task`.
     pub fn path(&self) -> &str {
         self.ref_id
             .strip_prefix("Package\\")
@@ -149,22 +149,22 @@ impl Executable {
     }
 }
 
-/// Variable du package ou d'une tâche. Valeur de conception, secrets masqués.
+/// Package or task variable. Design-time value, secrets masked.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Variable {
-    /// Chemin de la tâche ou du conteneur qui la porte ; vide pour le package.
+    /// Path of the task or container holding it; empty for the package.
     pub scope: String,
-    /// Nom qualifié : `User::Nom`.
+    /// Qualified name: `User::Name`.
     pub name: String,
     pub value: Option<String>,
-    /// Expression qui la calcule (`EvaluateAsExpression`) ; `value` en est alors le
-    /// résultat à la conception.
+    /// Expression computing it (`EvaluateAsExpression`); `value` is then its
+    /// design-time result.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expression: Option<String>,
 }
 
-/// Paramètre du package. Valeur de conception, secrets masqués ; aucune valeur
-/// pour un paramètre sensible.
+/// Package parameter. Design-time value, secrets masked; no value for a sensitive
+/// parameter.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Parameter {
     pub name: String,
@@ -172,10 +172,10 @@ pub struct Parameter {
     pub sensitive: bool,
 }
 
-/// Propriété calculée par une expression, secrets masqués.
+/// Property computed by an expression, secrets masked.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PropertyExpression {
-    /// Chemin de la tâche, `connexion Nom` ou `package`.
+    /// Task path, `connection Name` or `package`.
     pub owner: String,
     pub property: String,
     pub expression: String,

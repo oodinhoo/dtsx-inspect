@@ -15,7 +15,7 @@ fn build() -> Lineage {
     lineage(&inv)
 }
 
-/// Liens lisibles, triés : `source -> cible`, `-.->` pour une requête en expression.
+/// Readable links, sorted: `source -> target`, `-.->` for a query in an expression.
 fn edges(l: &Lineage) -> Vec<String> {
     let mut edges: Vec<String> = l
         .graph
@@ -38,11 +38,11 @@ fn edges(l: &Lineage) -> Vec<String> {
     edges
 }
 
-/// Notes lisibles : `package : étape : raison`.
+/// Readable notes: `package: step: reason`.
 fn notes(l: &Lineage) -> Vec<String> {
     l.notes
         .iter()
-        .map(|n| format!("{} : {} : {}", l.packages[n.package], n.step, n.reason))
+        .map(|n| format!("{}: {}: {}", l.packages[n.package], n.step, n.reason))
         .collect()
 }
 
@@ -94,10 +94,7 @@ fn sql_command_destinations_and_ole_db_commands_write_their_table() {
         "DST Rejets -> Entrepot : stg.Rejets",
         "CMD Adresses -> Entrepot : dbo.Adresses",
     ] {
-        assert!(
-            edges.iter().any(|e| e == expected),
-            "{expected} : {edges:?}"
-        );
+        assert!(edges.iter().any(|e| e == expected), "{expected}: {edges:?}");
     }
 }
 
@@ -124,7 +121,7 @@ fn tasks_without_data_movement_are_left_out() {
         .filter(|n| matches!(n, Node::SqlTask { .. }))
         .map(Node::label)
         .collect();
-    // `SQL Procedure` reste : elle appelle une procédure, nœud du lignage.
+    // `SQL Procedure` stays: it calls a procedure, a lineage node.
     assert_eq!(
         tasks,
         vec!["SQL Alimenter Clients", "SQL Historiser", "SQL Procedure"]
@@ -136,16 +133,16 @@ fn reports_what_could_not_be_followed() {
     assert_eq!(
         notes(&build()),
         vec![
-            "Chargement : SQL Import brut : SQL non analysé",
-            "Chargement : SQL Depuis variable : requête dans la variable User::Requete, non suivie",
-            "Export : SCR Source : source sans jeu de données identifié",
+            "Chargement: SQL Import brut: SQL not analyzed",
+            "Chargement: SQL Depuis variable: query in variable User::Requete, not traced",
+            "Export: SCR Source: source without an identified dataset",
         ]
     );
 }
 
 #[test]
 fn focus_keeps_what_feeds_and_what_reads_a_table() {
-    let focused = focus(&build(), "dbo.Clients").expect("table trouvée");
+    let focused = focus(&build(), "dbo.Clients").expect("table found");
 
     let expected = [
         "ADO Clients -> FFD Export",
@@ -167,7 +164,7 @@ fn focus_keeps_what_feeds_and_what_reads_a_table() {
 
 #[test]
 fn focus_ignores_case_and_other_branches_of_the_ancestors() {
-    let focused = focus(&build(), "DBO.HISTORIQUE").expect("table trouvée");
+    let focused = focus(&build(), "DBO.HISTORIQUE").expect("table found");
 
     let edges = edges(&focused);
     assert!(edges.contains(&"SQL Historiser -.-> Entrepot : dbo.Historique".to_owned()));
@@ -180,30 +177,30 @@ fn focus_ignores_case_and_other_branches_of_the_ancestors() {
 
 #[test]
 fn focus_keeps_only_notes_of_the_packages_shown() {
-    let focused = focus(&build(), "stg.Comptes").expect("table trouvée");
+    let focused = focus(&build(), "stg.Comptes").expect("table found");
 
     assert_eq!(
         notes(&focused),
-        vec!["Export : SCR Source : source sans jeu de données identifié"]
+        vec!["Export: SCR Source: source without an identified dataset"]
     );
 }
 
 #[test]
 fn focus_tells_homonymous_packages_apart() {
-    let (inv, errors) = inventory(&fixture("homonymes"));
+    let (inv, errors) = inventory(&fixture("same_name"));
     assert!(errors.is_empty(), "{errors:?}");
 
-    let focused = focus(&lineage(&inv), "dbo.A").expect("table trouvée");
+    let focused = focus(&lineage(&inv), "dbo.A").expect("table found");
 
     assert_eq!(
         notes(&focused),
-        vec!["Chargement : SQL Procedure A : procédure stockée dbo.ProcA, non suivie"]
+        vec!["Chargement: SQL Procedure A: stored procedure dbo.ProcA, not traced"]
     );
 }
 
 #[test]
 fn focus_without_match_is_none() {
-    assert!(focus(&build(), "inexistante").is_none());
+    assert!(focus(&build(), "missing").is_none());
 }
 
 #[test]
@@ -239,9 +236,9 @@ fn procedures_defined_in_sql_scripts_are_followed() {
 
     let l = lineage(&inv);
 
-    // Une procédure est un nœud : ses lectures y entrent, ses écritures et les
-    // procédures qu'elle appelle en sortent. Une vue est alimentée par ses tables.
-    // `dbo.Doublon`, défini deux fois, n'est pas développé : on ne devine pas.
+    // A procedure is a node: its reads go into it, its writes and the procedures it
+    // calls come out of it. A view is fed by its tables.
+    // `dbo.Doublon`, defined twice, is not expanded: no guessing.
     assert_eq!(
         edges(&l),
         vec![
@@ -259,23 +256,23 @@ fn procedures_defined_in_sql_scripts_are_followed() {
             "SQL Purger -> Entrepot : dbo.Purger",
         ]
     );
-    // Seul l'appel d'un package est signalé : `dbo.Journaliser`, appelée par une
-    // procédure, n'a pas de package auquel rattacher la note.
+    // Only the call from a package is reported: `dbo.Journaliser`, called by a
+    // procedure, has no package to attach the note to.
     assert_eq!(
         notes(&l),
         vec![
-            "Appel : SQL Inconnue : procédure stockée dbo.Inconnue, non suivie",
-            "Appel : SQL Doublon : procédure stockée dbo.Doublon définie dans plusieurs \
-             scripts (Archive/dbo/Doublon.sql, Base/dbo/Doublon.sql), non suivie",
+            "Appel: SQL Inconnue: stored procedure dbo.Inconnue, not traced",
+            "Appel: SQL Doublon: stored procedure dbo.Doublon defined in several \
+             scripts (Archive/dbo/Doublon.sql, Base/dbo/Doublon.sql), not traced",
         ]
     );
 }
 
 #[test]
 fn tables_are_identified_by_server_and_database_not_by_connection_name() {
-    // `Entrepot` et `DW` visent la même base (casse et clés différentes) ; `Recette`
-    // vise une base homonyme sur un autre serveur.
-    let (inv, errors) = inventory(&fixture("serveurs"));
+    // `Entrepot` and `DW` target the same database (different case and keys); `Recette`
+    // targets a same-named database on another server.
+    let (inv, errors) = inventory(&fixture("servers"));
     assert!(errors.is_empty(), "{errors:?}");
 
     let l = lineage(&inv);
@@ -289,8 +286,8 @@ fn tables_are_identified_by_server_and_database_not_by_connection_name() {
         })
         .collect();
     datasets.sort();
-    // Un seul `dbo.Clients` pour `Entrepot` et `DW` ; `dbo.Rapport`, vu seulement par
-    // `DW`, garde l'écriture de sa chaîne (`SRV-DEMO`, `entrepot`).
+    // A single `dbo.Clients` for `Entrepot` and `DW`; `dbo.Rapport`, seen only by `DW`,
+    // keeps the spelling of its string (`SRV-DEMO`, `entrepot`).
     assert_eq!(
         datasets,
         vec![
@@ -310,7 +307,7 @@ fn queries_read_from_a_variable_use_its_value() {
 
     let l = lineage(&inv);
 
-    // Variable calculée par expression : sa valeur à la conception, en pointillés.
+    // Variable computed by an expression: its design-time value, dashed.
     assert_eq!(
         edges(&l),
         vec![
@@ -322,7 +319,7 @@ fn queries_read_from_a_variable_use_its_value() {
     );
     assert_eq!(
         notes(&l),
-        vec!["Parametre : SQL Absente : requête dans la variable User::Absente, non suivie"]
+        vec!["Parametre: SQL Absente: query in variable User::Absente, not traced"]
     );
 }
 

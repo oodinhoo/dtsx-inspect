@@ -1,5 +1,5 @@
-//! Colonnes de sortie d'un SELECT et les colonnes de table qu'elles citent : de
-//! quoi suivre une colonne à travers la requête d'une source ou d'une recherche.
+//! Output columns of a SELECT and the table columns they use: enough to follow a
+//! column through the query of a source or a lookup.
 
 use std::collections::HashSet;
 use std::iter::once;
@@ -12,27 +12,27 @@ use sqlparser::ast::{
 
 use super::sql::{batches, parse, single_name, table_name, TableName};
 
-/// Colonne de sortie d'un SELECT.
+/// Output column of a SELECT.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectColumn {
-    /// Nom en sortie : l'alias, sinon le nom de la colonne reprise ; vide pour un calcul
-    /// sans alias, gardé pour sa position (`INSERT INTO t (a, b) SELECT …`).
+    /// Output name: the alias, otherwise the name of the column taken; empty for an
+    /// expression without alias, kept for its position (`INSERT INTO t (a, b) SELECT …`).
     pub name: String,
-    /// Colonnes de table citées : une pour une colonne reprise, plusieurs pour un calcul.
+    /// Table columns used: one for a column taken as is, several for an expression.
     pub from: Vec<(TableName, String)>,
-    /// Calculée (fonction, opération, conversion…) plutôt que reprise telle quelle.
+    /// Computed (function, operation, conversion…) rather than taken as is.
     pub computed: bool,
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Projection {
     pub columns: Vec<SelectColumn>,
-    /// Tables d'un `SELECT *` ou `t.*` : leurs colonnes sortent sous leur nom.
+    /// Tables of a `SELECT *` or `t.*`: their columns come out under their name.
     pub stars: Vec<TableName>,
 }
 
 impl Projection {
-    /// Colonnes de table d'où vient la colonne de sortie `name`, et si elle est calculée.
+    /// Table columns the output column `name` comes from, and whether it is computed.
     pub fn origin(&self, name: &str) -> Option<(Vec<(TableName, String)>, bool)> {
         if let Some(c) = self
             .columns
@@ -48,10 +48,10 @@ impl Projection {
     }
 }
 
-/// Liste du premier SELECT de la requête (la première branche d'une union). `None`
-/// si ce n'est pas un SELECT lisible.
-// ponytail: une table dérivée (`FROM (SELECT …) x`) n'est pas suivie : ses colonnes
-// restent sans origine.
+/// List of the first SELECT of the query (the first branch of a union). `None` if it
+/// is not a readable SELECT.
+// shortcut: a derived table (`FROM (SELECT …) x`) is not traced: its columns stay
+// without origin.
 pub fn projection(sql: &str) -> Option<Projection> {
     let statements = parse(sql).ok()?;
     let query = statements.iter().find_map(|s| match s {
@@ -61,8 +61,8 @@ pub fn projection(sql: &str) -> Option<Projection> {
     query_projection(query)
 }
 
-/// `INSERT INTO cible [(colonnes)] SELECT …` : la table remplie, ses colonnes nommées
-/// (vide sans liste) et la liste du SELECT.
+/// `INSERT INTO target [(columns)] SELECT …`: the filled table, its named columns
+/// (empty without a list) and the SELECT list.
 #[derive(Debug)]
 pub struct InsertSelect {
     pub target: TableName,
@@ -70,7 +70,7 @@ pub struct InsertSelect {
     pub projection: Projection,
 }
 
-/// Les `INSERT … SELECT` d'un texte SQL, lot par lot (`GO`).
+/// The `INSERT … SELECT` of an SQL text, batch by batch (`GO`).
 pub fn insert_selects(sql: &str) -> Vec<InsertSelect> {
     batches(sql)
         .iter()
@@ -127,7 +127,7 @@ fn query_projection(query: &Query) -> Option<Projection> {
         let (expr, alias) = match item {
             SelectItem::UnnamedExpr(expr) => (expr, None),
             SelectItem::ExprWithAlias { expr, alias } => (expr, Some(alias.value.clone())),
-            // `expr AS (a, b)` : syntaxe Spark, absente de T-SQL et de MySQL.
+            // `expr AS (a, b)`: Spark syntax, absent from T-SQL and MySQL.
             SelectItem::ExprWithAliases { .. } => continue,
             SelectItem::Wildcard(_) => {
                 projection
@@ -147,10 +147,10 @@ fn query_projection(query: &Query) -> Option<Projection> {
             Expr::CompoundIdentifier(ids) => ids.last().map(|id| id.value.clone()),
             _ => None,
         });
-        // Colonne calculée sans alias : SQL Server ne la nomme pas, SSIS non plus.
+        // Computed column without alias: SQL Server does not name it, nor does SSIS.
         let name = name.unwrap_or_default();
         let mut cited = Identifiers::default();
-        // Le visiteur ne s'interrompt jamais (`Break = ()`).
+        // The visitor never breaks (`Break = ()`).
         let _ = expr.visit(&mut cited);
         let mut from: Vec<(TableName, String)> = Vec::new();
         for column in cited.0.iter().filter_map(|parts| resolve(parts)) {
@@ -176,8 +176,8 @@ fn first_select(body: &SetExpr) -> Option<&Select> {
     }
 }
 
-/// Tables du FROM et de ses jointures, avec la clé qui les désigne dans la liste :
-/// l'alias, sinon le nom de la table (sans casse). Les CTE ne sont pas des tables.
+/// Tables of the FROM and its joins, with the key designating them in the list: the
+/// alias, otherwise the table name (case-insensitive). CTEs are not tables.
 fn from_tables(select: &Select, ctes: &HashSet<String>) -> Vec<(String, TableName)> {
     let mut tables = Vec::new();
     for from in &select.from {
@@ -201,7 +201,7 @@ fn from_tables(select: &Select, ctes: &HashSet<String>) -> Vec<(String, TableNam
     tables
 }
 
-/// Parties de date (`DATEADD(day, …)`) : des mots-clés, pas des colonnes.
+/// Date parts (`DATEADD(day, …)`): keywords, not columns.
 const DATE_PARTS: [&str; 15] = [
     "year",
     "yyyy",
@@ -220,7 +220,7 @@ const DATE_PARTS: [&str; 15] = [
     "millisecond",
 ];
 
-/// Colonnes citées dans une expression : `nom`, `c.nom`, `dbo.Clients.nom`.
+/// Columns used in an expression: `name`, `c.name`, `dbo.Customers.name`.
 #[derive(Default)]
 struct Identifiers(Vec<Vec<Ident>>);
 
@@ -246,9 +246,9 @@ impl Visitor for Identifiers {
 mod tests {
     use super::*;
 
-    /// `nom <- dbo.Table.colonne, …` pour chaque colonne de sortie (`=` si calculée).
+    /// `name <- dbo.Table.column, …` for each output column (`=` when computed).
     fn origins(sql: &str) -> Vec<String> {
-        let p = projection(sql).expect("SELECT lisible");
+        let p = projection(sql).expect("readable SELECT");
         p.columns
             .iter()
             .map(|c| {
@@ -262,16 +262,16 @@ mod tests {
 
     #[test]
     fn follows_aliases_of_tables_and_columns_through_joins() {
-        let sql = "SELECT c.email AS courriel, UPPER(p.libelle) AS pays, o.montant
-                   FROM dbo.Commandes o
-                   JOIN dbo.Clients c ON c.id = o.client_id
-                   LEFT JOIN ref.Pays p ON p.code = c.pays";
+        let sql = "SELECT c.email AS mail, UPPER(p.label) AS country, o.amount
+                   FROM dbo.Orders o
+                   JOIN dbo.Customers c ON c.id = o.customer_id
+                   LEFT JOIN ref.Countries p ON p.code = c.country";
         assert_eq!(
             origins(sql),
             [
-                "courriel <- dbo.Clients.email",
-                "pays = ref.Pays.libelle",
-                "montant <- dbo.Commandes.montant",
+                "mail <- dbo.Customers.email",
+                "country = ref.Countries.label",
+                "amount <- dbo.Orders.amount",
             ]
         );
     }
@@ -279,20 +279,20 @@ mod tests {
     #[test]
     fn unqualified_columns_belong_to_the_only_table() {
         assert_eq!(
-            origins("SELECT id, DATEADD(day, 1, cree_le) AS echeance FROM dbo.Clients"),
-            ["id <- dbo.Clients.id", "echeance = dbo.Clients.cree_le"]
+            origins("SELECT id, DATEADD(day, 1, created_on) AS due FROM dbo.Customers"),
+            ["id <- dbo.Customers.id", "due = dbo.Customers.created_on"]
         );
-        // Deux tables : une colonne non qualifiée est ambiguë.
+        // Two tables: an unqualified column is ambiguous.
         assert_eq!(origins("SELECT id FROM dbo.A, dbo.B"), ["id <- "]);
     }
 
     #[test]
     fn stars_keep_the_column_names_of_their_table() {
-        let p = projection("SELECT * FROM dbo.Clients").expect("SELECT lisible");
-        let (from, computed) = p.origin("email").expect("colonne de l'étoile");
+        let p = projection("SELECT * FROM dbo.Customers").expect("readable SELECT");
+        let (from, computed) = p.origin("email").expect("star column");
         assert_eq!(
             (from[0].0.to_string(), from[0].1.as_str(), computed),
-            ("dbo.Clients".to_owned(), "email", false)
+            ("dbo.Customers".to_owned(), "email", false)
         );
     }
 

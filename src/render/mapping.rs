@@ -1,6 +1,7 @@
-//! Fiche de mapping source → cible en CSV (Excel français : `;` et BOM UTF-8). Une ligne
-//! par colonne de table ou de fichier écrite et par colonne lue qui la donne, dans un
-//! même package : le package, sa tâche ou son Data Flow, les transformations et un statut.
+//! Source → target mapping sheet as CSV (`;` and UTF-8 BOM, as Excel expects in European
+//! locales). One row per table or file column written and per column read giving it,
+//! within one package: the package, its task or Data Flow, the transformations and a
+//! status.
 
 use std::collections::BTreeSet;
 
@@ -14,37 +15,37 @@ use crate::inventory::Inventory;
 use crate::lineage::columns::{ColumnLineage, ColumnNode, How};
 
 const HEADER: [&str; 9] = [
-    "Projet",
+    "Project",
     "Package",
-    "Tâche ou Data Flow",
-    "Colonne cible",
-    "Serveur cible",
-    "Colonne source",
-    "Serveur source",
+    "Task or Data Flow",
+    "Target column",
+    "Target server",
+    "Source column",
+    "Source server",
     "Transformations",
-    "Statut",
+    "Status",
 ];
 
-/// Statuts d'une ligne, du plus sûr au moins sûr ; la dernière cellule de chaque ligne.
+/// Statuses of a row, from the safest to the least safe; the last cell of each row.
 pub(super) const STATUSES: [&str; 4] = [
-    "directe",
-    "transformée",
-    "par nom (SELECT *)",
-    "origine inconnue",
+    "direct",
+    "transformed",
+    "by name (SELECT *)",
+    "unknown origin",
 ];
 
-/// Une ligne du mapping, cellules dans l'ordre de `HEADER`.
+/// A mapping row, cells in the order of `HEADER`.
 pub(super) type Row = [String; 9];
 
-/// Une colonne lue (aucune si l'étape n'a pas d'entrée connue) et les façons dont elle
-/// donne la colonne écrite, de la lecture à l'écriture.
+/// A column read (none if the step has no known input) and the ways it gives the
+/// written column, from the read to the write.
 type Origin = (Option<NodeIndex>, Vec<How>);
 
 pub fn mapping_csv(inventory: &Inventory, lineage: &ColumnLineage) -> String {
     to_csv(&mapping_rows(inventory, lineage))
 }
 
-/// Les lignes du mapping, rangées : même entrée, même fichier.
+/// The mapping rows, sorted: same input, same file.
 pub(super) fn mapping_rows(inventory: &Inventory, lineage: &ColumnLineage) -> BTreeSet<Row> {
     let g = &lineage.graph;
     let mut rows: BTreeSet<Row> = BTreeSet::new();
@@ -90,7 +91,7 @@ pub(super) fn mapping_rows(inventory: &Inventory, lineage: &ColumnLineage) -> BT
     rows
 }
 
-/// CSV pour Excel français : BOM, `;`, fins de ligne `\r\n`.
+/// CSV for Excel: BOM, `;`, `\r\n` line endings.
 pub(super) fn to_csv(rows: &BTreeSet<Row>) -> String {
     let header = HEADER.map(str::to_owned);
     let mut out = String::from("\u{feff}");
@@ -102,8 +103,8 @@ pub(super) fn to_csv(rows: &BTreeSet<Row>) -> String {
     out
 }
 
-/// Vers l'amont, d'étape en étape du package, jusqu'aux colonnes de table ou de fichier
-/// lues ; `hows` va de la colonne écrite vers l'amont.
+/// Upstream, from step to step of the package, up to the table or file columns read;
+/// `hows` goes from the written column upstream.
 fn origins(
     lineage: &ColumnLineage,
     node: NodeIndex,
@@ -122,7 +123,7 @@ fn origins(
         hows.push(*edge.weight());
         match g[from] {
             ColumnNode::Dataset { .. } => found.push((Some(from), hows.clone())),
-            // Une boucle entre étapes s'arrête à la deuxième visite.
+            // A loop between steps stops at the second visit.
             ColumnNode::Step { .. } if !path.contains(&from) => {
                 path.push(from);
                 origins(lineage, from, hows, path, found);
@@ -144,8 +145,8 @@ fn server(lineage: &ColumnLineage, node: Option<NodeIndex>) -> String {
     }
 }
 
-/// Ce que vaut la ligne : un `SELECT *` rapproche les colonnes par leur nom, pas par
-/// leur position comme SQL Server.
+/// What the row is worth: a `SELECT *` matches columns by name, not by position as
+/// SQL Server does.
 fn status(source: Option<NodeIndex>, hows: &[How]) -> &'static str {
     let [direct, transformed, by_name, unknown] = STATUSES;
     if source.is_none() {
@@ -159,8 +160,8 @@ fn status(source: Option<NodeIndex>, hows: &[How]) -> &'static str {
     }
 }
 
-/// Une cellule ne doit ni ouvrir une autre ligne ou colonne, ni s'exécuter comme une
-/// formule Excel (`=`, `+`, `-`, `@` en tête : une apostrophe en fait du texte).
+/// A cell must neither open another row or column, nor run as an Excel formula
+/// (leading `=`, `+`, `-`, `@`: an apostrophe makes it text).
 fn cell(text: &str) -> String {
     let text = if text.starts_with(['=', '+', '-', '@', '\t', '\r']) {
         format!("'{text}")
@@ -186,31 +187,28 @@ mod tests {
 
     #[test]
     fn one_row_per_written_column_and_column_it_comes_from() {
-        let csv = mapping("tests/fixtures/colonnes_sql");
+        let csv = mapping("tests/fixtures/columns_sql");
 
-        let mut lines = csv
-            .strip_prefix('\u{feff}')
-            .expect("BOM pour Excel")
-            .lines();
+        let mut lines = csv.strip_prefix('\u{feff}').expect("BOM for Excel").lines();
         assert_eq!(
             lines.next(),
             Some(
-                "Projet;Package;Tâche ou Data Flow;Colonne cible;Serveur cible;\
-                 Colonne source;Serveur source;Transformations;Statut"
+                "Project;Package;Task or Data Flow;Target column;Target server;\
+                 Source column;Source server;Transformations;Status"
             )
         );
         let rows: Vec<&str> = lines.collect();
         for row in [
             ";Chargement;DFT Staging;Entrepot : stg.Clients.email;srv-demo;\
-             Entrepot : ext.Clients.email;srv-demo;lecture → écriture;directe",
+             Entrepot : ext.Clients.email;srv-demo;read → write;direct",
             ";Chargement;SQL Finaliser;Entrepot : dbo.Clients.email;srv-demo;\
-             Entrepot : stg.Clients.email;srv-demo;SELECT * → écriture;par nom (SELECT *)",
+             Entrepot : stg.Clients.email;srv-demo;SELECT * → write;by name (SELECT *)",
             ";Chargement;SQL Resumer;Entrepot : dbo.Resume.courriel;srv-demo;\
-             Entrepot : stg.Clients.email;srv-demo;calcul SQL → écriture;transformée",
+             Entrepot : stg.Clients.email;srv-demo;SQL expression → write;transformed",
         ] {
             assert!(rows.contains(&row), "{row}\n---\n{csv}");
         }
-        // Rangées : même entrée, même fichier, d'une analyse à l'autre.
+        // Sorted: same input, same file, from one analysis to the next.
         let cells: Vec<Vec<&str>> = rows.iter().map(|r| r.split(';').collect()).collect();
         let mut sorted = cells.clone();
         sorted.sort();
@@ -219,11 +217,11 @@ mod tests {
 
     #[test]
     fn columns_without_known_origin_get_their_own_row() {
-        let csv = mapping("tests/fixtures/colonnes");
+        let csv = mapping("tests/fixtures/columns");
 
         assert!(
             csv.lines()
-                .any(|l| l.ends_with(";origine inconnue") && l.contains(";;;")),
+                .any(|l| l.ends_with(";unknown origin") && l.contains(";;;")),
             "{csv}"
         );
     }
@@ -243,9 +241,9 @@ mod tests {
     #[test]
     fn cells_cannot_break_the_row_or_run_as_a_formula() {
         assert_eq!(cell("a;b"), "\"a;b\"");
-        assert_eq!(cell("dit \"x\""), "\"dit \"\"x\"\"\"");
-        assert_eq!(cell("ligne\nsuite"), "\"ligne\nsuite\"");
-        assert_eq!(cell("=SOMME(A1)"), "'=SOMME(A1)");
+        assert_eq!(cell("said \"x\""), "\"said \"\"x\"\"\"");
+        assert_eq!(cell("line\nnext"), "\"line\nnext\"");
+        assert_eq!(cell("=SUM(A1)"), "'=SUM(A1)");
         assert_eq!(cell("@x"), "'@x");
         assert_eq!(cell("dbo.Clients"), "dbo.Clients");
     }

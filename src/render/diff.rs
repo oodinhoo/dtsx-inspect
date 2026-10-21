@@ -1,5 +1,5 @@
-//! Comparaison du lignage de deux analyses, avant et après la bascule : les liens colonne
-//! à colonne du mapping, serveurs mis à part, puis les serveurs passés de l'un à l'autre.
+//! Lineage comparison of two analyses, before and after a migration: the column-to-column
+//! links of the mapping, servers aside, then the servers moved from one to the other.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -9,21 +9,21 @@ use super::{clean, plural, qualified};
 use crate::inventory::Inventory;
 use crate::lineage::columns::column_lineage;
 
-/// Ce qui désigne un lien d'une analyse à l'autre : projet, package, tâche, colonne cible
-/// et colonne source, sans casse (SQL Server ne la distingue pas). Pas les serveurs : ce
-/// sont eux qui changent à la bascule.
+/// What designates a link from one analysis to the other: project, package, task, target
+/// column and source column, case-insensitive (SQL Server does not tell case apart). Not
+/// the servers: they are what changes in a migration.
 type Key = [String; 5];
 const KEY: [usize; 5] = [0, 1, 2, 3, 5];
-// Autres cellules d'une ligne du mapping (ordre de `HEADER` dans mapping.rs).
+// Other cells of a mapping row (order of `HEADER` in mapping.rs).
 const TARGET_SERVER: usize = 4;
 const SOURCE_SERVER: usize = 6;
 const HOW: usize = 7;
 const STATUS: usize = 8;
 
 struct Analysis {
-    /// (projet, package) sans casse → libellé.
+    /// (project, package) case-insensitive → label.
     packages: BTreeMap<(String, String), String>,
-    /// Un lien peut passer par plusieurs chemins : une ligne par chemin.
+    /// A link can go through several paths: one row per path.
     links: BTreeMap<Key, Vec<Row>>,
     rows: usize,
 }
@@ -54,8 +54,8 @@ fn analysis(inventory: &Inventory) -> Analysis {
     }
 }
 
-/// Le compte rendu en Markdown, et s'il y a régression (lien ou package disparu, statut
-/// dégradé).
+/// The Markdown report, and whether there is a regression (link or package removed,
+/// status degraded).
 pub fn mapping_diff(before: &Inventory, after: &Inventory) -> (String, bool) {
     let (before, after) = (analysis(before), analysis(after));
     let only = |a: &Analysis, b: &Analysis| -> Vec<String> {
@@ -66,7 +66,7 @@ pub fn mapping_diff(before: &Inventory, after: &Inventory) -> (String, bool) {
             .collect()
     };
     let (gone, new) = (only(&before, &after), only(&after, &before));
-    // Les liens d'un package apparu ou disparu sont comptés avec le package, pas un à un.
+    // The links of an added or removed package are counted with the package, not one by one.
     let shared = |key: &Key| {
         let package = (key[0].clone(), key[1].clone());
         before.packages.contains_key(&package) && after.packages.contains_key(&package)
@@ -81,7 +81,7 @@ pub fn mapping_diff(before: &Inventory, after: &Inventory) -> (String, bool) {
         };
         if values(old) != values(now) {
             changed.push(format!(
-                "{} : {} ⇒ {}",
+                "{}: {} ⇒ {}",
                 link(&old[0]),
                 values(old),
                 values(now)
@@ -104,16 +104,16 @@ pub fn mapping_diff(before: &Inventory, after: &Inventory) -> (String, bool) {
         }
     }
     let mut out = format!(
-        "# Comparaison du lignage\n\n{} avant, {} après (serveurs mis à part).\n\n",
-        plural(before.rows, "lien"),
-        plural(after.rows, "lien")
+        "# Lineage comparison\n\n{} before, {} after (servers aside).\n\n",
+        plural(before.rows, "link"),
+        plural(after.rows, "link")
     );
     for (title, items) in [
-        ("Packages disparus", &gone),
-        ("Packages nouveaux", &new),
-        ("Liens disparus", &removed),
-        ("Liens modifiés", &changed),
-        ("Liens nouveaux", &added),
+        ("Removed packages", &gone),
+        ("New packages", &new),
+        ("Removed links", &removed),
+        ("Changed links", &changed),
+        ("New links", &added),
     ] {
         section(&mut out, title, items);
     }
@@ -121,23 +121,23 @@ pub fn mapping_diff(before: &Inventory, after: &Inventory) -> (String, bool) {
         .iter()
         .all(|items| items.is_empty())
     {
-        out.push_str("Aucune différence de lignage.\n\n");
+        out.push_str("No lineage difference.\n\n");
     }
-    // Un package resté sur l'ancien serveur se voit ici : `ancien → ancien`.
+    // A package left on the old server shows here: `old → old`.
     let mut moves: Vec<_> = servers.into_iter().collect();
     moves.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
     let moves: Vec<String> = moves
         .iter()
         .map(|((old, now), n)| {
             format!(
-                "{} → {} : {}",
+                "{} → {}: {}",
                 or_dash(old),
                 or_dash(now),
-                plural(*n, "lien")
+                plural(*n, "link")
             )
         })
         .collect();
-    section(&mut out, "Serveurs, avant → après", &moves);
+    section(&mut out, "Servers, before → after", &moves);
     (out, worse || !gone.is_empty() || !removed.is_empty())
 }
 
@@ -152,10 +152,10 @@ fn section(out: &mut String, title: &str, items: &[String]) {
     out.push('\n');
 }
 
-/// `Package › Tâche : cible ← source`, la source vide si l'origine est inconnue.
+/// `Package › Task: target ← source`, the source empty when the origin is unknown.
 fn link(row: &Row) -> String {
     format!(
-        "{} › {} : {} ← {}",
+        "{} › {}: {} ← {}",
         qualified(&row[0], &row[1]),
         row[2],
         row[3],
@@ -163,16 +163,16 @@ fn link(row: &Row) -> String {
     )
 }
 
-/// Transformations et statut de chaque chemin : `lecture → écriture, directe`.
+/// Transformations and status of each path: `read → write, direct`.
 fn values(rows: &[Row]) -> String {
     let all: BTreeSet<String> = rows
         .iter()
         .map(|r| format!("{}, {}", r[HOW], r[STATUS]))
         .collect();
-    all.into_iter().collect::<Vec<_>>().join(" ; ")
+    all.into_iter().collect::<Vec<_>>().join("; ")
 }
 
-/// Le moins sûr des statuts d'un lien (0 : directe … 3 : origine inconnue).
+/// The least safe status of a link (0: direct … 3: unknown origin).
 fn rank(rows: &[Row]) -> usize {
     rows.iter()
         .filter_map(|r| STATUSES.iter().position(|s| *s == r[STATUS]))
@@ -198,67 +198,67 @@ mod tests {
 
     #[test]
     fn the_same_folder_twice_has_no_difference() {
-        let same = analysed("tests/fixtures/colonnes_sql");
+        let same = analysed("tests/fixtures/columns_sql");
 
         let (report, regression) = mapping_diff(&same, &same);
 
         assert!(!regression);
-        assert!(report.contains("Aucune différence de lignage."), "{report}");
+        assert!(report.contains("No lineage difference."), "{report}");
     }
 
     #[test]
     fn lists_what_disappeared_changed_and_which_servers_moved() {
         let (report, regression) = mapping_diff(
-            &analysed("tests/fixtures/diff/avant"),
-            &analysed("tests/fixtures/diff/apres"),
+            &analysed("tests/fixtures/diff/before"),
+            &analysed("tests/fixtures/diff/after"),
         );
 
-        assert!(regression, "un lien et un package ont disparu");
+        assert!(regression, "a link and a package were removed");
         assert!(
-            report.contains("## Packages disparus (1)\n\n- Demo_Minimal\n"),
+            report.contains("## Removed packages (1)\n\n- Demo_Minimal\n"),
             "{report}"
         );
         assert!(
             report.contains(
-                "## Liens disparus (1)\n\n- Chargement › SQL Resumer : Entrepot : dbo.Resume.numero \
-                 ← Entrepot : stg.Clients.id (lecture → écriture, directe)\n"
+                "## Removed links (1)\n\n- Chargement › SQL Resumer: Entrepot : dbo.Resume.numero \
+                 ← Entrepot : stg.Clients.id (read → write, direct)\n"
             ),
             "{report}"
         );
-        // `SELECT *` remplacé par une liste de colonnes : même lien, mieux suivi.
-        assert!(report.contains("## Liens modifiés (2)"), "{report}");
+        // `SELECT *` replaced by a column list: same link, better traced.
+        assert!(report.contains("## Changed links (2)"), "{report}");
         assert!(
             report.contains(
-                "- Chargement › SQL Archiver : Entrepot : dbo.Archive.email ← Entrepot : \
-                 dbo.Clients.email : SELECT * → écriture, par nom (SELECT *) ⇒ lecture → \
-                 écriture, directe\n"
+                "- Chargement › SQL Archiver: Entrepot : dbo.Archive.email ← Entrepot : \
+                 dbo.Clients.email: SELECT * → write, by name (SELECT *) ⇒ read → \
+                 write, direct\n"
             ),
             "{report}"
         );
-        // Le serveur seul ne fait pas un lien différent ; il est compté à part.
-        assert!(!report.contains("## Liens nouveaux"), "{report}");
-        assert!(report.contains("- srv-demo → srv-neuf : "), "{report}");
+        // The server alone does not make a different link; it is counted apart.
+        assert!(!report.contains("## New links"), "{report}");
+        assert!(report.contains("- srv-demo → srv-neuf: "), "{report}");
     }
 
     #[test]
     fn a_link_whose_status_gets_worse_is_a_regression() {
-        // Sens inverse : Archiver repasse à `SELECT *`, le lien de `numero` réapparaît.
+        // Reverse direction: Archiver goes back to `SELECT *`, the `numero` link reappears.
         let (report, regression) = mapping_diff(
-            &analysed("tests/fixtures/diff/apres"),
-            &analysed("tests/fixtures/diff/avant"),
+            &analysed("tests/fixtures/diff/after"),
+            &analysed("tests/fixtures/diff/before"),
         );
 
-        assert!(regression, "statut dégradé sans rien de disparu\n{report}");
-        assert!(report.contains("## Liens nouveaux (1)"), "{report}");
-        assert!(report.contains("## Packages nouveaux (1)"), "{report}");
-        assert!(!report.contains("disparus"), "{report}");
+        assert!(regression, "status degraded with nothing removed\n{report}");
+        assert!(report.contains("## New links (1)"), "{report}");
+        assert!(report.contains("## New packages (1)"), "{report}");
+        assert!(!report.contains("Removed"), "{report}");
     }
 
     #[test]
     fn never_prints_connection_strings_or_passwords() {
         let (report, _) = mapping_diff(
             &analysed("tests/fixtures/lineage"),
-            &analysed("tests/fixtures/diff/avant"),
+            &analysed("tests/fixtures/diff/before"),
         );
 
         let lower = report.to_lowercase();

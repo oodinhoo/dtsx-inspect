@@ -1,7 +1,6 @@
-// Recherche globale de l'en-tête (Ctrl K ou /) : colonnes, tables et fichiers,
-// packages, composants et tâches. Chaque résultat est un lien vers sa page ; flèches
-// pour choisir, Entrée pour ouvrir, Échap pour fermer. Tous les mots tapés doivent
-// apparaître, sans casse.
+// Global search of the header (Ctrl K or /): columns, tables and files, packages,
+// components and tasks. Each result is a link to its page; arrows to choose, Enter to
+// open, Escape to close. Every typed word must appear, case-insensitive.
 (() => {
   const input = document.getElementById("global-search");
   const box = document.getElementById("search-results");
@@ -9,11 +8,11 @@
   const data = window.lineage?.data;
   const esc = (text) =>
     String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-  const GROUPS = ["Colonnes", "Tables et fichiers", "Packages", "Composants et tâches", "Colonnes de composants"];
+  const GROUPS = ["Columns", "Tables and files", "Packages", "Components and tasks", "Component columns"];
   const PER_GROUP = 6;
   const DATASETS = ["table", "file", "entity", "proc"];
 
-  // Construit à la première recherche : le rapport s'ouvre sans attendre.
+  // Built on the first search: the report opens without waiting.
   let index = null;
   function build() {
     const items = [];
@@ -21,17 +20,17 @@
       items.push({ group: 2, text: a.querySelector(".name").textContent, where: a.title, href: a.getAttribute("href") });
     }
     data?.nodes.forEach((n, i) => {
-      if (DATASETS.includes(n.kind)) items.push({ group: 1, text: n.title, where: n.sub, href: `#colonnes/t/${i}` });
+      if (DATASETS.includes(n.kind)) items.push({ group: 1, text: n.title, where: n.sub, href: `#columns/t/${i}` });
       else if (n.package != null) {
-        items.push({ group: 3, text: n.title, where: `${n.sub} · ${data.packages[n.package] ?? "?"}`, href: `#p/${n.package}/flux/${i}` });
+        items.push({ group: 3, text: n.title, where: `${n.sub} · ${data.packages[n.package] ?? "?"}`, href: `#p/${n.package}/flow/${i}` });
       }
     });
-    data?.columns.forEach(([, full, step], i) => items.push({ group: step ? 4 : 0, text: full, where: "", href: `#colonnes/c/${i}` }));
+    data?.columns.forEach(([, full, step], i) => items.push({ group: step ? 4 : 0, text: full, where: "", href: `#columns/c/${i}` }));
     for (const item of items) item.hay = `${item.text} ${item.where}`.toLowerCase();
     return items;
   }
 
-  // Premier mot tapé souligné, le reste échappé.
+  // First typed word highlighted, the rest escaped.
   function highlight(text, word) {
     const at = text.toLowerCase().indexOf(word);
     if (at < 0) return esc(text);
@@ -49,7 +48,7 @@
     for (const item of index) {
       if (words.every((w) => item.hay.includes(w))) groups[item.group].push(item);
     }
-    // Le nom qui commence par le mot tapé d'abord, puis le plus court.
+    // The name starting with the typed word first, then the shortest.
     const rank = (item) => [item.text.toLowerCase().startsWith(words[0]) ? 0 : 1, item.text.length];
     const parts = groups.map((hits, g) => {
       if (!hits.length) return "";
@@ -60,10 +59,10 @@
       const links = hits.slice(0, PER_GROUP).map((item) => `<a role="option" href="${esc(item.href)}">`
         + `<span class="text">${highlight(item.text, words[0])}</span>`
         + (item.where ? `<span class="where">${esc(item.where)}</span>` : "") + "</a>");
-      const more = hits.length > PER_GROUP ? `<p class="more">${hits.length - PER_GROUP} autres : préciser la recherche</p>` : "";
+      const more = hits.length > PER_GROUP ? `<p class="more">${hits.length - PER_GROUP} more: refine the search</p>` : "";
       return `<div role="group" aria-label="${GROUPS[g]}"><p class="group-title">${GROUPS[g]} <span class="count">${hits.length}</span></p>${links.join("")}${more}</div>`;
     });
-    box.innerHTML = parts.join("") || '<p class="empty">Aucun résultat.</p>';
+    box.innerHTML = parts.join("") || '<p class="empty">No results.</p>';
     options = [...box.querySelectorAll("[role=option]")];
     options.forEach((o, i) => (o.id = `search-option-${i}`));
     move(options.length ? 0 : -1);
@@ -96,7 +95,7 @@
   });
   input.addEventListener("focus", () => input.value.trim() && render());
   input.addEventListener("blur", close);
-  // Clic sur un résultat : le champ garde le focus jusqu'à la navigation.
+  // Click on a result: the field keeps the focus until the navigation.
   box.addEventListener("pointerdown", (event) => event.preventDefault());
   box.addEventListener("click", (event) => {
     if (event.target.closest("[role=option]")) {

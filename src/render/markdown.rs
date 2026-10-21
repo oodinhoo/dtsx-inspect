@@ -39,8 +39,8 @@ pub(super) fn package(p: &Package) -> String {
     .join("\n")
 }
 
-/// Section omise quand elle serait vide : la plupart des packages n'ont ni
-/// paramètre ni expression.
+/// Section left out when it would be empty: most packages have neither parameter
+/// nor expression.
 fn optional(title: &str, headers: &[&str], rows: Vec<String>) -> Vec<String> {
     if rows.is_empty() {
         Vec::new()
@@ -55,14 +55,14 @@ fn parameters(p: &Package) -> Vec<String> {
         .iter()
         .map(|x| {
             let value = match (&x.value, x.sensitive) {
-                (_, true) => "(sensible)",
+                (_, true) => "(sensitive)",
                 (Some(value), false) => value,
                 (None, false) => "",
             };
             row(&[&x.name, value])
         })
         .collect();
-    optional("## Paramètres", &["Nom", "Valeur"], rows)
+    optional("## Parameters", &["Name", "Value"], rows)
 }
 
 fn variables(p: &Package) -> Vec<String> {
@@ -81,7 +81,7 @@ fn variables(p: &Package) -> Vec<String> {
         .collect();
     optional(
         "## Variables",
-        &["Portée", "Nom", "Valeur", "Expression"],
+        &["Scope", "Name", "Value", "Expression"],
         rows,
     )
 }
@@ -92,11 +92,7 @@ fn expressions(p: &Package) -> Vec<String> {
         .iter()
         .map(|x| row(&[&x.owner, &x.property, &x.expression]))
         .collect();
-    optional(
-        "## Expressions",
-        &["Élément", "Propriété", "Expression"],
-        rows,
-    )
+    optional("## Expressions", &["Owner", "Property", "Expression"], rows)
 }
 
 fn connections(p: &Package) -> Vec<String> {
@@ -106,24 +102,18 @@ fn connections(p: &Package) -> Vec<String> {
         .map(|c| {
             let scope = match c.scope {
                 Scope::Package => "Package",
-                Scope::Project => "Projet",
+                Scope::Project => "Project",
             };
             row(&[&c.name, &c.kind, scope, c.target.as_deref().unwrap_or("")])
         })
         .collect();
-    section("## Connexions", &["Nom", "Type", "Portée", "Cible"], rows)
+    section("## Connections", &["Name", "Type", "Scope", "Target"], rows)
 }
 
 fn tasks(p: &Package) -> Vec<String> {
-    // Colonne « Package appelé » seulement pour les orchestrateurs.
+    // "Called package" column only for orchestrators.
     let calls = p.executables.iter().any(|e| e.called_package.is_some());
-    let headers = [
-        "Chemin",
-        "Type",
-        "Connexion",
-        "Désactivée",
-        "Package appelé",
-    ];
+    let headers = ["Path", "Type", "Connection", "Disabled", "Called package"];
     let width = if calls {
         headers.len()
     } else {
@@ -133,21 +123,21 @@ fn tasks(p: &Package) -> Vec<String> {
         .executables
         .iter()
         .map(|e| {
-            let disabled = if e.disabled { "oui" } else { "" };
+            let disabled = if e.disabled { "yes" } else { "" };
             let connections = refs(&e.connections);
             let called = e.called_package.as_deref().unwrap_or("");
             let cells = [e.path(), &e.executable_type, &connections, disabled, called];
             row(&cells[..width])
         })
         .collect();
-    section("## Tâches", &headers[..width], rows)
+    section("## Tasks", &headers[..width], rows)
 }
 
 fn data_flow(e: &Executable) -> Vec<String> {
     let rows = e.components.iter().map(component).collect();
     section(
         &clean(&format!("### Data Flow {}", e.path())),
-        &["Composant", "Classe", "Rôle", "Connexion"],
+        &["Component", "Class", "Role", "Connection"],
         rows,
     )
 }
@@ -168,7 +158,7 @@ fn component(c: &Component) -> String {
 
 fn section(title: &str, headers: &[&str], rows: Vec<String>) -> Vec<String> {
     let table = if rows.is_empty() {
-        vec!["_Aucune._".to_owned()]
+        vec!["_None._".to_owned()]
     } else {
         let separator = row(&vec!["---"; headers.len()]);
         [vec![row(headers), separator], rows].concat()
@@ -186,8 +176,8 @@ fn row(cells: &[&str]) -> String {
     format!("| {} |", cells.join(" | "))
 }
 
-/// `|` ne coupe pas la cellule ; `[` et `]` échappés, un nom ne devient ni lien ni
-/// image ; un `\` devant une ponctuation (lu comme échappement) est doublé.
+/// `|` does not split the cell; `[` and `]` escaped, a name becomes neither link nor
+/// image; a `\` before a punctuation (read as an escape) is doubled.
 fn escape_cell(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut chars = text.chars().peekable();
@@ -209,7 +199,7 @@ fn refs(connections: &[ConnectionRef]) -> String {
         .iter()
         .map(|r| match &r.resolved {
             Some(name) => name.clone(),
-            None => format!("{} (non résolue)", r.reference),
+            None => format!("{} (unresolved)", r.reference),
         })
         .collect::<Vec<_>>()
         .join(", ")
@@ -222,7 +212,7 @@ mod tests {
     #[test]
     fn names_cannot_inject_markdown_headings() {
         let flow = Executable {
-            ref_id: "Package\\DFT\n## injecté".into(),
+            ref_id: "Package\\DFT\n## injected".into(),
             name: "DFT".into(),
             executable_type: "Microsoft.Pipeline".into(),
             disabled: false,
@@ -247,7 +237,7 @@ mod tests {
             project_connections: Vec::new(),
             packages: vec![Package {
                 file: "p.dtsx".into(),
-                name: "P\r\n# injecté".into(),
+                name: "P\r\n# injected".into(),
                 format_version: 8,
                 connections: Vec::new(),
                 executables: vec![flow],
@@ -258,20 +248,20 @@ mod tests {
 
         let md = markdown(&inventory);
 
-        assert!(!md.contains("\n# injecté"), "{md}");
-        assert!(!md.contains("\n## injecté"), "{md}");
+        assert!(!md.contains("\n# injected"), "{md}");
+        assert!(!md.contains("\n## injected"), "{md}");
     }
 
     #[test]
     fn names_cannot_become_links_or_images() {
-        // Le rapport HTML passe ce Markdown à `marked`, qui ne filtre pas les URL.
-        let cell = row(&["[ouvrir](javascript:alert(1))", "![](http://pisteur/p.png)"]);
+        // The HTML report hands this Markdown to `marked`, which does not filter URLs.
+        let cell = row(&["[open](javascript:alert(1))", "![](http://tracker/p.png)"]);
 
         assert_eq!(
             cell,
-            r"| \[ouvrir\](javascript:alert(1)) | !\[\](http://pisteur/p.png) |"
+            r"| \[open\](javascript:alert(1)) | !\[\](http://tracker/p.png) |"
         );
-        // Un `\` déjà présent ne doit pas annuler l'échappement ; ailleurs il reste tel quel.
+        // An existing `\` must not cancel the escape; elsewhere it stays as is.
         assert_eq!(
             row(&[r"\[x\](javascript:alert(1))", r"Package\DFT"]),
             r"| \\\[x\\\](javascript:alert(1)) | Package\DFT |"

@@ -1,4 +1,4 @@
-//! Données du lignage interactif (blocs, Data Flows, liens), lues par `lineage.js`.
+//! Data of the interactive lineage (blocks, Data Flows, links), read by `lineage.js`.
 
 use std::collections::HashMap;
 
@@ -17,22 +17,22 @@ use crate::parser::secrets::redact_secrets;
 #[derive(Serialize)]
 struct Graph<'a> {
     packages: &'a [String],
-    /// Fichier de chaque package : deux packages peuvent porter le même nom.
+    /// File of each package: two packages can have the same name.
     files: Vec<&'a str>,
-    /// Projet de chaque package, celui de l'arborescence.
+    /// Project of each package, the one of the sidebar.
     projects: Vec<&'a str>,
-    /// L'indice d'un bloc est son identifiant dans `edges`.
+    /// The index of a block is its identifier in `edges`.
     nodes: Vec<Block>,
     groups: Vec<Group>,
-    /// (depuis, vers, requête construite par expression, création de table)
+    /// (from, to, query built by an expression, table creation)
     edges: Vec<(usize, usize, bool, bool)>,
-    /// Lignage par colonne : (colonne, description complète, produite par un
-    /// composant) ; l'indice est l'identifiant de la colonne dans `column_edges`.
+    /// Column lineage: (column, full description, produced by a component); the index
+    /// is the identifier of the column in `column_edges`.
     columns: Vec<(String, String, bool)>,
-    /// (depuis, vers, comment)
+    /// (from, to, how)
     column_edges: Vec<(usize, usize, &'static str)>,
-    /// Par colonne de table ou de fichier : (package, `W` écrit, `R` lit, `C` calcule
-    /// une autre colonne) ; vide pour une colonne de composant.
+    /// Per table or file column: (package, `W` writes, `R` reads, `C` computes another
+    /// column); empty for a component column.
     uses: Vec<Vec<(usize, &'static str)>>,
 }
 
@@ -47,26 +47,26 @@ struct Block {
     query: Option<Query>,
     note: Option<String>,
     expression: bool,
-    /// Colonnes de la table ou du fichier, ou produites par le composant.
+    /// Columns of the table or file, or produced by the component.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     columns: Vec<usize>,
 }
 
-/// Requête affichée dans le panneau de détails, mots de passe masqués.
+/// Query shown in the details panel, passwords masked.
 #[derive(Serialize)]
 struct Query {
     title: &'static str,
     text: String,
 }
 
-/// Data Flow : cadre autour de ses composants.
+/// Data Flow: frame around its components.
 #[derive(Serialize, PartialEq)]
 struct Group {
     title: String,
     package: usize,
 }
 
-/// JSON à placer dans une balise `<script>` : `<` y est échappé.
+/// JSON to place in a `<script>` tag: `<` is escaped in it.
 pub(super) fn graph_json(
     inventory: &Inventory,
     lineage: &Lineage,
@@ -80,8 +80,8 @@ pub(super) fn graph_json(
         .collect();
     attach_columns(inventory, lineage, columns, &mut nodes);
     for note in &lineage.notes {
-        // ponytail: étape retrouvée par son nom dans le package ; deux homonymes
-        // dans un même package se partagent la remarque.
+        // shortcut: step found by its name in the package; two same-named steps in one
+        // package share the note.
         let step = g.node_indices().find(|&i| {
             !matches!(g[i], Node::Dataset { .. })
                 && g[i].package() == Some(note.package)
@@ -136,15 +136,14 @@ pub(super) fn graph_json(
             .collect(),
         uses: column_uses(columns),
     };
-    // Des chaînes et des entiers : la sérialisation ne peut pas échouer.
+    // Strings and integers: serialization cannot fail.
     serde_json::to_string(&graph)
         .unwrap_or_else(|_| "null".to_owned())
         .replace('<', "\\u003c")
 }
 
-/// Colonnes de chaque bloc : celles d'une table ou d'un fichier (même serveur, même
-/// libellé), celles que produit un composant (même package, Data Flow et nom) ou que
-/// remplit une tâche SQL.
+/// Columns of each block: those of a table or file (same server, same label), those
+/// produced by a component (same package, Data Flow and name) or filled by an SQL task.
 fn attach_columns(
     inventory: &Inventory,
     lineage: &Lineage,
@@ -182,7 +181,7 @@ fn attach_columns(
                 flow,
                 name,
             } => of_component.get(&(*package, flow.as_str(), name.as_str())),
-            // Tâche SQL : ses colonnes portent le chemin de la tâche en guise de Data Flow.
+            // SQL task: its columns carry the task path in place of a Data Flow.
             Node::SqlTask { package, name } => inventory
                 .packages
                 .get(*package)
@@ -195,8 +194,8 @@ fn attach_columns(
     }
 }
 
-/// Packages qui écrivent, lisent ou calculent à partir de chaque colonne de table ou
-/// de fichier, d'après les colonnes de composant qui la touchent.
+/// Packages writing, reading or computing from each table or file column, according to
+/// the component columns touching it.
 fn column_uses(columns: &ColumnLineage) -> Vec<Vec<(usize, &'static str)>> {
     let g = &columns.graph;
     g.node_indices()
@@ -224,7 +223,7 @@ fn column_uses(columns: &ColumnLineage) -> Vec<Vec<(usize, &'static str)>> {
         .collect()
 }
 
-/// Rôle d'un package pour une colonne de table, d'après le lien qui les joint.
+/// Role of a package for a table column, according to the link joining them.
 fn mark(how: How) -> &'static str {
     match how {
         How::Write => "W",
@@ -285,32 +284,38 @@ fn dataset(kind: DatasetKind, label: &str, server: Option<&str>) -> Block {
         DatasetKind::File => {
             let (dir, file) = label.rsplit_once(['\\', '/']).unwrap_or(("", label));
             let sub = if dir.is_empty() {
-                "Fichier".to_owned()
+                "File".to_owned()
             } else {
-                format!("Fichier · {dir}")
+                format!("File · {dir}")
             };
-            ("file", file, sub, vec![("Chemin", label.to_owned())])
+            ("file", file, sub, vec![("Path", label.to_owned())])
         }
         DatasetKind::Table => {
             let (base, table) = label.split_once(" : ").unwrap_or(("?", label));
-            let props = vec![("Base", base.to_owned()), ("Table", table.to_owned())];
+            let props = vec![("Database", base.to_owned()), ("Table", table.to_owned())];
             ("table", table, format!("Table · {base}"), props)
         }
         DatasetKind::Entity => {
             let (crm, entity) = label.split_once(" : ").unwrap_or(("?", label));
-            let props = vec![("Connexion", crm.to_owned()), ("Entité", entity.to_owned())];
-            ("entity", entity, format!("Entité · {crm}"), props)
+            let props = vec![
+                ("Connection", crm.to_owned()),
+                ("Entity", entity.to_owned()),
+            ];
+            ("entity", entity, format!("Entity · {crm}"), props)
         }
         DatasetKind::Procedure => {
             let (base, name) = label.split_once(" : ").unwrap_or(("?", label));
-            let props = vec![("Base", base.to_owned()), ("Procédure", name.to_owned())];
-            ("proc", name, format!("Procédure · {base}"), props)
+            let props = vec![
+                ("Database", base.to_owned()),
+                ("Procedure", name.to_owned()),
+            ];
+            ("proc", name, format!("Procedure · {base}"), props)
         }
     };
-    // Deux bases homonymes sur deux serveurs : le serveur les distingue.
+    // Two same-named databases on two servers: the server tells them apart.
     let sub = match server {
         Some(server) => {
-            props.insert(0, ("Serveur", server.to_owned()));
+            props.insert(0, ("Server", server.to_owned()));
             format!("{sub} · {server}")
         }
         None => sub,
@@ -331,7 +336,7 @@ fn dataset(kind: DatasetKind, label: &str, server: Option<&str>) -> Block {
 
 fn component(package: usize, group: usize, name: &str, c: Option<&Component>) -> Block {
     let class = c.map_or("", |c| c.class_id.as_str());
-    let mut props = vec![("Classe", class.to_owned())];
+    let mut props = vec![("Class", class.to_owned())];
     let mut query = None;
     if let Some(c) = c {
         push_connections(&mut props, &c.connections);
@@ -340,13 +345,13 @@ fn component(package: usize, group: usize, name: &str, c: Option<&Component>) ->
             props.push(("Table", table.clone()));
         }
         if let Some(entity) = p.get("SourceEntity") {
-            props.push(("Entité", entity.clone()));
+            props.push(("Entity", entity.clone()));
         }
         if !c.expressions.is_empty() {
-            props.push(("Par expression", c.expressions.join(", ")));
+            props.push(("By expression", c.expressions.join(", ")));
         }
         query = sql_command(c)
-            .map(|sql| ("Requête SQL", sql))
+            .map(|sql| ("SQL query", sql))
             .or_else(|| p.get("FetchXML").map(|x| ("FetchXML", x.as_str())))
             .filter(|(_, text)| !text.trim().is_empty())
             .map(|(title, text)| Query {
@@ -378,17 +383,17 @@ fn sql_task(package: usize, name: &str, task: Option<&Executable>) -> Block {
     let mut query = None;
     let mut expression = false;
     if let Some(e) = task {
-        props.push(("Chemin", e.path().to_owned()));
+        props.push(("Path", e.path().to_owned()));
         push_connections(&mut props, &e.connections);
         if let Some(sql) = &e.sql {
             expression = sql.origin == SqlOrigin::Expression;
             let (origin, title) = match sql.origin {
-                SqlOrigin::Direct => ("saisie directe", "Requête SQL"),
-                SqlOrigin::Expression => ("expression (valeur à la conception)", "Requête SQL"),
+                SqlOrigin::Direct => ("typed in directly", "SQL query"),
+                SqlOrigin::Expression => ("expression (design-time value)", "SQL query"),
                 SqlOrigin::Variable => ("variable", "Variable"),
-                SqlOrigin::File => ("fichier", "Connexion du fichier"),
+                SqlOrigin::File => ("file", "File connection"),
             };
-            props.push(("Requête", origin.to_owned()));
+            props.push(("Query", origin.to_owned()));
             query = Some(Query {
                 title,
                 text: redact_secrets(&sql.text),
@@ -398,7 +403,7 @@ fn sql_task(package: usize, name: &str, task: Option<&Executable>) -> Block {
     Block {
         kind: "sql",
         title: name.to_owned(),
-        sub: "Tâche SQL".to_owned(),
+        sub: "SQL task".to_owned(),
         package: Some(package),
         group: None,
         props,
@@ -409,7 +414,7 @@ fn sql_task(package: usize, name: &str, task: Option<&Executable>) -> Block {
     }
 }
 
-/// Étape sans jeu de données suivi (procédure stockée, SQL non analysé…).
+/// Step without a traced dataset (stored procedure, SQL not analyzed…).
 fn untracked(note: &Note, inventory: &Inventory) -> Block {
     let task = inventory
         .packages
@@ -417,7 +422,7 @@ fn untracked(note: &Note, inventory: &Inventory) -> Block {
         .and_then(|p| task(p, &note.step));
     Block {
         kind: "untracked",
-        sub: "Non suivi".to_owned(),
+        sub: "Not traced".to_owned(),
         note: Some(note.reason.clone()),
         ..sql_task(note.package, &note.step, task)
     }
@@ -435,7 +440,7 @@ fn push_connections(props: &mut Vec<(&'static str, String)>, refs: &[ConnectionR
         .iter()
         .map(|r| r.resolved.as_deref().unwrap_or(&r.reference))
         .collect();
-    props.push(("Connexion", names.join(", ")));
+    props.push(("Connection", names.join(", ")));
 }
 
 #[cfg(test)]
@@ -448,14 +453,14 @@ mod tests {
 
     #[test]
     fn blocks_list_their_columns_and_the_column_graph_is_shipped() {
-        let (inventory, _) = crate::inventory(Path::new("tests/fixtures/colonnes"));
+        let (inventory, _) = crate::inventory(Path::new("tests/fixtures/columns"));
         let json = graph_json(
             &inventory,
             &lineage(&inventory),
             &column_lineage(&inventory),
         );
 
-        let graph: serde_json::Value = serde_json::from_str(&json).expect("JSON valide");
+        let graph: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
         let columns_of = |title: &str| {
             let block = graph["nodes"]
                 .as_array()
@@ -474,24 +479,24 @@ mod tests {
             names.sort();
             names
         };
-        // Table : ses colonnes, lues ou écrites par les packages.
+        // Table: its columns, read or written by the packages.
         assert_eq!(columns_of("dbo.Clients"), ["email", "id", "note", "pays"]);
-        // Composant : les colonnes qu'il produit.
+        // Component: the columns it produces.
         assert_eq!(columns_of("DER Email"), ["email_norm"]);
-        let edges = graph["column_edges"].as_array().expect("liens de colonnes");
+        let edges = graph["column_edges"].as_array().expect("column links");
         assert!(edges.iter().any(|e| e[2] == "expression"), "{edges:?}");
     }
 
     #[test]
     fn sql_tasks_list_the_columns_their_insert_fills() {
-        let (inventory, _) = crate::inventory(Path::new("tests/fixtures/colonnes_sql"));
+        let (inventory, _) = crate::inventory(Path::new("tests/fixtures/columns_sql"));
         let json = graph_json(
             &inventory,
             &lineage(&inventory),
             &column_lineage(&inventory),
         );
 
-        let graph: serde_json::Value = serde_json::from_str(&json).expect("JSON valide");
+        let graph: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
         let block = graph["nodes"]
             .as_array()
             .into_iter()
@@ -511,16 +516,16 @@ mod tests {
 
     #[test]
     fn says_which_packages_write_or_read_each_table_column() {
-        let (inventory, _) = crate::inventory(Path::new("tests/fixtures/colonnes"));
+        let (inventory, _) = crate::inventory(Path::new("tests/fixtures/columns"));
         let json = graph_json(
             &inventory,
             &lineage(&inventory),
             &column_lineage(&inventory),
         );
 
-        let graph: serde_json::Value = serde_json::from_str(&json).expect("JSON valide");
+        let graph: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
         let uses_of = |full: &str| -> Vec<String> {
-            let columns = graph["columns"].as_array().expect("colonnes");
+            let columns = graph["columns"].as_array().expect("columns");
             let i = columns.iter().position(|c| c[1] == full).expect(full);
             graph["uses"][i]
                 .as_array()
@@ -540,19 +545,19 @@ mod tests {
             uses_of("Entrepot : dbo.Clients.email"),
             ["Clients:W", "Export:R", "Synthese:R"]
         );
-        // Recherche : la table de référence est lue ; calcul dans une requête : `C`.
+        // Lookup: the reference table is read; computation in a query: `C`.
         assert_eq!(
             uses_of("Entrepot : ref.Pays.libelle"),
             ["Clients:R", "Synthese:C"]
         );
-        // Colonne de composant : son package se lit sur son bloc.
+        // Component column: its package shows on its block.
         assert!(uses_of("DER Email.email_norm (Clients › DFT Clients)").is_empty());
     }
 
     #[test]
     fn gives_each_package_the_project_of_the_sidebar() {
-        // Copie de compilation seule (`Seul/obj/Development`) : le projet est `Seul`,
-        // comme dans l'arborescence, et non le premier dossier du chemin.
+        // Build copy only (`Standalone/obj/Development`): the project is `Standalone`, as in the
+        // sidebar, and not the first folder of the path.
         let (inventory, _) = crate::inventory(Path::new("tests/fixtures/build_copy"));
         let json = graph_json(
             &inventory,
@@ -560,8 +565,11 @@ mod tests {
             &column_lineage(&inventory),
         );
 
-        let graph: serde_json::Value = serde_json::from_str(&json).expect("JSON valide");
-        assert_eq!(graph["projects"], serde_json::json!(["Projet", "Seul"]));
+        let graph: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+        assert_eq!(
+            graph["projects"],
+            serde_json::json!(["Project", "Standalone"])
+        );
     }
 
     #[test]
@@ -573,7 +581,7 @@ mod tests {
             &column_lineage(&inventory),
         );
 
-        let graph: serde_json::Value = serde_json::from_str(&json).expect("JSON valide");
+        let graph: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
         let titled = |title: &str| {
             graph["nodes"]
                 .as_array()

@@ -1,5 +1,5 @@
-//! `INSERT … SELECT *` : les colonnes correspondent par position, une colonne
-//! ajoutée ou réordonnée d'un côté casse le chargement sans prévenir.
+//! `INSERT … SELECT *`: columns match by position, a column added or reordered on one
+//! side silently breaks the load.
 
 use super::{finding, tasks, Finding, Rule, RuleDoc, Severity};
 use crate::inventory::Inventory;
@@ -7,17 +7,17 @@ use crate::lineage::sql::inserts_select_star;
 use crate::lineage::Lineage;
 use crate::model::SqlOrigin;
 
-pub struct InsertSelectEtoile;
+pub struct InsertSelectStar;
 
 const DOC: RuleDoc = RuleDoc {
-    id: "insert-select-etoile",
-    severity: Severity::Avertissement,
-    title: "INSERT … SELECT * dans une tâche SQL",
-    why: "Les colonnes sont appariées par leur position : une colonne ajoutée ou réordonnée d'un côté décale les données ou fait échouer le chargement sans message clair.",
-    fix: "Lister les colonnes des deux côtés : INSERT INTO cible (a, b) SELECT a, b FROM source.",
+    id: "insert-select-star",
+    severity: Severity::Warning,
+    title: "INSERT … SELECT * in an SQL task",
+    why: "Columns are matched by their position: a column added or reordered on one side shifts the data or makes the load fail without a clear message.",
+    fix: "List the columns on both sides: INSERT INTO target (a, b) SELECT a, b FROM source.",
 };
 
-impl Rule for InsertSelectEtoile {
+impl Rule for InsertSelectStar {
     fn doc(&self) -> &'static RuleDoc {
         &DOC
     }
@@ -35,7 +35,7 @@ impl Rule for InsertSelectEtoile {
                     &DOC,
                     &p.file,
                     e.path().to_owned(),
-                    "INSERT … SELECT * : lister les colonnes des deux côtés",
+                    "INSERT … SELECT *: list the columns on both sides",
                 )
             })
             .collect()

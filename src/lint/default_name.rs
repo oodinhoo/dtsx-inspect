@@ -1,25 +1,25 @@
-//! Tâche ou composant resté sous le nom donné par le concepteur SSDT : illisible
-//! dans les journaux et le lignage. Convention de nommage de Jamie Thomson
-//! (préfixes DFT, SQL, SEQC, OLE_SRC, LKP…), reprise par la communauté SSIS.
+//! Task or component still named as the SSDT designer named it: unreadable in logs
+//! and in the lineage. Naming convention by Jamie Thomson (DFT, SQL, SEQC, OLE_SRC,
+//! LKP… prefixes), adopted by the SSIS community.
 
 use super::{components, finding, tasks, Finding, Rule, RuleDoc, Severity};
 use crate::inventory::Inventory;
 use crate::lineage::Lineage;
 
-pub struct NomParDefaut;
+pub struct DefaultName;
 
 const DOC: RuleDoc = RuleDoc {
-    id: "nom-par-defaut",
+    id: "default-name",
     severity: Severity::Info,
-    title: "Tâche ou composant resté sous le nom donné par le concepteur",
-    why: "« Data Flow Task 1 », « Derived Column »… : ces noms ne disent rien dans les journaux d'exécution, les messages d'erreur ni ce rapport.",
-    fix: "Renommer selon la convention de l'équipe : un préfixe de type (DFT_, SQL_, LKP_, DER_…) suivi de ce que fait l'étape.",
+    title: "Task or component still named as the designer named it",
+    why: "\"Data Flow Task 1\", \"Derived Column\"…: these names say nothing in the execution logs, the error messages or this report.",
+    fix: "Rename following the team convention: a type prefix (DFT_, SQL_, LKP_, DER_…) followed by what the step does.",
 };
 
-/// Noms par défaut de SSDT, en anglais et en français, sans le numéro ajouté aux
-/// suivants (`Multidiffusion 1`).
-// ponytail: liste des tâches et composants courants ; compléter si un autre nom
-// par défaut apparaît dans les packages.
+/// SSDT default names, in English and French, without the number added to the next
+/// ones (`Multicast 1`).
+// shortcut: list of the common tasks and components; extend it if another default
+// name shows up in packages.
 const DEFAULT_NAMES: [&str; 47] = [
     "Data Flow Task",
     "Execute SQL Task",
@@ -78,9 +78,9 @@ fn is_default(name: &str) -> bool {
 }
 
 const MESSAGE: &str =
-    "nom par défaut du concepteur : le renommer selon la convention (DFT_, SQL_, LKP_…)";
+    "designer default name: rename it following the convention (DFT_, SQL_, LKP_…)";
 
-impl Rule for NomParDefaut {
+impl Rule for DefaultName {
     fn doc(&self) -> &'static RuleDoc {
         &DOC
     }

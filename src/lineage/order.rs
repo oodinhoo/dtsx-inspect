@@ -1,5 +1,5 @@
-//! Ordre d'exécution déduit des données : un package passe après ceux qui écrivent les
-//! tables, fichiers ou entités qu'il lit (directement, par une vue ou une procédure).
+//! Execution order inferred from the data: a package runs after those writing the
+//! tables, files or entities it reads (directly, through a view or a procedure).
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
@@ -10,29 +10,29 @@ use petgraph::Direction::{Incoming, Outgoing};
 
 use super::{DatasetKind, Lineage, Node};
 
-/// Au-delà, une table écrite par autant de packages est un journal ou une table de
-/// paramètres : elle relierait tout à tout, elle est écartée.
+/// Beyond this, a table written by that many packages is a log or a settings table:
+/// it would tie everything to everything, so it is set aside.
 pub const HUB_WRITERS: usize = 5;
 
 #[derive(Debug, Default)]
 pub struct ExecutionOrder {
-    /// Vagues, la première sans dépendance ; chaque élément est un package, ou plusieurs
-    /// qui dépendent les uns des autres (cycle). Indices de `Lineage::packages`.
+    /// Waves, the first one without dependencies; each item is a package, or several
+    /// depending on each other (cycle). Indices of `Lineage::packages`.
     pub waves: Vec<Vec<Vec<usize>>>,
-    /// Pour chaque package, ceux qui doivent passer avant lui et par quelles tables.
+    /// For each package, those that must run before it and through which tables.
     pub after: BTreeMap<usize, BTreeMap<usize, BTreeSet<String>>>,
-    /// Packages sans aucune dépendance de données, ni avant ni après.
+    /// Packages without any data dependency, neither before nor after.
     pub independent: Vec<usize>,
-    /// Tables écartées et nombre de packages qui les écrivent.
+    /// Tables set aside and number of packages writing them.
     pub hubs: Vec<(String, usize)>,
-    /// Lues mais écrites par aucun package : sources externes, ou SQL non suivi.
+    /// Read but written by no package: external sources, or SQL not traced.
     pub sources: Vec<String>,
 }
 
 pub fn execution_order(lineage: &Lineage) -> ExecutionOrder {
     let g = &lineage.graph;
     let is_dataset = |i: NodeIndex| matches!(g[i], Node::Dataset { .. });
-    // Packages qui écrivent un jeu de données (une création de table n'écrit rien).
+    // Packages writing a dataset (a table creation writes nothing).
     let writers = |d: NodeIndex| -> BTreeSet<usize> {
         g.edges_directed(d, Incoming)
             .filter(|e| !e.weight().creates)
@@ -51,7 +51,7 @@ pub fn execution_order(lineage: &Lineage) -> ExecutionOrder {
         let Some(reader) = g[step].package() else {
             continue;
         };
-        // Ce que l'étape lit, et ce que lisent les procédures qu'elle appelle.
+        // What the step reads, and what the procedures it calls read.
         let mut stack: Vec<NodeIndex> = g
             .neighbors_directed(step, Incoming)
             .filter(|&d| is_dataset(d))
@@ -65,8 +65,8 @@ pub fn execution_order(lineage: &Lineage) -> ExecutionOrder {
                     .filter(|&d| is_dataset(d)),
             );
         }
-        // On remonte de jeu de données en jeu de données (vues, procédures) jusqu'aux
-        // étapes qui les écrivent.
+        // Walk up from dataset to dataset (views, procedures) to the steps writing
+        // them.
         let mut seen = HashSet::new();
         while let Some(d) = stack.pop() {
             if !seen.insert(d) || hubs.contains_key(&d) {
@@ -88,7 +88,7 @@ pub fn execution_order(lineage: &Lineage) -> ExecutionOrder {
         }
     }
 
-    // Un nœud par package relié ; les cycles fondus en un nœud, puis rangés par vagues.
+    // One node per linked package; cycles merged into one node, then sorted into waves.
     let mut packages: DiGraph<usize, ()> = DiGraph::new();
     let mut index: BTreeMap<usize, NodeIndex> = BTreeMap::new();
     let mut node = |graph: &mut DiGraph<usize, ()>, p: usize| {
@@ -104,7 +104,7 @@ pub fn execution_order(lineage: &Lineage) -> ExecutionOrder {
     let linked: HashSet<usize> = packages.node_weights().copied().collect();
     let condensed = condensation(packages, true);
     let mut wave_of: HashMap<NodeIndex, usize> = HashMap::new();
-    // `condensation` rend un graphe sans cycle : le tri topologique réussit toujours.
+    // `condensation` returns an acyclic graph: the topological sort always succeeds.
     for group in toposort(&condensed, None).unwrap_or_default() {
         let wave = condensed
             .neighbors_directed(group, Incoming)
@@ -132,7 +132,7 @@ pub fn execution_order(lineage: &Lineage) -> ExecutionOrder {
 
     let mut hubs: Vec<(String, usize)> = hubs.into_iter().map(|(d, n)| (named(&g[d]), n)).collect();
     hubs.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
-    // Lu (par un package, une vue ou une procédure) sans que rien ne l'écrive.
+    // Read (by a package, a view or a procedure) without anything writing it.
     let mut sources: Vec<String> = g
         .node_indices()
         .filter(|&d| is_dataset(d) && !is_procedure(&g[d]))
@@ -161,7 +161,7 @@ fn is_procedure(node: &Node) -> bool {
     )
 }
 
-/// `Base : schéma.table (serveur)` : deux bases homonymes sur deux serveurs restent distinctes.
+/// `Database : schema.table (server)`: two same-named databases on two servers stay distinct.
 fn named(node: &Node) -> String {
     match node {
         Node::Dataset {
@@ -179,7 +179,7 @@ mod tests {
     use crate::lineage::lineage;
 
     fn order() -> (ExecutionOrder, Vec<String>) {
-        let (inventory, _) = crate::inventory(std::path::Path::new("tests/fixtures/ordre"));
+        let (inventory, _) = crate::inventory(std::path::Path::new("tests/fixtures/order"));
         let lineage = lineage(&inventory);
         (execution_order(&lineage), lineage.packages)
     }
@@ -224,14 +224,14 @@ mod tests {
             order.hubs,
             [("Entrepot : dbo.Journal (srv-demo)".to_owned(), 5)]
         );
-        // Surveiller ne lit que le journal : il ne dépend de personne.
+        // Surveiller only reads the log: it depends on nobody.
         let independent: Vec<&str> = order
             .independent
             .iter()
             .map(|&p| names[p].as_str())
             .collect();
         assert_eq!(independent, ["Isole", "Surveiller"]);
-        // Chaque package est placé une fois : dans une vague ou parmi les indépendants.
+        // Each package is placed once: in a wave or among the independent ones.
         let placed: usize = order.waves.iter().flatten().map(Vec::len).sum();
         assert_eq!(placed + order.independent.len(), names.len());
     }

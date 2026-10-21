@@ -1,8 +1,8 @@
-//! Lignage par colonne : dans les Data Flows, colonne de table ou de fichier lue,
-//! colonnes calculées par les composants, colonne de table ou de fichier écrite ; dans
-//! les tâches SQL, les `INSERT … SELECT` d'une table vers une autre.
-//! Une colonne de table est un seul nœud pour tous les packages (même serveur,
-//! même base) : le lignage passe ainsi d'un package à l'autre.
+//! Column lineage: in Data Flows, table or file column read, columns derived by the
+//! components, table or file column written; in SQL tasks, the `INSERT … SELECT` from
+//! one table to another.
+//! A table column is a single node for all packages (same server, same database): the
+//! lineage thus goes from one package to another.
 
 use std::collections::HashMap;
 
@@ -17,13 +17,13 @@ use crate::model::{Executable, Package, Role};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ColumnNode {
-    /// Colonne d'une table ou d'un fichier ; `dataset` est son libellé dans le lignage.
+    /// Column of a table or a file; `dataset` is its label in the lineage.
     Dataset {
         dataset: String,
         server: Option<String>,
         column: String,
     },
-    /// Colonne produite par un composant de Data Flow.
+    /// Column produced by a Data Flow component.
     Step {
         package: usize,
         flow: String,
@@ -32,7 +32,7 @@ pub enum ColumnNode {
     },
 }
 
-/// Comment une colonne en donne une autre.
+/// How a column gives another one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum How {
     Read,
@@ -41,22 +41,22 @@ pub enum How {
     Conversion,
     Union,
     Lookup,
-    /// Calculée dans la requête de la source (fonction, opération…).
+    /// Computed in the source query (function, operation…).
     SqlExpression,
-    /// `INSERT … SELECT *` : colonne de même nom dans la table lue.
+    /// `INSERT … SELECT *`: same-named column in the read table.
     SelectStar,
 }
 
 impl How {
     pub fn label(self) -> &'static str {
         match self {
-            How::Read => "lecture",
-            How::Write => "écriture",
+            How::Read => "read",
+            How::Write => "write",
             How::Expression => "expression",
             How::Conversion => "conversion",
-            How::Union => "Unir tout",
-            How::Lookup => "recherche",
-            How::SqlExpression => "calcul SQL",
+            How::Union => "Union All",
+            How::Lookup => "lookup",
+            How::SqlExpression => "SQL expression",
             How::SelectStar => "SELECT *",
         }
     }
@@ -65,7 +65,7 @@ impl How {
 #[derive(Debug, Default)]
 pub struct ColumnLineage {
     pub graph: DiGraph<ColumnNode, How>,
-    /// Noms des packages, indexés comme `ColumnNode::Step::package`.
+    /// Package names, indexed like `ColumnNode::Step::package`.
     pub packages: Vec<String>,
 }
 
@@ -81,9 +81,9 @@ pub fn column_lineage(inventory: &Inventory) -> ColumnLineage {
             builder.flow(index, package, flow);
         }
     }
-    // Tâches SQL ensuite : un `SELECT *` reprend les colonnes connues de la table lue,
-    // qu'un Data Flow ou une autre tâche, plus loin dans les packages, peut révéler. On
-    // repasse tant que de nouvelles colonnes apparaissent.
+    // SQL tasks next: a `SELECT *` takes the known columns of the read table, which a
+    // Data Flow or another task further in the packages can reveal. Loop again as long
+    // as new columns appear.
     let inserts: Vec<_> = inventory
         .packages
         .iter()
@@ -112,16 +112,16 @@ pub fn column_lineage(inventory: &Inventory) -> ColumnLineage {
 #[derive(Default)]
 struct Builder {
     lineage: ColumnLineage,
-    /// (serveur, jeu de données, colonne) sans casse -> nœud.
+    /// (server, dataset, column) case-insensitive -> node.
     datasets: HashMap<(String, String, String), NodeIndex>,
-    /// (package, chemin de la tâche SQL, colonne sans casse) -> nœud.
+    /// (package, SQL task path, case-insensitive column) -> node.
     sql_steps: HashMap<(usize, String, String), NodeIndex>,
 }
 
 impl Builder {
     fn flow(&mut self, index: usize, package: &Package, flow: &Executable) {
-        // Toutes les sorties d'abord : une colonne peut citer celle d'un composant
-        // décrit plus loin dans le XML.
+        // All outputs first: a column can use one of a component described further
+        // in the XML.
         let mut steps = HashMap::new();
         for c in &flow.components {
             for out in &c.outputs {
@@ -136,7 +136,7 @@ impl Builder {
         }
         for c in &flow.components {
             let datasets = component_datasets(c, package).unwrap_or_default();
-            // Requête d'une source ou d'une recherche : sa liste mène aux colonnes de table.
+            // Query of a source or a lookup: its list leads to the table columns.
             let query = sql_command(c)
                 .and_then(projection)
                 .map(|p| (p, database_of(package, &c.connections)));
@@ -155,8 +155,8 @@ impl Builder {
                         self.edge(from, node, computed);
                     }
                 }
-                // Source : colonne de table ou de fichier lue ; recherche : colonne
-                // copiée de la table de référence.
+                // Source: table or file column read; lookup: column copied from the
+                // reference table.
                 let origin = match c.role {
                     Role::Source => out.external.as_deref().map(|col| (col, How::Read)),
                     _ => out.reference.as_deref().map(|col| (col, How::Lookup)),
@@ -183,8 +183,8 @@ impl Builder {
         }
     }
 
-    /// Colonne de table lue par une source ou copiée par une recherche : par la liste
-    /// du SELECT quand le composant exécute une requête, sinon dans son unique table.
+    /// Table column read by a source or copied by a lookup: through the SELECT list
+    /// when the component runs a query, otherwise in its single table.
     fn read(
         &mut self,
         query: Option<&(Projection, Option<Database>)>,
@@ -209,8 +209,8 @@ impl Builder {
         }
     }
 
-    /// `INSERT … SELECT` d'une tâche SQL : chaque colonne remplie passe par une étape au
-    /// nom de la tâche.
+    /// `INSERT … SELECT` of an SQL task: each filled column goes through a step named
+    /// after the task.
     fn insert(
         &mut self,
         package: usize,
@@ -229,10 +229,10 @@ impl Builder {
         }
     }
 
-    /// Colonnes remplies par un INSERT et les colonnes lues pour chacune. Liste de
-    /// colonnes nommée : appariées par position avec le SELECT. Sans liste : par le nom
-    /// en sortie du SELECT, et un `SELECT *` reprend par leur nom les colonnes déjà
-    /// connues de sa table (SQL Server apparie par position : même nom supposé).
+    /// Columns filled by an INSERT and the columns read for each. Named column list:
+    /// matched by position with the SELECT. Without a list: by the SELECT output name,
+    /// and a `SELECT *` takes by name the already known columns of its table (SQL Server
+    /// matches by position: same name assumed).
     fn filled(
         &mut self,
         insert: &InsertSelect,
@@ -240,7 +240,7 @@ impl Builder {
     ) -> Vec<(String, Vec<(NodeIndex, How)>)> {
         let p = &insert.projection;
         let mut filled = Vec::new();
-        // Liste nommée et `*` : les positions ne se comptent plus, on ne devine pas.
+        // Named list and `*`: positions can no longer be counted, no guessing.
         if !insert.columns.is_empty() && !p.stars.is_empty() {
             return filled;
         }
@@ -269,7 +269,7 @@ impl Builder {
         filled
     }
 
-    /// Colonnes déjà connues d'une table, triées par nom.
+    /// Already known columns of a table, sorted by name.
     fn known_columns(&self, d: &DatasetRef) -> Vec<(String, NodeIndex)> {
         let server = d.server.as_deref().unwrap_or_default().to_lowercase();
         let label = d.label.to_lowercase();
@@ -286,7 +286,7 @@ impl Builder {
         found
     }
 
-    /// Colonne remplie par une tâche SQL : une étape par tâche et par colonne.
+    /// Column filled by an SQL task: one step per task and per column.
     fn sql_step(&mut self, package: usize, task: &Executable, column: &str) -> NodeIndex {
         let key = (package, task.path().to_owned(), column.to_lowercase());
         let graph = &mut self.lineage.graph;
@@ -318,7 +318,7 @@ impl Builder {
     }
 }
 
-/// Le seul jeu de données lu (ou écrit) par le composant ; plusieurs : on ne devine pas.
+/// The only dataset read (or written) by the component; several: no guessing.
 fn single(datasets: &[(DatasetRef, Direction)], direction: Direction) -> Option<&DatasetRef> {
     match datasets
         .iter()
