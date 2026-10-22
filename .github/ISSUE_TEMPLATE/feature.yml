@@ -1,0 +1,23 @@
+name: Feature request
+description: A component, SSIS construct, output or lint rule to support
+labels: [enhancement]
+body:
+  - type: checkboxes
+    id: anonymized
+    attributes:
+      label: Before posting
+      options:
+        - label: Any package excerpt below is anonymized and contains no password or connection string.
+          required: true
+  - type: textarea
+    id: need
+    attributes:
+      label: What you need, and why
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Anonymized example
+      description: For an unsupported component, its `componentClassID` and a small excerpt.
+      render: xml

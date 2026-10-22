@@ -1,0 +1,47 @@
+name: Bug report
+description: Wrong output, missing lineage, crash on a package
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **This issue is public.** Never paste a real customer package, a connection string or a
+        password. Reduce the problem to a small `.dtsx` and rename servers, databases, tables and
+        columns. Replace passwords with a fake value such as `s3cr3t`.
+  - type: checkboxes
+    id: anonymized
+    attributes:
+      label: Before posting
+      options:
+        - label: Every package, excerpt or output below is anonymized (no real server, database, table, column or customer name).
+          required: true
+        - label: It contains no password, secret or full connection string.
+          required: true
+        - label: This is not a security problem (those go through the private report, see SECURITY.md).
+          required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `dtsx-inspect --version`
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command
+      placeholder: dtsx-inspect lineage MyProject/
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: package
+    attributes:
+      label: Anonymized package or excerpt
+      description: The smallest `.dtsx` (or part of it) that shows the problem.
+      render: xml
