@@ -23,6 +23,10 @@ Secrets never leave the package: passwords are masked everywhere, connection str
 to server, database and provider, and SQL text is only shown in the HTML report's details panel,
 with passwords masked.
 
+![The HTML report on the demo project: overview, lineage map, trace of a column, Data Flow of a package, lint findings, French switch](docs/demo.gif)
+
+*The HTML report on [`examples/demo`](examples/demo), a fictional SSIS project.*
+
 ## Contents
 
 - [Build](#build)
@@ -110,6 +114,10 @@ dtsx-inspect lineage MyProject/ --focus dbo.Customers > lineage.mmd
 dtsx-inspect --help                          # every command
 dtsx-inspect lint --help                     # options of one command
 ```
+
+No SSIS project at hand? Point any command at [`examples/demo`](examples/demo): a small fictional
+data warehouse (CSV file, ERP database and Dynamics CRM → staging → warehouse → CSV export) with a
+few deliberate anti-patterns for the lint.
 
 Every command takes a `.dtsx` file or a folder, walked recursively. `.conmgr` files (project
 connections) and `.sql` files (database project scripts) found next to the packages are read too.

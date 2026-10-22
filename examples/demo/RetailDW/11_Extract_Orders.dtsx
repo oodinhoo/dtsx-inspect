@@ -1,0 +1,205 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:ObjectName="11_Extract_Orders">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\DFT Orders"
+      DTS:CreationName="Microsoft.Pipeline"
+      DTS:ExecutableType="Microsoft.Pipeline"
+      DTS:ObjectName="DFT Orders">
+      <DTS:ObjectData>
+        <pipeline
+          version="1">
+          <components>
+            <component
+              refId="Package\DFT Orders\SRC Order lines"
+              componentClassID="Microsoft.OLEDBSource"
+              name="SRC Order lines">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="SqlCommand">SELECT o.order_id, o.customer_id, o.order_date, l.product_id, l.quantity, l.unit_price
+FROM dbo.Orders AS o
+JOIN dbo.OrderLines AS l ON l.order_id = o.order_id
+WHERE o.status = 'SHIPPED'</property>
+                <property
+                  dataType="System.Int32"
+                  name="AccessMode"
+                  typeConverter="AccessMode">2</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Orders\SRC Order lines.Connections[OleDbConnection]"
+                  connectionManagerID="{D0000000-0000-0000-0000-000000000003}:external"
+                  connectionManagerRefId="Project.ConnectionManagers[Sales]"
+                  name="OleDbConnection" />
+              </connections>
+              <outputs>
+                <output
+                  refId="Package\DFT Orders\SRC Order lines.Outputs[Output]"
+                  name="Output">
+                  <outputColumns>
+                    <outputColumn
+                      refId="Package\DFT Orders\SRC Order lines.Outputs[Output].Columns[order_id]"
+                      dataType="i4"
+                      externalMetadataColumnId="Package\DFT Orders\SRC Order lines.Outputs[Output].ExternalColumns[order_id]"
+                      lineageId="Package\DFT Orders\SRC Order lines.Outputs[Output].Columns[order_id]"
+                      name="order_id" />
+                    <outputColumn
+                      refId="Package\DFT Orders\SRC Order lines.Outputs[Output].Columns[customer_id]"
+                      dataType="i4"
+                      externalMetadataColumnId="Package\DFT Orders\SRC Order lines.Outputs[Output].ExternalColumns[customer_id]"
+                      lineageId="Package\DFT Orders\SRC Order lines.Outputs[Output].Columns[customer_id]"
+                      name="customer_id" />
+                    <outputColumn
+                      refId="Package\DFT Orders\SRC Order lines.Outputs[Output].Columns[order_date]"
+                      dataType="dbDate"
+                      externalMetadataColumnId="Package\DFT Orders\SRC Order lines.Outputs[Output].ExternalColumns[order_date]"
+                      lineageId="Package\DFT Orders\SRC Order lines.Outputs[Output].Columns[order_date]"
+                      name="order_date" />
+                    <outputColumn
+                      refId="Package\DFT Orders\SRC Order lines.Outputs[Output].Columns[product_id]"
+                      dataType="i4"
+                      externalMetadataColumnId="Package\DFT Orders\SRC Order lines.Outputs[Output].ExternalColumns[product_id]"
+                      lineageId="Package\DFT Orders\SRC Order lines.Outputs[Output].Columns[product_id]"
+                      name="product_id" />
+                    <outputColumn
+                      refId="Package\DFT Orders\SRC Order lines.Outputs[Output].Columns[quantity]"
+                      dataType="i4"
+                      externalMetadataColumnId="Package\DFT Orders\SRC Order lines.Outputs[Output].ExternalColumns[quantity]"
+                      lineageId="Package\DFT Orders\SRC Order lines.Outputs[Output].Columns[quantity]"
+                      name="quantity" />
+                    <outputColumn
+                      refId="Package\DFT Orders\SRC Order lines.Outputs[Output].Columns[unit_price]"
+                      dataType="numeric"
+                      externalMetadataColumnId="Package\DFT Orders\SRC Order lines.Outputs[Output].ExternalColumns[unit_price]"
+                      lineageId="Package\DFT Orders\SRC Order lines.Outputs[Output].Columns[unit_price]"
+                      name="unit_price" />
+                  </outputColumns>
+                  <externalMetadataColumns
+                    isUsed="True">
+                    <externalMetadataColumn
+                      refId="Package\DFT Orders\SRC Order lines.Outputs[Output].ExternalColumns[order_id]"
+                      dataType="i4"
+                      name="order_id" />
+                    <externalMetadataColumn
+                      refId="Package\DFT Orders\SRC Order lines.Outputs[Output].ExternalColumns[customer_id]"
+                      dataType="i4"
+                      name="customer_id" />
+                    <externalMetadataColumn
+                      refId="Package\DFT Orders\SRC Order lines.Outputs[Output].ExternalColumns[order_date]"
+                      dataType="dbDate"
+                      name="order_date" />
+                    <externalMetadataColumn
+                      refId="Package\DFT Orders\SRC Order lines.Outputs[Output].ExternalColumns[product_id]"
+                      dataType="i4"
+                      name="product_id" />
+                    <externalMetadataColumn
+                      refId="Package\DFT Orders\SRC Order lines.Outputs[Output].ExternalColumns[quantity]"
+                      dataType="i4"
+                      name="quantity" />
+                    <externalMetadataColumn
+                      refId="Package\DFT Orders\SRC Order lines.Outputs[Output].ExternalColumns[unit_price]"
+                      dataType="numeric"
+                      name="unit_price" />
+                  </externalMetadataColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Orders\SRT Order"
+              componentClassID="Microsoft.Sort"
+              name="SRT Order">
+              <inputs>
+                <input
+                  refId="Package\DFT Orders\SRT Order.Inputs[Input]"
+                  name="Input" />
+              </inputs>
+              <outputs>
+                <output
+                  refId="Package\DFT Orders\SRT Order.Outputs[Output]"
+                  name="Output" />
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Orders\DST Orders"
+              componentClassID="Microsoft.OLEDBDestination"
+              name="DST Orders">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="OpenRowset">[stg].[Orders]</property>
+                <property
+                  dataType="System.Int32"
+                  name="AccessMode"
+                  typeConverter="AccessMode">0</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Orders\DST Orders.Connections[OleDbConnection]"
+                  connectionManagerID="{D0000000-0000-0000-0000-000000000001}:external"
+                  connectionManagerRefId="Project.ConnectionManagers[Staging]"
+                  name="OleDbConnection" />
+              </connections>
+              <inputs>
+                <input
+                  refId="Package\DFT Orders\DST Orders.Inputs[Input]"
+                  name="Input">
+                  <inputColumns>
+                    <inputColumn
+                      refId="Package\DFT Orders\DST Orders.Inputs[Input].Columns[order_id]"
+                      cachedName="order_id"
+                      externalMetadataColumnId="Package\DFT Orders\DST Orders.Inputs[Input].ExternalColumns[order_id]"
+                      lineageId="Package\DFT Orders\SRC Order lines.Outputs[Output].Columns[order_id]" />
+                    <inputColumn
+                      refId="Package\DFT Orders\DST Orders.Inputs[Input].Columns[customer_id]"
+                      cachedName="customer_id"
+                      externalMetadataColumnId="Package\DFT Orders\DST Orders.Inputs[Input].ExternalColumns[customer_id]"
+                      lineageId="Package\DFT Orders\SRC Order lines.Outputs[Output].Columns[customer_id]" />
+                    <inputColumn
+                      refId="Package\DFT Orders\DST Orders.Inputs[Input].Columns[order_date]"
+                      cachedName="order_date"
+                      externalMetadataColumnId="Package\DFT Orders\DST Orders.Inputs[Input].ExternalColumns[order_date]"
+                      lineageId="Package\DFT Orders\SRC Order lines.Outputs[Output].Columns[order_date]" />
+                    <inputColumn
+                      refId="Package\DFT Orders\DST Orders.Inputs[Input].Columns[product_id]"
+                      cachedName="product_id"
+                      externalMetadataColumnId="Package\DFT Orders\DST Orders.Inputs[Input].ExternalColumns[product_id]"
+                      lineageId="Package\DFT Orders\SRC Order lines.Outputs[Output].Columns[product_id]" />
+                    <inputColumn
+                      refId="Package\DFT Orders\DST Orders.Inputs[Input].Columns[quantity]"
+                      cachedName="quantity"
+                      externalMetadataColumnId="Package\DFT Orders\DST Orders.Inputs[Input].ExternalColumns[quantity]"
+                      lineageId="Package\DFT Orders\SRC Order lines.Outputs[Output].Columns[quantity]" />
+                    <inputColumn
+                      refId="Package\DFT Orders\DST Orders.Inputs[Input].Columns[unit_price]"
+                      cachedName="unit_price"
+                      externalMetadataColumnId="Package\DFT Orders\DST Orders.Inputs[Input].ExternalColumns[unit_price]"
+                      lineageId="Package\DFT Orders\SRC Order lines.Outputs[Output].Columns[unit_price]" />
+                  </inputColumns>
+                </input>
+              </inputs>
+            </component>
+          </components>
+          <paths>
+            <path
+              refId="Package\DFT Orders.Paths[1]"
+              endId="Package\DFT Orders\SRT Order.Inputs[Input]"
+              name="1"
+              startId="Package\DFT Orders\SRC Order lines.Outputs[Output]" />
+            <path
+              refId="Package\DFT Orders.Paths[2]"
+              endId="Package\DFT Orders\DST Orders.Inputs[Input]"
+              name="2"
+              startId="Package\DFT Orders\SRT Order.Outputs[Output]" />
+          </paths>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+</DTS:Executable>

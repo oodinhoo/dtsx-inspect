@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<DTS:ConnectionManager xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:ObjectName="Staging"
+  DTS:DTSID="{D0000000-0000-0000-0000-000000000001}"
+  DTS:CreationName="OLEDB">
+  <DTS:ObjectData>
+    <DTS:ConnectionManager
+      DTS:ConnectionString="Data Source=sql-demo;Initial Catalog=Staging;Provider=MSOLEDBSQL;User ID=etl;Password=s3cr3t;" />
+  </DTS:ObjectData>
+</DTS:ConnectionManager>

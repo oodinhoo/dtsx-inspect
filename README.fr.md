@@ -24,6 +24,10 @@ Les secrets ne sortent pas du package : les mots de passe sont masqués partout,
 connexion sont réduites au serveur, à la base et au fournisseur, et le texte SQL n'apparaît que
 dans le panneau de détails du rapport HTML, mots de passe masqués.
 
+![Le rapport HTML sur le projet de démo : vue d'ensemble, carte du lignage, trace d'une colonne, Data Flow d'un package, constats de lint, passage en français](docs/demo.gif)
+
+*Le rapport HTML sur [`examples/demo`](examples/demo), un projet SSIS fictif.*
+
 ## Sommaire
 
 - [Compilation](#compilation)
@@ -112,6 +116,10 @@ dtsx-inspect lineage MonProjet/ --focus dbo.Clients > lignage.mmd
 dtsx-inspect --help                          # toutes les commandes
 dtsx-inspect lint --help                     # options d'une commande
 ```
+
+Pas de projet SSIS sous la main ? Lancez n'importe quelle commande sur
+[`examples/demo`](examples/demo) : un petit entrepôt de données fictif (fichier CSV, base ERP et
+Dynamics CRM → staging → entrepôt → export CSV) avec quelques anti-patterns volontaires pour le lint.
 
 Chaque commande prend un fichier `.dtsx` ou un dossier, parcouru récursivement. Les fichiers
 `.conmgr` (connexions de projet) et `.sql` (scripts de projet de base de données) trouvés à côté

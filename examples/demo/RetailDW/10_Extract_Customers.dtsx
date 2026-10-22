@@ -1,0 +1,323 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:ObjectName="10_Extract_Customers">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:ConnectionManagers>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[Customers file]"
+      DTS:CreationName="FLATFILE"
+      DTS:DTSID="{D0000000-0000-0000-0000-000000000010}"
+      DTS:ObjectName="Customers file">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:Format="Delimited"
+          DTS:ConnectionString="\\files-demo\inbound\customers.csv" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+  </DTS:ConnectionManagers>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\SQL Truncate staging"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="SQL Truncate staging">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{D0000000-0000-0000-0000-000000000001}"
+          SQLTask:SqlStatementSource="TRUNCATE TABLE stg.Customers" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\DFT Customers"
+      DTS:CreationName="Microsoft.Pipeline"
+      DTS:ExecutableType="Microsoft.Pipeline"
+      DTS:ObjectName="DFT Customers">
+      <DTS:ObjectData>
+        <pipeline
+          version="1">
+          <components>
+            <component
+              refId="Package\DFT Customers\FF Customers"
+              componentClassID="Microsoft.FlatFileSource"
+              name="FF Customers">
+              <connections>
+                <connection
+                  refId="Package\DFT Customers\FF Customers.Connections[FlatFileConnection]"
+                  connectionManagerID="{D0000000-0000-0000-0000-000000000010}"
+                  connectionManagerRefId="Package.ConnectionManagers[Customers file]"
+                  name="FlatFileConnection" />
+              </connections>
+              <outputs>
+                <output
+                  refId="Package\DFT Customers\FF Customers.Outputs[Output]"
+                  name="Output">
+                  <outputColumns>
+                    <outputColumn
+                      refId="Package\DFT Customers\FF Customers.Outputs[Output].Columns[customer_id]"
+                      dataType="wstr"
+                      externalMetadataColumnId="Package\DFT Customers\FF Customers.Outputs[Output].ExternalColumns[customer_id]"
+                      lineageId="Package\DFT Customers\FF Customers.Outputs[Output].Columns[customer_id]"
+                      name="customer_id" />
+                    <outputColumn
+                      refId="Package\DFT Customers\FF Customers.Outputs[Output].Columns[email]"
+                      dataType="wstr"
+                      externalMetadataColumnId="Package\DFT Customers\FF Customers.Outputs[Output].ExternalColumns[email]"
+                      lineageId="Package\DFT Customers\FF Customers.Outputs[Output].Columns[email]"
+                      name="email" />
+                    <outputColumn
+                      refId="Package\DFT Customers\FF Customers.Outputs[Output].Columns[country_code]"
+                      dataType="wstr"
+                      externalMetadataColumnId="Package\DFT Customers\FF Customers.Outputs[Output].ExternalColumns[country_code]"
+                      lineageId="Package\DFT Customers\FF Customers.Outputs[Output].Columns[country_code]"
+                      name="country_code" />
+                    <outputColumn
+                      refId="Package\DFT Customers\FF Customers.Outputs[Output].Columns[signup_date]"
+                      dataType="wstr"
+                      externalMetadataColumnId="Package\DFT Customers\FF Customers.Outputs[Output].ExternalColumns[signup_date]"
+                      lineageId="Package\DFT Customers\FF Customers.Outputs[Output].Columns[signup_date]"
+                      name="signup_date" />
+                  </outputColumns>
+                  <externalMetadataColumns
+                    isUsed="True">
+                    <externalMetadataColumn
+                      refId="Package\DFT Customers\FF Customers.Outputs[Output].ExternalColumns[customer_id]"
+                      dataType="wstr"
+                      name="customer_id" />
+                    <externalMetadataColumn
+                      refId="Package\DFT Customers\FF Customers.Outputs[Output].ExternalColumns[email]"
+                      dataType="wstr"
+                      name="email" />
+                    <externalMetadataColumn
+                      refId="Package\DFT Customers\FF Customers.Outputs[Output].ExternalColumns[country_code]"
+                      dataType="wstr"
+                      name="country_code" />
+                    <externalMetadataColumn
+                      refId="Package\DFT Customers\FF Customers.Outputs[Output].ExternalColumns[signup_date]"
+                      dataType="wstr"
+                      name="signup_date" />
+                  </externalMetadataColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Customers\DER Clean email"
+              componentClassID="Microsoft.DerivedColumn"
+              name="DER Clean email">
+              <inputs>
+                <input
+                  refId="Package\DFT Customers\DER Clean email.Inputs[Input]"
+                  name="Input" />
+              </inputs>
+              <outputs>
+                <output
+                  refId="Package\DFT Customers\DER Clean email.Outputs[Output]"
+                  name="Output">
+                  <outputColumns>
+                    <outputColumn
+                      refId="Package\DFT Customers\DER Clean email.Outputs[Output].Columns[email_clean]"
+                      dataType="wstr"
+                      lineageId="Package\DFT Customers\DER Clean email.Outputs[Output].Columns[email_clean]"
+                      name="email_clean">
+                      <properties>
+                        <property
+                          containsID="true"
+                          dataType="System.String"
+                          name="Expression">LOWER(TRIM(#{Package\DFT Customers\FF Customers.Outputs[Output].Columns[email]}))</property>
+                        <property
+                          containsID="true"
+                          dataType="System.String"
+                          name="FriendlyExpression">LOWER(TRIM(email))</property>
+                      </properties>
+                    </outputColumn>
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Customers\DCV Types"
+              componentClassID="Microsoft.DataConvert"
+              name="DCV Types">
+              <inputs>
+                <input
+                  refId="Package\DFT Customers\DCV Types.Inputs[Input]"
+                  name="Input">
+                  <inputColumns>
+                    <inputColumn
+                      refId="Package\DFT Customers\DCV Types.Inputs[Input].Columns[customer_id]"
+                      cachedName="customer_id"
+                      lineageId="Package\DFT Customers\FF Customers.Outputs[Output].Columns[customer_id]" />
+                    <inputColumn
+                      refId="Package\DFT Customers\DCV Types.Inputs[Input].Columns[signup_date]"
+                      cachedName="signup_date"
+                      lineageId="Package\DFT Customers\FF Customers.Outputs[Output].Columns[signup_date]" />
+                  </inputColumns>
+                </input>
+              </inputs>
+              <outputs>
+                <output
+                  refId="Package\DFT Customers\DCV Types.Outputs[Output]"
+                  name="Output">
+                  <outputColumns>
+                    <outputColumn
+                      refId="Package\DFT Customers\DCV Types.Outputs[Output].Columns[customer_key]"
+                      dataType="i4"
+                      lineageId="Package\DFT Customers\DCV Types.Outputs[Output].Columns[customer_key]"
+                      name="customer_key">
+                      <properties>
+                        <property
+                          containsID="true"
+                          dataType="System.Int32"
+                          name="SourceInputColumnLineageID">#{Package\DFT Customers\FF Customers.Outputs[Output].Columns[customer_id]}</property>
+                      </properties>
+                    </outputColumn>
+                    <outputColumn
+                      refId="Package\DFT Customers\DCV Types.Outputs[Output].Columns[signup_dt]"
+                      dataType="dbDate"
+                      lineageId="Package\DFT Customers\DCV Types.Outputs[Output].Columns[signup_dt]"
+                      name="signup_dt">
+                      <properties>
+                        <property
+                          containsID="true"
+                          dataType="System.Int32"
+                          name="SourceInputColumnLineageID">#{Package\DFT Customers\FF Customers.Outputs[Output].Columns[signup_date]}</property>
+                      </properties>
+                    </outputColumn>
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Customers\LKP Country"
+              componentClassID="Microsoft.Lookup"
+              name="LKP Country">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="SqlCommand">SELECT code, name FROM ref.Country</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Customers\LKP Country.Connections[OleDbConnection]"
+                  connectionManagerID="{D0000000-0000-0000-0000-000000000001}:external"
+                  connectionManagerRefId="Project.ConnectionManagers[Staging]"
+                  name="OleDbConnection" />
+              </connections>
+              <inputs>
+                <input
+                  refId="Package\DFT Customers\LKP Country.Inputs[Input]"
+                  name="Input">
+                  <inputColumns>
+                    <inputColumn
+                      refId="Package\DFT Customers\LKP Country.Inputs[Input].Columns[country_code]"
+                      cachedName="country_code"
+                      lineageId="Package\DFT Customers\FF Customers.Outputs[Output].Columns[country_code]">
+                      <properties>
+                        <property
+                          dataType="System.String"
+                          name="JoinToReferenceColumn">code</property>
+                      </properties>
+                    </inputColumn>
+                  </inputColumns>
+                </input>
+              </inputs>
+              <outputs>
+                <output
+                  refId="Package\DFT Customers\LKP Country.Outputs[Match]"
+                  name="Match">
+                  <outputColumns>
+                    <outputColumn
+                      refId="Package\DFT Customers\LKP Country.Outputs[Match].Columns[country_name]"
+                      dataType="wstr"
+                      lineageId="Package\DFT Customers\LKP Country.Outputs[Match].Columns[country_name]"
+                      name="country_name">
+                      <properties>
+                        <property
+                          dataType="System.String"
+                          name="CopyFromReferenceColumn">name</property>
+                      </properties>
+                    </outputColumn>
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Customers\DST Customers"
+              componentClassID="Microsoft.OLEDBDestination"
+              name="DST Customers">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="OpenRowset">[stg].[Customers]</property>
+                <property
+                  dataType="System.Int32"
+                  name="AccessMode"
+                  typeConverter="AccessMode">3</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Customers\DST Customers.Connections[OleDbConnection]"
+                  connectionManagerID="{D0000000-0000-0000-0000-000000000001}:external"
+                  connectionManagerRefId="Project.ConnectionManagers[Staging]"
+                  name="OleDbConnection" />
+              </connections>
+              <inputs>
+                <input
+                  refId="Package\DFT Customers\DST Customers.Inputs[Input]"
+                  name="Input">
+                  <inputColumns>
+                    <inputColumn
+                      refId="Package\DFT Customers\DST Customers.Inputs[Input].Columns[customer_key]"
+                      cachedName="customer_key"
+                      externalMetadataColumnId="Package\DFT Customers\DST Customers.Inputs[Input].ExternalColumns[customer_id]"
+                      lineageId="Package\DFT Customers\DCV Types.Outputs[Output].Columns[customer_key]" />
+                    <inputColumn
+                      refId="Package\DFT Customers\DST Customers.Inputs[Input].Columns[email_clean]"
+                      cachedName="email_clean"
+                      externalMetadataColumnId="Package\DFT Customers\DST Customers.Inputs[Input].ExternalColumns[email]"
+                      lineageId="Package\DFT Customers\DER Clean email.Outputs[Output].Columns[email_clean]" />
+                    <inputColumn
+                      refId="Package\DFT Customers\DST Customers.Inputs[Input].Columns[country_name]"
+                      cachedName="country_name"
+                      externalMetadataColumnId="Package\DFT Customers\DST Customers.Inputs[Input].ExternalColumns[country]"
+                      lineageId="Package\DFT Customers\LKP Country.Outputs[Match].Columns[country_name]" />
+                    <inputColumn
+                      refId="Package\DFT Customers\DST Customers.Inputs[Input].Columns[signup_dt]"
+                      cachedName="signup_dt"
+                      externalMetadataColumnId="Package\DFT Customers\DST Customers.Inputs[Input].ExternalColumns[signup_date]"
+                      lineageId="Package\DFT Customers\DCV Types.Outputs[Output].Columns[signup_dt]" />
+                  </inputColumns>
+                </input>
+              </inputs>
+            </component>
+          </components>
+          <paths>
+            <path
+              refId="Package\DFT Customers.Paths[1]"
+              endId="Package\DFT Customers\DER Clean email.Inputs[Input]"
+              name="1"
+              startId="Package\DFT Customers\FF Customers.Outputs[Output]" />
+            <path
+              refId="Package\DFT Customers.Paths[2]"
+              endId="Package\DFT Customers\DCV Types.Inputs[Input]"
+              name="2"
+              startId="Package\DFT Customers\DER Clean email.Outputs[Output]" />
+            <path
+              refId="Package\DFT Customers.Paths[3]"
+              endId="Package\DFT Customers\LKP Country.Inputs[Input]"
+              name="3"
+              startId="Package\DFT Customers\DCV Types.Outputs[Output]" />
+            <path
+              refId="Package\DFT Customers.Paths[4]"
+              endId="Package\DFT Customers\DST Customers.Inputs[Input]"
+              name="4"
+              startId="Package\DFT Customers\LKP Country.Outputs[Match]" />
+          </paths>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+</DTS:Executable>

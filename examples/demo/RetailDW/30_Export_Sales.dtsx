@@ -1,0 +1,129 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:ObjectName="30_Export_Sales">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:ConnectionManagers>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[Sales report]"
+      DTS:CreationName="FLATFILE"
+      DTS:DTSID="{D0000000-0000-0000-0000-000000000011}"
+      DTS:ObjectName="Sales report">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:Format="Delimited"
+          DTS:ConnectionString="\\files-demo\outbound\sales_by_country.csv" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+  </DTS:ConnectionManagers>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\DFT Sales by country"
+      DTS:CreationName="Microsoft.Pipeline"
+      DTS:ExecutableType="Microsoft.Pipeline"
+      DTS:ObjectName="DFT Sales by country">
+      <DTS:ObjectData>
+        <pipeline
+          version="1">
+          <components>
+            <component
+              refId="Package\DFT Sales by country\SRC Sales"
+              componentClassID="Microsoft.OLEDBSource"
+              name="SRC Sales">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="SqlCommand">SELECT d.country, SUM(f.quantity * f.unit_price) AS revenue
+FROM dw.FactSales AS f
+JOIN dw.DimCustomer AS d ON d.customer_id = f.customer_id
+GROUP BY d.country</property>
+                <property
+                  dataType="System.Int32"
+                  name="AccessMode"
+                  typeConverter="AccessMode">2</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Sales by country\SRC Sales.Connections[OleDbConnection]"
+                  connectionManagerID="{D0000000-0000-0000-0000-000000000002}:external"
+                  connectionManagerRefId="Project.ConnectionManagers[Warehouse]"
+                  name="OleDbConnection" />
+              </connections>
+              <outputs>
+                <output
+                  refId="Package\DFT Sales by country\SRC Sales.Outputs[Output]"
+                  name="Output">
+                  <outputColumns>
+                    <outputColumn
+                      refId="Package\DFT Sales by country\SRC Sales.Outputs[Output].Columns[country]"
+                      dataType="wstr"
+                      externalMetadataColumnId="Package\DFT Sales by country\SRC Sales.Outputs[Output].ExternalColumns[country]"
+                      lineageId="Package\DFT Sales by country\SRC Sales.Outputs[Output].Columns[country]"
+                      name="country" />
+                    <outputColumn
+                      refId="Package\DFT Sales by country\SRC Sales.Outputs[Output].Columns[revenue]"
+                      dataType="numeric"
+                      externalMetadataColumnId="Package\DFT Sales by country\SRC Sales.Outputs[Output].ExternalColumns[revenue]"
+                      lineageId="Package\DFT Sales by country\SRC Sales.Outputs[Output].Columns[revenue]"
+                      name="revenue" />
+                  </outputColumns>
+                  <externalMetadataColumns
+                    isUsed="True">
+                    <externalMetadataColumn
+                      refId="Package\DFT Sales by country\SRC Sales.Outputs[Output].ExternalColumns[country]"
+                      dataType="wstr"
+                      name="country" />
+                    <externalMetadataColumn
+                      refId="Package\DFT Sales by country\SRC Sales.Outputs[Output].ExternalColumns[revenue]"
+                      dataType="numeric"
+                      name="revenue" />
+                  </externalMetadataColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Sales by country\FFD Sales report"
+              componentClassID="Microsoft.FlatFileDestination"
+              name="FFD Sales report">
+              <connections>
+                <connection
+                  refId="Package\DFT Sales by country\FFD Sales report.Connections[FlatFileConnection]"
+                  connectionManagerID="{D0000000-0000-0000-0000-000000000011}"
+                  connectionManagerRefId="Package.ConnectionManagers[Sales report]"
+                  name="FlatFileConnection" />
+              </connections>
+              <inputs>
+                <input
+                  refId="Package\DFT Sales by country\FFD Sales report.Inputs[Input]"
+                  name="Input">
+                  <inputColumns>
+                    <inputColumn
+                      refId="Package\DFT Sales by country\FFD Sales report.Inputs[Input].Columns[country]"
+                      cachedName="country"
+                      externalMetadataColumnId="Package\DFT Sales by country\FFD Sales report.Inputs[Input].ExternalColumns[country]"
+                      lineageId="Package\DFT Sales by country\SRC Sales.Outputs[Output].Columns[country]" />
+                    <inputColumn
+                      refId="Package\DFT Sales by country\FFD Sales report.Inputs[Input].Columns[revenue]"
+                      cachedName="revenue"
+                      externalMetadataColumnId="Package\DFT Sales by country\FFD Sales report.Inputs[Input].ExternalColumns[revenue]"
+                      lineageId="Package\DFT Sales by country\SRC Sales.Outputs[Output].Columns[revenue]" />
+                  </inputColumns>
+                </input>
+              </inputs>
+            </component>
+          </components>
+          <paths>
+            <path
+              refId="Package\DFT Sales by country.Paths[1]"
+              endId="Package\DFT Sales by country\FFD Sales report.Inputs[Input]"
+              name="1"
+              startId="Package\DFT Sales by country\SRC Sales.Outputs[Output]" />
+          </paths>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+</DTS:Executable>

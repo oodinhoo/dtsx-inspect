@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<DTS:ConnectionManager xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:ObjectName="Sales"
+  DTS:DTSID="{D0000000-0000-0000-0000-000000000003}"
+  DTS:CreationName="OLEDB">
+  <DTS:ObjectData>
+    <DTS:ConnectionManager
+      DTS:ConnectionString="Data Source=erp-demo;Initial Catalog=Sales;Provider=SQLNCLI11.1;User ID=reader;Password=s3cr3t;" />
+  </DTS:ObjectData>
+</DTS:ConnectionManager>

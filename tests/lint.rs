@@ -26,6 +26,22 @@ fn assert_contains(found: &[String], expected: &[&str]) {
     }
 }
 
+/// The demo project of the README stays readable and keeps its deliberate anti-patterns.
+#[test]
+fn demo_project_shows_its_findings() {
+    assert_contains(
+        &findings("../../examples/demo"),
+        &[
+            "obsolete-provider|RetailDW|connection Sales",
+            "no-fast-load|RetailDW/11_Extract_Orders.dtsx|DFT Orders\\DST Orders",
+            "sort-in-data-flow|RetailDW/11_Extract_Orders.dtsx|DFT Orders\\SRT Order",
+            "default-name|RetailDW/12_Extract_Accounts.dtsx|DFT Accounts\\OLE DB Destination",
+            "insert-select-star|RetailDW/20_Load_Warehouse.dtsx|SQL Load FactSales",
+            "disabled-task|RetailDW/20_Load_Warehouse.dtsx|SQL Rebuild indexes",
+        ],
+    );
+}
+
 #[test]
 fn flags_obsolete_provider_dead_reference_and_disabled_task() {
     assert_contains(

@@ -1,0 +1,71 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:ObjectName="00_Master">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\EPT Extract customers"
+      DTS:CreationName="Microsoft.ExecutePackageTask"
+      DTS:ExecutableType="Microsoft.ExecutePackageTask"
+      DTS:ObjectName="EPT Extract customers">
+      <DTS:ObjectData>
+        <ExecutePackageTask>
+          <UseProjectReference>True</UseProjectReference>
+          <PackageName>10_Extract_Customers.dtsx</PackageName>
+        </ExecutePackageTask>
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\EPT Extract orders"
+      DTS:CreationName="Microsoft.ExecutePackageTask"
+      DTS:ExecutableType="Microsoft.ExecutePackageTask"
+      DTS:ObjectName="EPT Extract orders">
+      <DTS:ObjectData>
+        <ExecutePackageTask>
+          <UseProjectReference>True</UseProjectReference>
+          <PackageName>11_Extract_Orders.dtsx</PackageName>
+        </ExecutePackageTask>
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\EPT Extract accounts"
+      DTS:CreationName="Microsoft.ExecutePackageTask"
+      DTS:ExecutableType="Microsoft.ExecutePackageTask"
+      DTS:ObjectName="EPT Extract accounts">
+      <DTS:ObjectData>
+        <ExecutePackageTask>
+          <UseProjectReference>True</UseProjectReference>
+          <PackageName>12_Extract_Accounts.dtsx</PackageName>
+        </ExecutePackageTask>
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\EPT Load warehouse"
+      DTS:CreationName="Microsoft.ExecutePackageTask"
+      DTS:ExecutableType="Microsoft.ExecutePackageTask"
+      DTS:ObjectName="EPT Load warehouse">
+      <DTS:ObjectData>
+        <ExecutePackageTask>
+          <UseProjectReference>True</UseProjectReference>
+          <PackageName>20_Load_Warehouse.dtsx</PackageName>
+        </ExecutePackageTask>
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\EPT Export sales"
+      DTS:CreationName="Microsoft.ExecutePackageTask"
+      DTS:ExecutableType="Microsoft.ExecutePackageTask"
+      DTS:ObjectName="EPT Export sales">
+      <DTS:ObjectData>
+        <ExecutePackageTask>
+          <UseProjectReference>True</UseProjectReference>
+          <PackageName>30_Export_Sales.dtsx</PackageName>
+        </ExecutePackageTask>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+</DTS:Executable>

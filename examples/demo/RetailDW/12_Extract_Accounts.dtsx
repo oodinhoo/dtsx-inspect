@@ -1,0 +1,85 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:ObjectName="12_Extract_Accounts">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\DFT Accounts"
+      DTS:CreationName="Microsoft.Pipeline"
+      DTS:ExecutableType="Microsoft.Pipeline"
+      DTS:ObjectName="DFT Accounts">
+      <DTS:ObjectData>
+        <pipeline
+          version="1">
+          <components>
+            <component
+              refId="Package\DFT Accounts\CRM Accounts"
+              componentClassID="Microsoft.ManagedComponentHost"
+              name="CRM Accounts">
+              <properties>
+                <property
+                  dataType="System.Int32"
+                  name="SourceType">1</property>
+                <property
+                  dataType="System.String"
+                  name="FetchXML">&lt;fetch mapping="logical" version="1.0"&gt;&#xA;  &lt;entity name="account"&gt;&#xA;    &lt;attribute name="accountid" /&gt;&#xA;    &lt;attribute name="name" /&gt;&#xA;    &lt;link-entity name="contact" from="contactid" to="primarycontactid" /&gt;&#xA;  &lt;/entity&gt;&#xA;&lt;/fetch&gt;</property>
+                <property
+                  dataType="System.String"
+                  name="UserComponentTypeName">KingswaySoft.IntegrationToolkit.DynamicsCrm.CrmSourceComponent, KingswaySoft.IntegrationToolkit.DynamicsCrm, Version=1.0.0.0, Culture=neutral, PublicKeyToken=0000000000000000</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Accounts\CRM Accounts.Connections[CrmConnection]"
+                  connectionManagerID="{D0000000-0000-0000-0000-000000000004}:external"
+                  connectionManagerRefId="Project.ConnectionManagers[CRM]"
+                  name="CrmConnection" />
+              </connections>
+              <outputs>
+                <output
+                  refId="Package\DFT Accounts\CRM Accounts.Outputs[Output]"
+                  name="Output" />
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Accounts\OLE DB Destination"
+              componentClassID="Microsoft.OLEDBDestination"
+              name="OLE DB Destination">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="OpenRowset">[stg].[Accounts]</property>
+                <property
+                  dataType="System.Int32"
+                  name="AccessMode"
+                  typeConverter="AccessMode">3</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Accounts\OLE DB Destination.Connections[OleDbConnection]"
+                  connectionManagerID="{D0000000-0000-0000-0000-000000000001}:external"
+                  connectionManagerRefId="Project.ConnectionManagers[Staging]"
+                  name="OleDbConnection" />
+              </connections>
+              <inputs>
+                <input
+                  refId="Package\DFT Accounts\OLE DB Destination.Inputs[Input]"
+                  name="Input" />
+              </inputs>
+            </component>
+          </components>
+          <paths>
+            <path
+              refId="Package\DFT Accounts.Paths[1]"
+              endId="Package\DFT Accounts\OLE DB Destination.Inputs[Input]"
+              name="1"
+              startId="Package\DFT Accounts\CRM Accounts.Outputs[Output]" />
+          </paths>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+</DTS:Executable>
