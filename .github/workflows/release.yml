@@ -1,0 +1,45 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # create the release
+  id-token: write # sign the provenance attestation
+  attestations: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # A tag that does not match Cargo.toml would publish an exe with a wrong --version.
+      - name: Check the tag matches Cargo.toml
+        shell: pwsh
+        run: |
+          $version = (cargo metadata --no-deps --format-version 1 | ConvertFrom-Json).packages[0].version
+          if ("v$version" -ne "${{ github.ref_name }}") { throw "Tag ${{ github.ref_name }} but Cargo.toml says $version" }
+      - run: cargo test --locked
+      - run: cargo build --release --locked
+      - name: Package
+        id: package
+        shell: pwsh
+        run: |
+          $zip = "dtsx-inspect-${{ github.ref_name }}-windows-x64.zip"
+          Compress-Archive -Path target/release/dtsx-inspect.exe, LICENSE-MIT, LICENSE-APACHE, README.md -DestinationPath $zip
+          "$((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower())  $zip" | Out-File -Encoding ascii "$zip.sha256"
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+      # Lets anyone check the exe was built here, from this tag: gh attestation verify.
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            target/release/dtsx-inspect.exe
+            ${{ steps.package.outputs.zip }}
+      - name: Publish the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $zip = "${{ steps.package.outputs.zip }}"
+          gh release create "${{ github.ref_name }}" $zip "$zip.sha256" --title "${{ github.ref_name }}" --generate-notes

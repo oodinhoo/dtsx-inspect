@@ -29,6 +29,7 @@ with passwords masked.
 
 ## Contents
 
+- [Download](#download)
 - [Build](#build)
 - [Quick start](#quick-start)
 - [Commands](#commands)
@@ -38,6 +39,22 @@ with passwords masked.
 - [What is supported](#what-is-supported)
 - [Development](#development)
 - [License](#license)
+
+## Download
+
+On Windows, download `dtsx-inspect-vX.Y.Z-windows-x64.zip` from the
+[latest release](https://github.com/oodinhoo/dtsx-inspect/releases/latest), unzip it and
+double-click `dtsx-inspect.exe` (see [Quick start](#quick-start)). Nothing else to install.
+
+The executable is not code-signed: on first launch, Windows SmartScreen shows "Windows protected
+your PC". Click **More info**, then **Run anyway**. To check that the file was built by GitHub
+Actions from this repository, with the [GitHub CLI](https://cli.github.com/):
+
+```sh
+gh attestation verify dtsx-inspect.exe -R oodinhoo/dtsx-inspect
+```
+
+On Linux and macOS, build it from source (below).
 
 ## Build
 

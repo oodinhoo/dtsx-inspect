@@ -30,6 +30,7 @@ dans le panneau de détails du rapport HTML, mots de passe masqués.
 
 ## Sommaire
 
+- [Téléchargement](#téléchargement)
 - [Compilation](#compilation)
 - [Démarrage rapide](#démarrage-rapide)
 - [Commandes](#commandes)
@@ -39,6 +40,24 @@ dans le panneau de détails du rapport HTML, mots de passe masqués.
 - [Ce qui est pris en charge](#ce-qui-est-pris-en-charge)
 - [Développement](#développement)
 - [Licence](#licence)
+
+## Téléchargement
+
+Sous Windows, téléchargez `dtsx-inspect-vX.Y.Z-windows-x64.zip` depuis la
+[dernière release](https://github.com/oodinhoo/dtsx-inspect/releases/latest), décompressez-le et
+double-cliquez sur `dtsx-inspect.exe` (voir [Démarrage rapide](#démarrage-rapide)). Rien d'autre à
+installer.
+
+L'exécutable n'est pas signé : au premier lancement, Windows SmartScreen affiche « Windows a protégé
+votre ordinateur ». Cliquez sur **Informations complémentaires**, puis **Exécuter quand même**. Pour
+vérifier que le fichier a été construit par GitHub Actions depuis ce dépôt, avec la
+[CLI GitHub](https://cli.github.com/) :
+
+```sh
+gh attestation verify dtsx-inspect.exe -R oodinhoo/dtsx-inspect
+```
+
+Sous Linux et macOS, compilez-le depuis les sources (ci-dessous).
 
 ## Compilation
 
