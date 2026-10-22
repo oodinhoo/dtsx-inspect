@@ -57,7 +57,7 @@ cargo --version
 ### Compiler
 
 ```sh
-git clone <url-du-dépôt>
+git clone https://github.com/oodinhoo/dtsx-inspect
 cd dtsx-inspect
 
 cargo build --release
@@ -225,7 +225,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: cargo install --git <url-du-dépôt> --locked
+      - run: cargo install --git https://github.com/oodinhoo/dtsx-inspect --locked
       - run: dtsx-inspect lint ./ssis
 ```
 
