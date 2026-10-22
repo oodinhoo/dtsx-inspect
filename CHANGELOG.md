@@ -6,6 +6,8 @@ Notable changes of each version. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-22
+
 ### Added
 
 - `report <path> [--out file.html]`: writes the standalone HTML report to a file, to share it or
@@ -41,5 +43,6 @@ First public release.
   except the graph.
 - The Windows executable is not code-signed: Windows SmartScreen warns on first launch.
 
-[Unreleased]: https://github.com/oodinhoo/dtsx-inspect/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/oodinhoo/dtsx-inspect/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/oodinhoo/dtsx-inspect/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/oodinhoo/dtsx-inspect/releases/tag/v0.1.0
