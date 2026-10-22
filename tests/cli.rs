@@ -221,6 +221,83 @@ fn diff_fails_only_when_the_lineage_regresses() {
 }
 
 #[test]
+fn report_writes_the_html_report_to_a_file() {
+    let file = std::env::temp_dir().join("dtsx-inspect-report-test.html");
+    let file_arg = file.to_str().expect("UTF-8 path");
+
+    let out = run(&["report", "examples/demo", "--out", file_arg]);
+
+    assert!(out.status.success(), "{}", stderr(&out));
+    let page = std::fs::read_to_string(&file).expect("report written");
+    std::fs::remove_file(&file).expect("cleanup");
+    assert!(page.contains("10_Extract_Customers"), "package missing");
+    assert!(!page.contains("s3cr3t"), "secret leak");
+    assert!(stdout(&out).is_empty(), "{}", stdout(&out));
+}
+
+/// Marker planted in `tests/fixtures/canary` in every form a package or a script can hold
+/// a secret: connection strings, parameters, variables, expressions, SQL, UTF-16 script.
+const CANARY: &str = "CANARY_";
+const CANARY_DIR: &str = "tests/fixtures/canary";
+
+#[test]
+fn no_output_contains_the_canary_secret() {
+    let html = std::env::temp_dir().join("dtsx-inspect-canary.html");
+    let csv = std::env::temp_dir().join("dtsx-inspect-canary.csv");
+    let (html_arg, csv_arg) = (html.to_str().expect("UTF-8"), csv.to_str().expect("UTF-8"));
+    let runs: [&[&str]; 11] = [
+        &["inventory", CANARY_DIR],
+        &["inventory", CANARY_DIR, "--format", "json"],
+        &["lineage", CANARY_DIR],
+        &["lint", CANARY_DIR],
+        &["calls", CANARY_DIR],
+        &["columns", CANARY_DIR, "--of", "dbo.Target"],
+        &["mapping", CANARY_DIR],
+        &["mapping", CANARY_DIR, "--out", csv_arg],
+        &["order", CANARY_DIR],
+        &["diff", CANARY_DIR, CANARY_DIR],
+        &["report", CANARY_DIR, "--out", html_arg],
+    ];
+
+    for args in runs {
+        let out = run(args);
+        assert!(!stdout(&out).contains(CANARY), "leak on stdout: {args:?}");
+        assert!(!stderr(&out).contains(CANARY), "leak on stderr: {args:?}");
+        // Lint exits with 1 on errors: the leak check matters, not the verdict.
+        if args[0] != "lint" {
+            assert!(out.status.success(), "{args:?}: {}", stderr(&out));
+        }
+    }
+    for file in [&html, &csv] {
+        let text = std::fs::read_to_string(file).expect("file written");
+        std::fs::remove_file(file).expect("cleanup");
+        assert!(!text.contains(CANARY), "leak in {}", file.display());
+        assert!(
+            text.contains("Vault_Load"),
+            "package missing from {}",
+            file.display()
+        );
+    }
+}
+
+/// The canary test only proves something while the marker is really in the fixtures.
+#[test]
+fn canary_fixtures_hold_the_marker_in_every_form() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(CANARY_DIR);
+    let package = std::fs::read_to_string(dir.join("Vault_Load.dtsx")).expect("package");
+    let script = std::fs::read(dir.join("Rotate.sql")).expect("script");
+    let (pairs, _) = script[2..].as_chunks::<2>();
+    let utf16: Vec<u16> = pairs.iter().map(|&p| u16::from_le_bytes(p)).collect();
+
+    assert_eq!(package.matches(CANARY).count(), 12, "{package}");
+    assert!(script.starts_with(&[0xFF, 0xFE]), "UTF-16 LE with BOM");
+    assert!(String::from_utf16_lossy(&utf16).contains("CANARY_utf16"));
+    assert!(std::fs::read_to_string(dir.join("Vault.conmgr"))
+        .expect("conmgr")
+        .contains("CANARY_conmgr"));
+}
+
+#[test]
 fn mapping_writes_the_csv_to_a_file_or_the_console() {
     let file = std::env::temp_dir().join("dtsx-inspect-mapping-test.csv");
     let file_arg = file.to_str().expect("UTF-8 path");

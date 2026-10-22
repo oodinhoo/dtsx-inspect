@@ -1,0 +1,233 @@
+<?xml version="1.0"?>
+<!-- Every value starting with the canary marker is a secret: no output may show it (tests/cli.rs). -->
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:ObjectName="Vault_Load">
+  <DTS:Property
+    DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:ConnectionManagers>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[Archive]"
+      DTS:CreationName="OLEDB"
+      DTS:DTSID="{CA000000-0000-0000-0000-000000000002}"
+      DTS:ObjectName="Archive">
+      <DTS:PropertyExpressions>
+        <DTS:PropertyExpression
+          DTS:Name="ConnectionString">"Data Source=srv-canary;Initial Catalog=Archive;Password=CANARY_cm_expression;"</DTS:PropertyExpression>
+      </DTS:PropertyExpressions>
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:ConnectionString="Data Source=srv-canary;Initial Catalog=Archive;Provider=SQLNCLI11.1;UID=etl;PWD=CANARY_pwd;" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[CRM]"
+      DTS:CreationName="DynamicsCRM"
+      DTS:DTSID="{CA000000-0000-0000-0000-000000000003}"
+      DTS:ObjectName="CRM">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:ConnectionString="ServerType=Online;OrganizationService=https://canary.crm.example;UserName=svc;Password='CANARY_quoted;Server=x';ClientSecret=CANARY_clientsecret;" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+  </DTS:ConnectionManagers>
+  <DTS:PackageParameters>
+    <DTS:PackageParameter
+      DTS:CreationName=""
+      DTS:DataType="8"
+      DTS:DTSID="{CA000000-0000-0000-0000-000000000004}"
+      DTS:ObjectName="Target_connection">
+      <DTS:Property
+        DTS:DataType="8"
+        DTS:Name="ParameterValue">Data Source=srv-canary;Initial Catalog=Vault;Password=CANARY_parameter;</DTS:Property>
+    </DTS:PackageParameter>
+    <DTS:PackageParameter
+      DTS:CreationName=""
+      DTS:DataType="8"
+      DTS:DTSID="{CA000000-0000-0000-0000-000000000005}"
+      DTS:ObjectName="Api_key"
+      DTS:Sensitive="True">
+      <DTS:Property
+        DTS:DataType="8"
+        DTS:Name="ParameterValue">CANARY_sensitive</DTS:Property>
+    </DTS:PackageParameter>
+  </DTS:PackageParameters>
+  <DTS:Variables>
+    <DTS:Variable
+      DTS:CreationName=""
+      DTS:DTSID="{CA000000-0000-0000-0000-000000000006}"
+      DTS:Namespace="User"
+      DTS:ObjectName="DbPassword">
+      <DTS:VariableValue
+        DTS:DataType="8">CANARY_variable</DTS:VariableValue>
+    </DTS:Variable>
+    <DTS:Variable
+      DTS:CreationName=""
+      DTS:DTSID="{CA000000-0000-0000-0000-000000000007}"
+      DTS:Namespace="User"
+      DTS:ObjectName="Remote_query">
+      <DTS:VariableValue
+        DTS:DataType="8">INSERT INTO dbo.Target (id) SELECT r.id FROM OPENROWSET('SQLNCLI', 'Server=remote;Uid=u;Pwd=CANARY_variable_sql;', 'SELECT 1 AS id') AS r</DTS:VariableValue>
+    </DTS:Variable>
+  </DTS:Variables>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\SQL Create login"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="SQL Create login">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{CA000000-0000-0000-0000-000000000001}"
+          SQLTask:SqlStatementSource="CREATE LOGIN etl_reader WITH PASSWORD = N'CANARY_login'" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\SQL Remote copy"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="SQL Remote copy">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{CA000000-0000-0000-0000-000000000001}"
+          SQLTask:SqlStatementSource="INSERT INTO dbo.Target (id)&#xA;SELECT r.id FROM OPENROWSET('SQLNCLI', 'Server=remote;Uid=u;Pwd=CANARY_openrowset;', 'SELECT 1 AS id') AS r" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\SQL Built query"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="SQL Built query">
+      <DTS:PropertyExpressions>
+        <DTS:PropertyExpression
+          DTS:Name="SqlStatementSource">"INSERT INTO dbo.Target (id) SELECT r.id FROM OPENROWSET('SQLNCLI', 'Server=" + @[$Package::Target_connection] + ";Pwd=CANARY_expression;', 'SELECT 1 AS id') AS r"</DTS:PropertyExpression>
+      </DTS:PropertyExpressions>
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{CA000000-0000-0000-0000-000000000001}"
+          SQLTask:SqlStatementSource="INSERT INTO dbo.Target (id) SELECT 1" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\SQL From variable"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="SQL From variable">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{CA000000-0000-0000-0000-000000000001}"
+          SQLTask:SqlStatementSourceType="Variable"
+          SQLTask:SqlStatementSource="User::Remote_query" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\SQL Rotate"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="SQL Rotate">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{CA000000-0000-0000-0000-000000000001}"
+          SQLTask:SqlStatementSource="EXEC dbo.Rotate" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\DFT Remote"
+      DTS:CreationName="Microsoft.Pipeline"
+      DTS:ExecutableType="Microsoft.Pipeline"
+      DTS:ObjectName="DFT Remote">
+      <DTS:ObjectData>
+        <pipeline
+          version="1">
+          <components>
+            <component
+              refId="Package\DFT Remote\SRC Remote"
+              componentClassID="Microsoft.OLEDBSource"
+              name="SRC Remote">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="SqlCommand">SELECT r.id FROM OPENROWSET('SQLNCLI', 'Server=remote;Pwd=CANARY_dataflow;', 'SELECT 1 AS id') AS r</property>
+                <property
+                  dataType="System.Int32"
+                  name="AccessMode"
+                  typeConverter="AccessMode">2</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Remote\SRC Remote.Connections[OleDbConnection]"
+                  connectionManagerID="{CA000000-0000-0000-0000-000000000001}:external"
+                  connectionManagerRefId="Project.ConnectionManagers[Vault]"
+                  name="OleDbConnection" />
+              </connections>
+              <outputs>
+                <output
+                  refId="Package\DFT Remote\SRC Remote.Outputs[Output]"
+                  name="Output">
+                  <outputColumns>
+                    <outputColumn
+                      refId="Package\DFT Remote\SRC Remote.Outputs[Output].Columns[id]"
+                      dataType="i4"
+                      externalMetadataColumnId="Package\DFT Remote\SRC Remote.Outputs[Output].ExternalColumns[id]"
+                      lineageId="Package\DFT Remote\SRC Remote.Outputs[Output].Columns[id]"
+                      name="id" />
+                  </outputColumns>
+                  <externalMetadataColumns
+                    isUsed="True">
+                    <externalMetadataColumn
+                      refId="Package\DFT Remote\SRC Remote.Outputs[Output].ExternalColumns[id]"
+                      dataType="i4"
+                      name="id" />
+                  </externalMetadataColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\DFT Remote\DST Target"
+              componentClassID="Microsoft.OLEDBDestination"
+              name="DST Target">
+              <properties>
+                <property
+                  dataType="System.String"
+                  name="OpenRowset">[dbo].[Target]</property>
+                <property
+                  dataType="System.Int32"
+                  name="AccessMode"
+                  typeConverter="AccessMode">3</property>
+              </properties>
+              <connections>
+                <connection
+                  refId="Package\DFT Remote\DST Target.Connections[OleDbConnection]"
+                  connectionManagerID="{CA000000-0000-0000-0000-000000000001}:external"
+                  connectionManagerRefId="Project.ConnectionManagers[Vault]"
+                  name="OleDbConnection" />
+              </connections>
+              <inputs>
+                <input
+                  refId="Package\DFT Remote\DST Target.Inputs[Input]"
+                  name="Input">
+                  <inputColumns>
+                    <inputColumn
+                      refId="Package\DFT Remote\DST Target.Inputs[Input].Columns[id]"
+                      cachedName="id"
+                      externalMetadataColumnId="Package\DFT Remote\DST Target.Inputs[Input].ExternalColumns[id]"
+                      lineageId="Package\DFT Remote\SRC Remote.Outputs[Output].Columns[id]" />
+                  </inputColumns>
+                </input>
+              </inputs>
+            </component>
+          </components>
+          <paths>
+            <path
+              refId="Package\DFT Remote.Paths[1]"
+              endId="Package\DFT Remote\DST Target.Inputs[Input]"
+              name="1"
+              startId="Package\DFT Remote\SRC Remote.Outputs[Output]" />
+          </paths>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+</DTS:Executable>

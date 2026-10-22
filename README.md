@@ -153,6 +153,7 @@ Visual Studio build copies (`obj/`, `bin/`) are skipped when the sources are pre
 | `calls <path>` | Mermaid graph of the Execute Package tasks and the packages they run |
 | `order <path>` | Markdown execution order: waves of packages, cycles, shared tables set aside, sources to load first |
 | `diff <before> <after>` | Markdown comparison of the column lineage of two folders, servers aside |
+| `report <path> [--out file.html]` | Standalone HTML report written to a file (to share it or publish it from a CI); without `--out`, it opens in the browser |
 
 Searches (`--focus`, `--of`) are case-insensitive and match part of the name: `--of email`
 finds every column whose full name contains `email`.
@@ -318,7 +319,8 @@ The HTML report explains each rule (why it matters, how to fix it) in its **Qual
 - Stored procedures and views defined in `.sql` scripts (UTF-8, UTF-8 with BOM, UTF-16) are
   expanded in the lineage.
 
-Known limits: queries read from files are not traced, derived tables (`FROM (SELECT …) x`) end
+Known limits: queries read from files and KingswaySoft Dynamics destinations are not traced,
+derived tables (`FROM (SELECT …) x`) end
 the column lineage, and `MERGE` / `UPDATE` are traced at table level only. The `incomplete-lineage`
 rule lists every step the lineage could not follow.
 

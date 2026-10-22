@@ -1,5 +1,5 @@
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use anyhow::Context;
@@ -9,7 +9,7 @@ use dtsx_inspect::lineage::columns::column_lineage;
 use dtsx_inspect::lineage::order::execution_order;
 use dtsx_inspect::lineage::{self, lineage};
 use dtsx_inspect::lint::{lint, Severity};
-use dtsx_inspect::{inventory, render};
+use dtsx_inspect::{inventory, render, FileError};
 
 #[derive(Parser)]
 #[command(
@@ -81,6 +81,14 @@ enum Command {
         before: PathBuf,
         /// Folder after the changes
         after: PathBuf,
+    },
+    /// Standalone HTML report (lineage map, columns, packages, lint)
+    Report {
+        /// .dtsx file or folder (walked recursively)
+        path: PathBuf,
+        /// HTML file to write; without it, the report opens in the browser
+        #[arg(long)]
+        out: Option<PathBuf>,
     },
 }
 
@@ -185,6 +193,15 @@ fn main() -> anyhow::Result<ExitCode> {
                 regression.then(|| "lineage regression between the two folders".to_owned());
             (report, errors, failure)
         }
+        Command::Report { path, out } => {
+            let (page, errors) = html_report(&path);
+            match out {
+                Some(file) => std::fs::write(&file, page)
+                    .with_context(|| format!("writing {}", file.display()))?,
+                None => open_in_browser(&page)?,
+            }
+            (String::new(), errors, None)
+        }
     };
     std::io::stdout().lock().write_all(output.as_bytes())?;
     for error in errors
@@ -209,16 +226,26 @@ fn report() -> anyhow::Result<()> {
     else {
         return Ok(());
     };
-    let (inventory, errors) = inventory(&dir);
+    // Unreadable files are listed in the report itself.
+    open_in_browser(&html_report(&dir).0)
+}
+
+/// HTML report of a file or folder, and the files that could not be read.
+fn html_report(path: &Path) -> (String, Vec<FileError>) {
+    let (inventory, errors) = inventory(path);
     let lineage = lineage(&inventory);
     let page = render::html(
-        &dir.display().to_string(),
+        &path.display().to_string(),
         &inventory,
         &lineage,
         &lint(&inventory, &lineage),
         &errors,
     );
-    // shortcut: a single report, overwritten at each run; the browser's "Save as" keeps it.
+    (page, errors)
+}
+
+fn open_in_browser(page: &str) -> anyhow::Result<()> {
+    // shortcut: a single report, overwritten at each run; `report --out` keeps one.
     let out = std::env::temp_dir().join("dtsx-inspect.html");
     std::fs::write(&out, page)?;
     // `spawn` and not `status`: explorer.exe exits with code 1 even when all is fine.

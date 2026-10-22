@@ -160,6 +160,7 @@ Les sorties de la ligne de commande sont en anglais ; le rapport HTML est dispon
 | `calls <chemin>` | Graphe Mermaid des tâches Execute Package et des packages qu'elles lancent |
 | `order <chemin>` | Ordre d'exécution en Markdown : vagues de packages, cycles, tables partagées écartées, sources à charger d'abord |
 | `diff <avant> <après>` | Comparaison en Markdown du lignage par colonne de deux dossiers, serveurs mis à part |
+| `report <chemin> [--out fichier.html]` | Rapport HTML autonome écrit dans un fichier (pour le partager ou le publier depuis une CI) ; sans `--out`, il s'ouvre dans le navigateur |
 
 Les recherches (`--focus`, `--of`) ignorent la casse et portent sur une partie du nom : `--of
 email` trouve toutes les colonnes dont le nom complet contient `email`.
@@ -335,7 +336,8 @@ reconnus aussi. Le rapport HTML explique chaque règle (pourquoi, comment corrig
 - Les procédures stockées et les vues définies dans des scripts `.sql` (UTF-8, UTF-8 avec BOM,
   UTF-16) sont développées dans le lignage.
 
-Limites connues : les requêtes lues dans des fichiers ne sont pas suivies, une table dérivée
+Limites connues : les requêtes lues dans des fichiers et les destinations Dynamics KingswaySoft ne
+sont pas suivies, une table dérivée
 (`FROM (SELECT …) x`) arrête le lignage par colonne, et `MERGE` / `UPDATE` ne sont suivis qu'au
 niveau des tables. La règle `incomplete-lineage` liste chaque étape que le lignage n'a pas pu suivre.
 
