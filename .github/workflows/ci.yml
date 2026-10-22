@@ -12,7 +12,7 @@ jobs:
     # Windows: the platform of SSIS users and of the folder picker (rfd).
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
