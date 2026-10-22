@@ -330,7 +330,8 @@ as fixtures: rename servers, databases, tables and columns, and remove connectio
 
 Contributions are welcome: open an issue with an anonymized package that shows the problem, or a
 pull request with a failing test first. Before submitting, `cargo fmt`, `cargo clippy` and
-`cargo test` must pass.
+`cargo test` must pass. Security problems (an unmasked secret, for example) are reported
+privately: see [SECURITY.md](SECURITY.md).
 
 ## License
 
