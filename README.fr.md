@@ -24,18 +24,81 @@ Les secrets ne sortent pas du package : les mots de passe sont masqués partout,
 connexion sont réduites au serveur, à la base et au fournisseur, et le texte SQL n'apparaît que
 dans le panneau de détails du rapport HTML, mots de passe masqués.
 
-## Installation
+## Sommaire
 
-Il faut une [chaîne Rust](https://rustup.rs/) stable récente (1.88 ou plus).
+- [Compilation](#compilation)
+- [Démarrage rapide](#démarrage-rapide)
+- [Commandes](#commandes)
+- [Recettes](#recettes)
+- [Le rapport HTML](#le-rapport-html)
+- [Règles de lint](#règles-de-lint)
+- [Ce qui est pris en charge](#ce-qui-est-pris-en-charge)
+- [Développement](#développement)
+- [Licence](#licence)
+
+## Compilation
+
+### Prérequis
+
+- **Rust 1.88 ou plus récent**, installé avec [rustup](https://rustup.rs/).
+- **Windows** : l'installateur rustup propose d'installer les *Visual Studio C++ Build Tools*
+  (éditeur de liens MSVC et SDK Windows) ; acceptez. Rust est déjà installé ? Mettez-le à jour
+  avec `rustup update`.
+- **Linux / macOS** : une chaîne de compilation C (`build-essential` sous Debian/Ubuntu, outils
+  en ligne de commande Xcode sous macOS).
+
+Vérifier la chaîne :
+
+```sh
+rustc --version     # 1.88 ou plus
+cargo --version
+```
+
+### Compiler
 
 ```sh
 git clone <url-du-dépôt>
 cd dtsx-inspect
-cargo install --path .
+
+cargo build --release
 ```
 
-Ou compiler sans installer : `cargo build --release`, le binaire est
-`target/release/dtsx-inspect` (`.exe` sous Windows).
+L'exécutable est dans `target/release/` :
+
+| Système | Exécutable |
+|---|---|
+| Windows | `target\release\dtsx-inspect.exe` |
+| Linux / macOS | `target/release/dtsx-inspect` |
+
+C'est un fichier unique et autonome (environ 10 Mo) : copiez-le où vous voulez, par exemple sur
+un partage réseau ou à côté de vos projets SSIS. Rien d'autre n'est nécessaire pour le lancer.
+
+`cargo build` sans `--release` donne une version de débogage, plus rapide à compiler mais plus
+lente, dans `target/debug/`.
+
+### Installer dans le PATH
+
+```sh
+cargo install --path .        # copie l'exécutable dans ~/.cargo/bin
+dtsx-inspect --version
+```
+
+Pour mettre à jour après un `git pull`, relancez la même commande ; `cargo uninstall
+dtsx-inspect` le désinstalle.
+
+### Derrière un proxy d'entreprise (Windows)
+
+Si `cargo` n'arrive pas à télécharger les crates à cause d'une erreur de révocation de certificat
+(`CRYPT_E_NO_REVOCATION_CHECK`), désactivez la vérification de révocation pour la session :
+
+```powershell
+$env:CARGO_HTTP_CHECK_REVOKE = "false"   # PowerShell
+cargo build --release
+```
+
+```sh
+export CARGO_HTTP_CHECK_REVOKE=false     # bash
+```
 
 ## Démarrage rapide
 
@@ -46,6 +109,8 @@ ouvre le rapport HTML dans le navigateur. Dans un terminal, le lancer sans argum
 dtsx-inspect inventory MonProjet/            # inventaire en Markdown
 dtsx-inspect lint MonProjet/                 # anti-patterns, code de sortie 1 en cas d'erreur
 dtsx-inspect lineage MonProjet/ --focus dbo.Clients > lignage.mmd
+dtsx-inspect --help                          # toutes les commandes
+dtsx-inspect lint --help                     # options d'une commande
 ```
 
 Chaque commande prend un fichier `.dtsx` ou un dossier, parcouru récursivement. Les fichiers
@@ -59,6 +124,7 @@ Les sorties de la ligne de commande sont en anglais ; le rapport HTML est dispon
 
 | Commande | Sortie |
 |---|---|
+| *(aucune)* | Choix d'un dossier, puis rapport HTML dans le navigateur |
 | `inventory <chemin> [--format md\|json]` | Connexions, tâches, composants de Data Flow, paramètres, variables, expressions |
 | `lineage <chemin> [--focus <texte>]` | `flowchart` Mermaid du lignage des tables ; `--focus` ne garde que ce qui alimente ou lit les tables, fichiers ou entités correspondants |
 | `columns <chemin> --of <texte>` | Chaîne amont (←) et aval (→) des colonnes de table ou de fichier correspondantes, par exemple `--of dbo.Clients.email` |
@@ -68,11 +134,58 @@ Les sorties de la ligne de commande sont en anglais ; le rapport HTML est dispon
 | `order <chemin>` | Ordre d'exécution en Markdown : vagues de packages, cycles, tables partagées écartées, sources à charger d'abord |
 | `diff <avant> <après>` | Comparaison en Markdown du lignage par colonne de deux dossiers, serveurs mis à part |
 
-Codes de sortie : `0` si tout va bien, `1` quand un fichier est illisible, qu'une recherche ne
-trouve rien, que `lint` trouve une erreur ou que `diff` détecte une régression (lien ou package
-disparu, ou lien moins bien suivi). `lint` et `diff` s'utilisent donc en intégration continue.
+Les recherches (`--focus`, `--of`) ignorent la casse et portent sur une partie du nom : `--of
+email` trouve toutes les colonnes dont le nom complet contient `email`.
 
-Exemple de `columns` :
+**Codes de sortie** : `0` si tout va bien, `1` quand un fichier est illisible, qu'une recherche ne
+trouve rien, que `lint` trouve une erreur ou que `diff` détecte une régression (lien ou package
+disparu, ou lien moins bien suivi). Les erreurs vont sur stderr et les résultats sur stdout : une
+redirection ne capture que les résultats.
+
+## Recettes
+
+### Documenter un projet
+
+```sh
+dtsx-inspect inventory MonProjet/ > inventaire.md
+dtsx-inspect inventory MonProjet/ --format json > inventaire.json
+dtsx-inspect order MonProjet/ > ordre-execution.md
+```
+
+Le JSON s'interroge facilement, par exemple tous les composants tiers :
+
+```sh
+jq '.packages[].executables[].components[]? | select(.known == false) | .class_id' inventaire.json
+```
+
+```powershell
+(Get-Content inventaire.json -Raw | ConvertFrom-Json).packages.executables.components |
+  Where-Object { -not $_.known } | Select-Object name, class_id
+```
+
+### Dessiner le lignage en image
+
+Les sorties de `lineage` et `calls` sont des diagrammes [Mermaid](https://mermaid.js.org/).
+Collez-les dans un fichier Markdown sur GitHub ou GitLab (dans un bloc ` ```mermaid `), dans
+[mermaid.live](https://mermaid.live), ou convertissez-les avec mermaid-cli (Node.js requis) :
+
+```sh
+dtsx-inspect lineage MonProjet/ --focus dbo.Clients > clients.mmd
+npx -p @mermaid-js/mermaid-cli mmdc -i clients.mmd -o clients.svg
+
+dtsx-inspect calls MonProjet/ > appels.mmd
+npx -p @mermaid-js/mermaid-cli mmdc -i appels.mmd -o appels.png
+```
+
+Sur un gros dossier, utilisez toujours `--focus` : le lignage complet de centaines de packages est
+illisible en image fixe (préférez alors le rapport HTML).
+
+### Suivre une colonne et exporter le mapping
+
+```sh
+dtsx-inspect columns MonProjet/ --of dbo.Clients.email
+dtsx-inspect mapping MonProjet/ --out mapping.csv
+```
 
 ```text
 Entrepot : dbo.Clients.email (srv-demo)
@@ -82,9 +195,61 @@ Entrepot : dbo.Clients.email (srv-demo)
   → read: SRC Clients.email (Export › DFT Export)
 ```
 
+Préférez `--out` pour le CSV : une redirection de la console peut le réencoder, et Excel
+afficherait alors des accents cassés.
+
+### Contrôler une migration
+
+Analysez le dossier avant et après le changement (nouveau serveur, nouveau fournisseur, packages
+retravaillés) :
+
+```sh
+dtsx-inspect diff Packages-avant/ Packages-apres/ > comparaison-lignage.md
+```
+
+Le compte rendu liste les liens de colonnes disparus, nouveaux et modifiés, les packages disparus
+et nouveaux, et les serveurs passés de l'un à l'autre. Le code de sortie vaut `1` si un lien ou un
+package a disparu, ou si un lien est moins bien suivi qu'avant.
+
+### Lint en intégration continue
+
+`lint` sort avec le code `1` quand il trouve une erreur (les avertissements et les infos ne font
+pas échouer) :
+
+```yaml
+# .github/workflows/ssis-lint.yml
+name: SSIS lint
+on: [push, pull_request]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo install --git <url-du-dépôt> --locked
+      - run: dtsx-inspect lint ./ssis
+```
+
+Garder la liste des constats à côté du journal de build :
+
+```sh
+dtsx-inspect lint MonProjet/ > lint.txt; echo "code de sortie : $?"
+```
+
+### Windows PowerShell 5.1 et redirections
+
+Dans Windows PowerShell 5.1, `>` écrit des fichiers en UTF-16, que certains outils ne savent pas
+lire. Écrivez explicitement en UTF-8, ou utilisez PowerShell 7 (`pwsh`), dont le `>` écrit en
+UTF-8 :
+
+```powershell
+dtsx-inspect inventory MonProjet | Out-File -Encoding utf8 inventaire.md
+```
+
 ## Le rapport HTML
 
-Le rapport est un unique fichier HTML. Ses espaces :
+Le rapport est un unique fichier HTML, généré quand le programme est lancé sans argument et écrit
+dans le dossier temporaire (`%TEMP%\dtsx-inspect.html` sous Windows). Utilisez
+**Enregistrer sous** dans le navigateur pour le garder. Ses espaces :
 
 - **Vue d'ensemble** : chiffres, fiabilité du lignage (part des liens de colonnes directs,
   transformés, par nom et d'origine inconnue), packages les plus signalés, projets.
@@ -95,6 +260,9 @@ Le rapport est un unique fichier HTML. Ses espaces :
   une matrice par table. Export du mapping en CSV.
 - **Packages** : une page par package avec son flux, son inventaire et ses constats.
 - **Qualité** : les constats de lint et une fiche par règle.
+
+Clavier : `Ctrl K` ou `/` pour chercher partout, `F` pour cadrer le graphe, `Échap` pour fermer
+le panneau.
 
 La langue suit celle du navigateur (un navigateur en français affiche le français) et se change
 avec les boutons **EN / FR** de la barre latérale. Le choix est mémorisé.
@@ -121,7 +289,8 @@ la mise en forme de l'inventaire.
 | `incomplete-lineage` | info | Étape que le lignage n'a pas pu suivre (SQL non analysé, requête en variable…) |
 
 Les noms par défaut français de SSDT (`Tâche de flux de données`, `Colonne dérivée`…) sont
-reconnus aussi.
+reconnus aussi. Le rapport HTML explique chaque règle (pourquoi, comment corriger) dans l'espace
+**Qualité**.
 
 ## Ce qui est pris en charge
 
@@ -146,19 +315,38 @@ niveau des tables. La règle `incomplete-lineage` liste chaque étape que le lig
 ## Développement
 
 ```sh
-cargo fmt
-cargo clippy --all-targets -- -D warnings
-cargo test
+cargo build                                   # compilation de débogage
+cargo run -- lint tests/fixtures              # lancer une commande sans installer
+cargo run --release -- inventory tests/fixtures/minimal.dtsx
+
+cargo fmt                                     # mise en forme
+cargo clippy --all-targets -- -D warnings     # lint, avertissements bloquants
+cargo test                                    # tous les tests
+cargo test --test lint                        # un fichier de tests (tests/lint.rs)
+cargo test focus                              # les tests dont le nom contient « focus »
+cargo test -- --nocapture                     # afficher la sortie des tests
+```
+
+Les tests d'instantanés utilisent [insta](https://insta.rs). Après un changement voulu d'une
+sortie, relisez et acceptez les nouveaux instantanés :
+
+```sh
+cargo install cargo-insta    # une fois
+cargo insta review
 ```
 
 Le code est organisé en `parser/` (XML → modèle, sans logique métier), `lineage/` (graphes des
 tables et des colonnes, ordre d'exécution), `lint/` (une règle par fichier, trait `Rule`) et
-`render/` (Markdown, JSON, Mermaid, CSV, HTML). Les tests utilisent de petits packages `.dtsx`
-anonymisés dans `tests/fixtures` et des instantanés [insta](https://insta.rs). N'ajoutez jamais de
-vrais packages de client en fixtures.
+`render/` (Markdown, JSON, Mermaid, CSV, HTML). Tout texte affiché dans le rapport HTML est écrit
+en anglais et reçoit sa traduction française dans `src/render/i18n.js`.
+
+Les tests utilisent de petits packages `.dtsx` anonymisés dans `tests/fixtures`. N'ajoutez jamais
+de vrais packages de client en fixtures : renommez serveurs, bases, tables et colonnes, et retirez
+les chaînes de connexion.
 
 Les contributions sont les bienvenues : ouvrez une issue avec un package anonymisé qui montre le
-problème, ou une pull request qui commence par un test en échec.
+problème, ou une pull request qui commence par un test en échec. Avant de proposer, `cargo fmt`,
+`cargo clippy` et `cargo test` doivent passer.
 
 ## Licence
 
