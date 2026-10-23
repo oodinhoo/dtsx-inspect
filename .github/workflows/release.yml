@@ -31,7 +31,7 @@ jobs:
           "$((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower())  $zip" | Out-File -Encoding ascii "$zip.sha256"
           "zip=$zip" >> $env:GITHUB_OUTPUT
       # Lets anyone check the exe was built here, from this tag: gh attestation verify.
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             target/release/dtsx-inspect.exe
