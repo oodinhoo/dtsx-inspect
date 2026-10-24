@@ -415,7 +415,7 @@
   function columnsSection(n) {
     const ids = [...(n.columns ?? [])].sort((a, b) => data.columns[a][0].localeCompare(data.columns[b][0]));
     if (!ids.length) return "";
-    const buttons = ids.map((c) => `<button data-column="${c}">${esc(data.columns[c][0])}</button>`).join("");
+    const buttons = ids.map((c) => `<button data-column="${Number(c)}">${esc(data.columns[c][0])}</button>`).join("");
     return `<section><h4>Columns (${ids.length})</h4><p class="muted">Click a column: where it comes from (←), where it goes (→).</p>
       <div class="column-list">${buttons}</div><div class="trace" hidden></div></section>`;
   }
