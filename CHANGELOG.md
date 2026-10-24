@@ -6,6 +6,12 @@ Notable changes of each version. The format follows
 
 ## [Unreleased]
 
+### Security
+
+- HTML report, lineage view: block kinds, counts and identifiers are escaped before being inserted
+  into the page, like every text from the packages already was. They are produced by the tool, not
+  read from the packages, so nothing was exploitable; the page no longer relies on that.
+
 ## [0.2.0] - 2026-10-22
 
 ### Added

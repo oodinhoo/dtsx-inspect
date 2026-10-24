@@ -35,7 +35,7 @@
   };
   const esc = (text) =>
     String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-  const tile = (kind) => `<span class="tile k-${kind}">${ICONS[kind]}</span>`;
+  const tile = (kind) => `<span class="tile k-${esc(kind)}">${ICONS[kind] ?? ""}</span>`;
   const packageName = (n) => (n.package == null ? "" : data.packages[n.package] ?? "?");
 
   let mode = "map";
@@ -247,7 +247,7 @@
       const flag = n.note ? "not traced" : n.expression ? "expression" : n.shared ? `${n.shared} packages` : "";
       el.innerHTML = `${tile(n.kind)}<span class="text"><span class="title">${esc(n.title)}</span>`
         + `<span class="sub">${esc(sub)}</span></span>`
-        + (flag ? `<span class="flag">${flag}</span>` : "");
+        + (flag ? `<span class="flag">${esc(flag)}</span>` : "");
       world.append(el);
     }
     drawWires();
@@ -336,7 +336,7 @@
     const links = (ids) => ids.length
       ? `<div class="links">${ids.map((i) => {
           const other = byId.get(i);
-          return `<button data-goto="${i}">${tile(other.kind)}<span>${esc(other.title)}</span><span class="go">›</span></button>`;
+          return `<button data-goto="${Number(i)}">${tile(other.kind)}<span>${esc(other.title)}</span><span class="go">›</span></button>`;
         }).join("")}</div>`
       : '<p class="empty">None</p>';
     const up = edges.filter(([, b]) => b === id).map(([a]) => a);
@@ -347,15 +347,15 @@
       .concat(n.props, usedBy);
     const isolate = `<button class="action" data-isolate>${isolated === id ? "Show the whole graph" : "Isolate the chain"}</button>`;
     const pages = n.package == null ? "" : (mode === "map"
-      ? `<a class="action" href="#p/${n.package}/flow">See the flow of package ${esc(packageName(n))}</a>`
-      : "") + `<a class="action" href="#p/${n.package}/inventory">See in the inventory</a>`;
+      ? `<a class="action" href="#p/${Number(n.package)}/flow">See the flow of package ${esc(packageName(n))}</a>`
+      : "") + `<a class="action" href="#p/${Number(n.package)}/inventory">See in the inventory</a>`;
     const actions = `<section class="actions">${isolate}${pages}</section>`;
     inspector.innerHTML = `
       <div class="inspector-head">${tile(n.kind)}<div><h3>${esc(n.title)}</h3><p>${esc(KINDS[n.kind] ?? "")}</p></div>
         <button class="close" title="Close (Esc)" aria-label="Close">×</button></div>
       ${actions}
       ${n.note ? `<section><p class="note">${esc(n.note)}</p></section>` : ""}
-      ${n.shared ? `<section><p class="note">Touched by ${n.shared} packages: the map shows one copy per package, with its own links only. The flow of each package details them.</p></section>` : ""}
+      ${n.shared ? `<section><p class="note">Touched by ${Number(n.shared)} packages: the map shows one copy per package, with its own links only. The flow of each package details them.</p></section>` : ""}
       ${n.expression ? '<section><p class="note">Built by an expression: the value shown is the design-time one, it can differ at run time.</p></section>' : ""}
       <section><h4>Properties</h4><dl class="props">${props.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></section>
       ${n.query ? `<section><h4>${esc(n.query.title)}</h4><pre class="query">${esc(n.query.text)}</pre><button class="action" data-copy>Copy</button></section>` : ""}
@@ -474,7 +474,7 @@
   function drawLegend() {
     const kinds = Object.keys(KINDS).filter((k) => nodes.some((n) => n.kind === k));
     const blocks = kinds.map((k) =>
-      `<li data-kind="${k}" title="${esc(KINDS[k])}: hover to spot them">${tile(k)}<span>${SHORT[k]}</span></li>`);
+      `<li data-kind="${esc(k)}" title="${esc(KINDS[k])}: hover to spot them">${tile(k)}<span>${esc(SHORT[k])}</span></li>`);
     if (groups.length) blocks.push('<li title="Frame grouping the components of a Data Flow"><span class="frame-sample"></span><span>Data Flow</span></li>');
     const marks = [
       [nodes.some((n) => n.note), "not traced", "lineage interrupted (reason on click)"],
