@@ -376,7 +376,8 @@ les chaînes de connexion.
 Les contributions sont les bienvenues : ouvrez une issue avec un package anonymisé qui montre le
 problème, ou une pull request qui commence par un test en échec. Avant de proposer, `cargo fmt`,
 `cargo clippy` et `cargo test` doivent passer. Les problèmes de sécurité (un secret non masqué,
-par exemple) se signalent en privé : voir [SECURITY.md](SECURITY.md).
+par exemple) se signalent en privé : voir [SECURITY.md](SECURITY.md). La démarche
+complète est dans [CONTRIBUTING.md](CONTRIBUTING.md) (en anglais).
 
 ## Licence
 
