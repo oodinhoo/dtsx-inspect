@@ -6,11 +6,17 @@ Notable changes of each version. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-25
+
 ### Security
 
 - HTML report, lineage view: block kinds, counts and identifiers are escaped before being inserted
   into the page, like every text from the packages already was. They are produced by the tool, not
   read from the packages, so nothing was exploitable; the page no longer relies on that.
+
+### Changed
+
+- Dependencies updated, including `serde_json` 1.0.154.
 
 ## [0.2.0] - 2026-10-22
 
@@ -49,6 +55,7 @@ First public release.
   except the graph.
 - The Windows executable is not code-signed: Windows SmartScreen warns on first launch.
 
-[Unreleased]: https://github.com/oodinhoo/dtsx-inspect/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/oodinhoo/dtsx-inspect/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/oodinhoo/dtsx-inspect/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/oodinhoo/dtsx-inspect/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/oodinhoo/dtsx-inspect/releases/tag/v0.1.0
