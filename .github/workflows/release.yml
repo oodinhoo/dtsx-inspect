@@ -3,14 +3,21 @@ on:
   push:
     tags: ["v*"]
 
-permissions:
-  contents: write # create the release
-  id-token: write # sign the provenance attestation
-  attestations: write
+permissions: {}
+
+# One release at a time per tag, never cancelled halfway through publishing.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   windows:
+    name: windows
     runs-on: windows-latest
+    permissions:
+      contents: write # create the release
+      id-token: write # sign the provenance attestation
+      attestations: write # store the attestation in the repository
     steps:
       - uses: actions/checkout@v7.0.1
         with:

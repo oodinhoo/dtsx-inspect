@@ -5,10 +5,17 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: read # checkout only
+
+# A new push on the same branch cancels the run of the previous one.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check:
+    # Required by the main ruleset under this name.
+    name: check
     # Windows: the platform of SSIS users and of the folder picker (rfd).
     runs-on: windows-latest
     steps:
@@ -23,6 +30,7 @@ jobs:
 
   zizmor:
     # Security linter of the workflows; 1.32.0 is the first version that reads actions.lock.
+    name: zizmor
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
