@@ -162,6 +162,7 @@ struct DatasetRef {
 /// Database targeted by a connection: server and database of its string (design-time
 /// value), falling back to the connection name. Two connections to the same database
 /// thus give the same nodes, and two same-named databases on two servers distinct ones.
+#[derive(Clone)]
 struct Database {
     server: Option<String>,
     name: String,
@@ -322,18 +323,11 @@ impl<'a> Builder<'a> {
     }
 
     /// Definitions (`.sql`) of the procedure or view of a node, found by its label.
-    /// The database is ignored: scripts rarely specify it.
     fn definitions(&self, label: &str, defined: Defined) -> Vec<&'a SqlDefinition> {
-        let Some(name) = label
+        label
             .split_once(" : ")
             .and_then(|(_, name)| sql::object_name(name))
-        else {
-            return Vec::new();
-        };
-        self.scripts
-            .iter()
-            .filter(|d| d.defined == defined && sql::same(&d.name, &name))
-            .collect()
+            .map_or_else(Vec::new, |name| defined_in(self.scripts, &name, defined))
     }
 
     /// Tables of the procedures and views defined in a `.sql` script, and procedures
@@ -380,6 +374,23 @@ impl<'a> Builder<'a> {
             reason: reason.to_owned(),
         });
     }
+}
+
+/// Definitions of a procedure or view in the scripts. The database is ignored:
+/// scripts rarely specify it.
+fn defined_in<'a>(
+    scripts: &'a [SqlDefinition],
+    name: &TableName,
+    defined: Defined,
+) -> Vec<&'a SqlDefinition> {
+    let name = TableName {
+        database: None,
+        ..name.clone()
+    };
+    scripts
+        .iter()
+        .filter(|d| d.defined == defined && sql::same(&d.name, &name))
+        .collect()
 }
 
 /// Query run by an SQL task, and whether it is computed by an expression; `Err`: why

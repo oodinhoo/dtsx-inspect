@@ -13,6 +13,8 @@ use sqlparser::keywords::Keyword;
 use sqlparser::parser::{Parser, ParserError};
 use sqlparser::tokenizer::Token;
 
+use super::projection::{insert_select, InsertSelect};
+
 /// Table name as written (without brackets or quotes).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableName {
@@ -64,9 +66,9 @@ pub enum Defined {
     View,
 }
 
-/// Defined procedures and views (`CREATE [OR ALTER] PROC[EDURE] | VIEW`) and the
-/// tables read, written or created by their body.
-pub fn definitions(sql: &str) -> Vec<(Defined, TableName, Tables)> {
+/// Defined procedures and views (`CREATE [OR ALTER] PROC[EDURE] | VIEW`), the tables
+/// read, written or created by their body and its `INSERT … SELECT`.
+pub fn definitions(sql: &str) -> Vec<(Defined, TableName, Tables, Vec<InsertSelect>)> {
     batches(sql).iter().filter_map(|b| definition(b)).collect()
 }
 
@@ -76,7 +78,7 @@ pub fn definitions(sql: &str) -> Vec<(Defined, TableName, Tables)> {
 // shortcut: a rejected statement is skipped word by word up to the next one; if the
 // error falls in the middle of an INSERT, the following subquery counts as a read and
 // the target is lost. Move to a real T-SQL parser if it matters.
-fn definition(batch: &str) -> Option<(Defined, TableName, Tables)> {
+fn definition(batch: &str) -> Option<(Defined, TableName, Tables, Vec<InsertSelect>)> {
     let dialect = MsSqlDialect {};
     let mut p = Parser::new(&dialect).try_with_sql(batch).ok()?;
     if !p.parse_keyword(Keyword::CREATE) {
@@ -99,7 +101,7 @@ fn definition(batch: &str) -> Option<(Defined, TableName, Tables)> {
             return None;
         }
     }
-    let mut body = Nested(Tables::default());
+    let mut body = Nested::default();
     loop {
         while p.consume_token(&Token::SemiColon) {}
         if p.peek_token().token == Token::EOF {
@@ -117,17 +119,22 @@ fn definition(batch: &str) -> Option<(Defined, TableName, Tables)> {
             }
         }
     }
-    Some((defined, name, body.0))
+    Some((defined, name, body.tables, body.inserts))
 }
 
 /// Reads each statement, nested or not.
-struct Nested(Tables);
+#[derive(Default)]
+struct Nested {
+    tables: Tables,
+    inserts: Vec<InsertSelect>,
+}
 
 impl Visitor for Nested {
     type Break = ();
 
     fn pre_visit_statement(&mut self, statement: &Statement) -> ControlFlow<()> {
-        collect(statement, &mut self.0);
+        collect(statement, &mut self.tables);
+        self.inserts.extend(insert_select(statement));
         ControlFlow::Continue(())
     }
 }
@@ -564,12 +571,14 @@ mod tests {
 
         let names = |v: &[TableName]| v.iter().map(ToString::to_string).collect::<Vec<_>>();
         assert_eq!(found.len(), 1);
-        let (defined, name, t) = &found[0];
+        let (defined, name, t, inserts) = &found[0];
         assert_eq!(*defined, Defined::Procedure);
         assert_eq!(name.to_string(), "dbo.P");
         assert_eq!(names(&t.reads), ["stg.Source"]);
         assert_eq!(names(&t.writes), ["dbo.Cible"]);
         assert_eq!(names(&t.procedures), ["dbo.Autre"]);
+        let targets: Vec<String> = inserts.iter().map(|i| i.target.to_string()).collect();
+        assert_eq!(targets, ["dbo.Cible"]);
     }
 
     #[test]
@@ -581,7 +590,7 @@ mod tests {
 
         let names = |v: &[TableName]| v.iter().map(ToString::to_string).collect::<Vec<_>>();
         assert_eq!(found.len(), 1);
-        let (defined, name, t) = &found[0];
+        let (defined, name, t, _) = &found[0];
         assert_eq!(*defined, Defined::View);
         assert_eq!(name.to_string(), "dbo.V");
         assert_eq!(names(&t.reads), ["dbo.X", "dbo.Y"]);

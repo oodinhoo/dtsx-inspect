@@ -48,6 +48,7 @@
     ["Search the graph… (Enter)", "Rechercher dans le graphe… (Entrée)"], ["Zoom in", "Zoomer"],
     ["Zoom out", "Dézoomer"], ["Fit to screen (F)", "Ajuster à l'écran (F)"], ["Legend", "Légende"],
     ["Details", "Détails"], ["All projects", "Tous les projets"], ["All projects (slow)", "Tous les projets (lent)"],
+    ["All packages", "Tous les packages"],
     ["(root)", "(racine)"], ["Dynamics entity", "Entité Dynamics"], ["Stored procedure", "Procédure stockée"],
     ["Source component", "Composant source"], ["Destination component", "Composant destination"],
     ["Untraced step", "Étape non suivie"], ["not traced", "non suivi"], ["None", "Aucun"], ["Projects", "Projets"],

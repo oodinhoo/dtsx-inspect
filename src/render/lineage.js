@@ -1,5 +1,5 @@
-// Interactive lineage: map of a project (left → right) and flow of a package
-// (top → bottom). Hold the click to pan, wheel to zoom, click a block for its upstream /
+// Interactive lineage: map of all projects, one project or one of its packages
+// (left → right) and flow of a package (top → bottom). Hold the click to pan, wheel to zoom, click a block for its upstream /
 // downstream chain and its details. Layout: ELK (CDN).
 // Driven by report.js through `window.lineage` (the graph is moved into the shown view).
 // Texts come from the packages: never inserted as HTML without `esc`.
@@ -71,6 +71,27 @@
   }, projects[0]);
   const defaultProject = tooBig && projects.length > 1 ? largest : ALL;
   projectSelect.addEventListener("change", () => (location.hash = `#map/${encodeURIComponent(projectSelect.value)}`));
+  // Then one package of the project, to lighten its map; none chosen: the whole project.
+  const packageSelect = document.querySelector("#map .package-select");
+  packageSelect.addEventListener("change", () => {
+    const pkg = packageSelect.value === "" ? "" : `/${packageSelect.value}`;
+    location.hash = `#map/${encodeURIComponent(projectSelect.value)}${pkg}`;
+  });
+  function fillPackages(project) {
+    const own = withBlocks
+      .filter((p) => projectOf(p) === project)
+      .sort((a, b) => data.packages[a].localeCompare(data.packages[b]));
+    const options = own.map((p) => Object.assign(new Option(data.packages[p], String(p)), { title: data.files[p] }));
+    packageSelect.replaceChildren(new Option("All packages", ""), ...options);
+    packageSelect.hidden = project === ALL;
+  }
+
+  // Blocks of the map: one package, one project or all of them.
+  function mapScope() {
+    if (packageSelect.value !== "") return scoped((p) => p === Number(packageSelect.value));
+    if (projectSelect.value === ALL) return [data.nodes, data.edges];
+    return scoped((p) => projectOf(p) === projectSelect.value);
+  }
 
   // Dataset touched by at least HUB_PACKAGES packages (execution log…): on the map, one
   // copy per package, otherwise everything converges to it in a star.
@@ -120,11 +141,7 @@
   }
 
   function visible() {
-    let [n, e] = mode === "flow"
-      ? scoped((p) => p === flowPackage)
-      : projectSelect.value === ALL
-        ? splitHubs(data.nodes, data.edges)
-        : splitHubs(...scoped((p) => projectOf(p) === projectSelect.value));
+    let [n, e] = mode === "flow" ? scoped((p) => p === flowPackage) : splitHubs(...mapScope());
     if (isolated != null && n.some((x) => x.id === isolated)) {
       const keep = chain(isolated, e);
       [n, e] = [n.filter((x) => keep.has(x.id)), e.filter(([a, b]) => keep.has(a) && keep.has(b))];
@@ -605,7 +622,7 @@
   // package keeps the framing and the selection. `select`: block to open (search).
   let shown = null;
   function show(next, pkg = null, select = null) {
-    const key = next === "flow" ? `flow:${pkg}` : `map:${projectSelect.value}`;
+    const key = next === "flow" ? `flow:${pkg}` : `map:${projectSelect.value}:${packageSelect.value}`;
     if (key === shown) {
       if (select != null && byId.has(select)) {
         choose(select);
@@ -621,9 +638,13 @@
   // Called by report.js once the view is shown (the layout gets measured).
   window.lineage = {
     mount: (slot) => slot.append(stage),
-    map(project) {
+    map(project, pkg = "") {
       const known = project === ALL || projects.includes(project);
       projectSelect.value = known ? project : defaultProject;
+      fillPackages(projectSelect.value);
+      // A package of another project (outdated link): the whole project.
+      const own = [...packageSelect.options].some((o) => o.value === pkg);
+      packageSelect.value = own ? pkg : "";
       if (elk) show("map");
     },
     flow(pkg, select = null) {

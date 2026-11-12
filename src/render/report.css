@@ -454,7 +454,8 @@ button { cursor: pointer; font-weight: 500; }
 button:hover { border-color: var(--accent); color: var(--accent); }
 
 /* Lineage: Power Automate-like canvas (blocks, Data Flow bands, panel). */
-.project-select { max-width: 22rem; }
+.map-filters { display: flex; flex-wrap: wrap; gap: .5rem; }
+.project-select, .package-select { max-width: 22rem; }
 .stage {
   position: relative; flex: 1; min-height: 0; overflow: hidden;
   border: 1px solid var(--border); border-radius: .5rem;

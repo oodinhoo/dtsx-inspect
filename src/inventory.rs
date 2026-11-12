@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use walkdir::WalkDir;
 
+use crate::lineage::projection::InsertSelect;
 use crate::lineage::sql::{self, Defined, TableName, Tables};
 use crate::model::{Component, ConnectionManager, ConnectionRef, Executable, Package};
 use crate::parser::{parse_conmgr, parse_package, ParseError};
@@ -33,6 +34,8 @@ pub struct SqlDefinition {
     pub defined: Defined,
     pub name: TableName,
     pub tables: Tables,
+    /// `INSERT … SELECT` of the body, for the column lineage.
+    pub inserts: Vec<InsertSelect>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -223,11 +226,12 @@ fn read_scripts(files: &[Found]) -> (Vec<SqlDefinition>, Vec<FileError>) {
     for f in files {
         match std::fs::read(&f.path) {
             Ok(bytes) => found.extend(sql::definitions(&decode(&bytes)).into_iter().map(
-                |(defined, name, tables)| SqlDefinition {
+                |(defined, name, tables, inserts)| SqlDefinition {
                     file: f.display.clone(),
                     defined,
                     name,
                     tables,
+                    inserts,
                 },
             )),
             Err(error) => errors.push(FileError {

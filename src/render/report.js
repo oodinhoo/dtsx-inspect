@@ -1,5 +1,5 @@
 // Report navigation: one tab per space, the global search at the top (search.js).
-// The address describes the view (#overview, #map/PROJECT, #columns/c|t/INDEX[?filters],
+// The address describes the view (#overview, #map/PROJECT[/PACKAGE], #columns/c|t/INDEX[?filters],
 // #packages, #p/INDEX/flow|inventory|lint[/BLOCK], #quality, #rules/RULE): shareable
 // links and Back button. Without the CDN scripts, everything works except the graph and
 // the inventory formatting.
@@ -30,7 +30,7 @@
     }
     if (target === "map") {
       lineage?.mount(document.querySelector("#map .stage-slot"));
-      lineage?.map(arg);
+      lineage?.map(arg, sub);
     } else if (target === "columns") {
       window.columns?.show(arg, Number(sub), new URLSearchParams(query));
     } else if (target === "package") {

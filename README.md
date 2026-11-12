@@ -12,7 +12,7 @@ SQL Server, Visual Studio or a database connection.
 - **Table lineage**: files, tables and Dynamics entities → Data Flow components and SQL tasks →
   tables, across packages (Mermaid output, or an interactive map in the HTML report).
 - **Column lineage**: where a column comes from and where it goes, through Data Flows and
-  `INSERT … SELECT` statements, with a source → target mapping sheet for Excel.
+  `INSERT … SELECT` statements (in SQL tasks and in the stored procedures they call), with a source → target mapping sheet for Excel.
 - **Lint**: 11 rules for common SSIS anti-patterns, each with why it matters and how to fix it.
 - **Execution order** inferred from the data, **package call graph**, and **lineage diff** between
   two versions of a folder (for example before and after a server migration).
@@ -270,7 +270,8 @@ to the temporary folder (`%TEMP%\dtsx-inspect.html` on Windows). Use your browse
 
 - **Overview**: figures, lineage reliability (share of direct, transformed, by-name and unknown
   column links), most flagged packages, projects.
-- **Lineage map**: interactive graph of one project or all of them. Click a block for its
+- **Lineage map**: interactive graph of one project, one of its packages or all of
+  them. Click a block for its
   upstream and downstream chain, its properties, its SQL query and its columns.
 - **Columns**: every table and file column with who writes and reads it, filters (database,
   project, package, no origin, never read, several writers), a page per column and a matrix per
@@ -317,7 +318,7 @@ The HTML report explains each rule (why it matters, how to fix it) in its **Qual
   variable. T-SQL is parsed with [sqlparser](https://github.com/apache/datafusion-sqlparser-rs),
   with a MySQL fallback for ADO.NET sources.
 - Stored procedures and views defined in `.sql` scripts (UTF-8, UTF-8 with BOM, UTF-16) are
-  expanded in the lineage.
+  expanded in the lineage, down to the columns of their `INSERT … SELECT`.
 
 Known limits: queries read from files and KingswaySoft Dynamics destinations are not traced,
 derived tables (`FROM (SELECT …) x`) end
