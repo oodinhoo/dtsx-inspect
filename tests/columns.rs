@@ -104,12 +104,7 @@ fn union_all_inputs_name_the_output_column_they_feed() {
 }
 
 fn trace(needle: &str) -> Option<String> {
-    let (inv, errors) = dtsx_inspect::inventory(&fixture("columns"));
-    assert!(errors.is_empty(), "{errors:?}");
-    dtsx_inspect::render::column_trace(
-        &dtsx_inspect::lineage::columns::column_lineage(&inv),
-        needle,
-    )
+    trace_in("columns", needle)
 }
 
 #[test]
@@ -191,13 +186,7 @@ fn source_queries_lead_to_the_table_columns_of_their_select() {
 }
 
 fn sql_trace(needle: &str) -> String {
-    let (inv, errors) = dtsx_inspect::inventory(&fixture("columns_sql"));
-    assert!(errors.is_empty(), "{errors:?}");
-    dtsx_inspect::render::column_trace(
-        &dtsx_inspect::lineage::columns::column_lineage(&inv),
-        needle,
-    )
-    .unwrap_or_else(|| panic!("column {needle}"))
+    trace_in("columns_sql", needle).unwrap_or_else(|| panic!("column {needle}"))
 }
 
 #[test]
