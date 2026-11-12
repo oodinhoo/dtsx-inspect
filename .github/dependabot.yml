@@ -1,9 +1,12 @@
 version: 2
 updates:
+  # Cooldown: a release is proposed after a week, once a hijacked one has had time to be caught.
   - package-ecosystem: cargo
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     # One pull request per week for minor and patch versions, majors stay separate.
     groups:
       crates:
@@ -12,3 +15,5 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7

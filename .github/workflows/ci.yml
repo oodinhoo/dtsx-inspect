@@ -5,16 +5,38 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: read # checkout only
+
+# A new push on the same branch cancels the run of the previous one.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check:
+    # Required by the main ruleset under this name.
+    name: check
     # Windows: the platform of SSIS users and of the folder picker (rfd).
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       # rustup ships with the runner: no third-party action to trust and keep pinned.
       - run: rustup toolchain install stable --profile minimal --component rustfmt,clippy --no-self-update && rustup default stable
       - run: cargo fmt --check
       - run: cargo clippy --all-targets --locked -- -D warnings
       - run: cargo test --locked
+
+  zizmor:
+    # Security linter of the workflows; 1.32.0 is the first version that reads actions.lock.
+    name: zizmor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - run: pipx run zizmor==1.32.0 --format=github .
+        env:
+          # Online audits (impostor commits, known vulnerable actions), read-only token.
+          GH_TOKEN: ${{ github.token }}
