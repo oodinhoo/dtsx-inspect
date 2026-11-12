@@ -12,7 +12,7 @@ portent, sans SQL Server, sans Visual Studio et sans connexion à une base.
 - **Lignage des tables** : fichiers, tables et entités Dynamics → composants de Data Flow et tâches
   SQL → tables, d'un package à l'autre (sortie Mermaid, ou carte interactive dans le rapport HTML).
 - **Lignage par colonne** : d'où vient une colonne et où elle va, à travers les Data Flows et les
-  `INSERT … SELECT`, avec une fiche de mapping source → cible pour Excel.
+  `INSERT … SELECT` (des tâches SQL et des procédures stockées qu'elles appellent), avec une fiche de mapping source → cible pour Excel.
 - **Lint** : 11 règles pour les anti-patterns SSIS courants, chacune avec pourquoi c'est un
   problème et comment le corriger.
 - **Ordre d'exécution** déduit des données, **graphe des appels de packages**, et **comparaison du
@@ -281,7 +281,8 @@ dans le dossier temporaire (`%TEMP%\dtsx-inspect.html` sous Windows). Utilisez
 
 - **Vue d'ensemble** : chiffres, fiabilité du lignage (part des liens de colonnes directs,
   transformés, par nom et d'origine inconnue), packages les plus signalés, projets.
-- **Carte du lignage** : graphe interactif d'un projet ou de tous. Un clic sur un bloc montre sa
+- **Carte du lignage** : graphe interactif d'un projet, d'un de ses packages ou de
+  tous. Un clic sur un bloc montre sa
   chaîne amont et aval, ses propriétés, sa requête SQL et ses colonnes.
 - **Colonnes** : chaque colonne de table et de fichier, avec qui l'écrit et qui la lit, des filtres
   (base, projet, package, sans origine, jamais lue, plusieurs écrivains), une page par colonne et
@@ -334,7 +335,7 @@ reconnus aussi. Le rapport HTML explique chaque règle (pourquoi, comment corrig
   [sqlparser](https://github.com/apache/datafusion-sqlparser-rs), avec un repli MySQL pour les
   sources ADO.NET.
 - Les procédures stockées et les vues définies dans des scripts `.sql` (UTF-8, UTF-8 avec BOM,
-  UTF-16) sont développées dans le lignage.
+  UTF-16) sont développées dans le lignage, jusqu'aux colonnes de leurs `INSERT … SELECT`.
 
 Limites connues : les requêtes lues dans des fichiers et les destinations Dynamics KingswaySoft ne
 sont pas suivies, une table dérivée

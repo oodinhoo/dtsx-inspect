@@ -6,6 +6,19 @@ Notable changes of each version. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Column lineage through the stored procedures called by SQL tasks: the `INSERT … SELECT` of their
+  body (`.sql` script), and of the procedures they call in turn, link the columns like those of
+  the task query. A procedure defined in several scripts is still not traced.
+- HTML report, lineage map: a second list picks one package of the chosen project; left empty, the
+  whole project is shown. The choice is kept in the address (`#map/PROJECT/PACKAGE`).
+
+### Fixed
+
+- Column lineage: an SQL task filling two tables under the same column name (staging then target)
+  had a single step for both, so each column seemed to come from the other.
+
 ## [0.2.1] - 2026-10-25
 
 ### Security
