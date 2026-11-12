@@ -536,7 +536,8 @@ fn lint_table(lint: &[Finding], index: &HashMap<&str, usize>) -> String {
 fn map_view() -> String {
     format!(
         "<section id=\"map\" class=\"view\" hidden><div class=\"view-head\"><h2>Lineage map</h2>\
-<select class=\"project-select\" aria-label=\"Project\"></select></div>\
+<div class=\"map-filters\"><select class=\"project-select\" aria-label=\"Project\"></select>\
+<select class=\"package-select\" aria-label=\"Package\"></select></div></div>\
 <div class=\"stage-slot\">{STAGE}</div></section>"
     )
 }
@@ -703,6 +704,17 @@ mod tests {
 
         let view = &page[page.find("id=\"overview\"").expect("overview")..];
         assert!(view.contains("href=\"#map/columns_sql\""), "{view}");
+    }
+
+    #[test]
+    fn the_map_narrows_to_a_project_then_to_one_of_its_packages() {
+        let page = html("x", &Inventory::default(), &Lineage::default(), &[], &[]);
+
+        let view = &page[page.find("id=\"map\"").expect("map")..];
+        let head = &view[..view.find("stage-slot").expect("stage")];
+        let project = head.find("class=\"project-select\"").expect("project");
+        let package = head.find("class=\"package-select\"").expect("package");
+        assert!(project < package, "{head}");
     }
 
     #[test]
