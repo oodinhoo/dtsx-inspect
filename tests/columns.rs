@@ -233,3 +233,43 @@ fn insert_with_a_column_list_pairs_columns_by_position() {
         "{numero}"
     );
 }
+
+fn trace_in(dir: &str, needle: &str) -> Option<String> {
+    let (inv, errors) = dtsx_inspect::inventory(&fixture(dir));
+    assert!(errors.is_empty(), "{errors:?}");
+    dtsx_inspect::render::column_trace(
+        &dtsx_inspect::lineage::columns::column_lineage(&inv),
+        needle,
+    )
+}
+
+#[test]
+fn called_procedures_carry_columns_through_their_inserts() {
+    // `SQL Charger` runs dbo.Charger (`.sql` script), which fills dbo.Clients then calls
+    // dbo.Archiver, which copies it with `SELECT *`. The two columns filled by the task
+    // under the same name stay distinct: one per written table.
+    let expected = [
+        "Entrepot : dbo.Archive.courriel (srv-demo)",
+        "  ← write: SQL Charger.courriel (Chargement › SQL Charger)",
+        "    ← SELECT *: Entrepot : dbo.Clients.courriel",
+        "      ← write: SQL Charger.courriel (Chargement › SQL Charger)",
+        "        ← SQL expression: Entrepot : stg.Clients.email",
+    ];
+
+    assert_eq!(
+        trace_in("columns_procedures", "dbo.Archive.courriel").expect("column found"),
+        expected.join("\n") + "\n"
+    );
+}
+
+#[test]
+fn procedures_defined_twice_carry_no_columns() {
+    // dbo.Doublon is defined in two scripts: no guessing which one runs.
+    assert_eq!(trace_in("procedures", "dbo.Cible"), None);
+    // Purger.sql, UTF-16, is read like the others.
+    let archive = trace_in("procedures", "dbo.Archive.id").expect("column found");
+    assert!(
+        archive.contains("← read: Entrepot : dbo.Clients.id"),
+        "{archive}"
+    );
+}

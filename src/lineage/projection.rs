@@ -24,7 +24,7 @@ pub struct SelectColumn {
     pub computed: bool,
 }
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Projection {
     pub columns: Vec<SelectColumn>,
     /// Tables of a `SELECT *` or `t.*`: their columns come out under their name.
@@ -63,7 +63,7 @@ pub fn projection(sql: &str) -> Option<Projection> {
 
 /// `INSERT INTO target [(columns)] SELECT …`: the filled table, its named columns
 /// (empty without a list) and the SELECT list.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct InsertSelect {
     pub target: TableName,
     pub columns: Vec<String>,
@@ -76,25 +76,28 @@ pub fn insert_selects(sql: &str) -> Vec<InsertSelect> {
         .iter()
         .filter_map(|batch| parse(batch).ok())
         .flatten()
-        .filter_map(|statement| {
-            let Statement::Insert(insert) = statement else {
-                return None;
-            };
-            let TableObject::TableName(target) = &insert.table else {
-                return None;
-            };
-            let columns = insert
-                .columns
-                .iter()
-                .filter_map(|c| c.0.last()?.as_ident().map(|id| id.value.clone()))
-                .collect();
-            Some(InsertSelect {
-                target: table_name(target)?,
-                columns,
-                projection: query_projection(insert.source.as_deref()?)?,
-            })
-        })
+        .filter_map(|statement| insert_select(&statement))
         .collect()
+}
+
+/// The statement, if it is an `INSERT … SELECT` into a table.
+pub fn insert_select(statement: &Statement) -> Option<InsertSelect> {
+    let Statement::Insert(insert) = statement else {
+        return None;
+    };
+    let TableObject::TableName(target) = &insert.table else {
+        return None;
+    };
+    let columns = insert
+        .columns
+        .iter()
+        .filter_map(|c| c.0.last()?.as_ident().map(|id| id.value.clone()))
+        .collect();
+    Some(InsertSelect {
+        target: table_name(target)?,
+        columns,
+        projection: query_projection(insert.source.as_deref()?)?,
+    })
 }
 
 fn query_projection(query: &Query) -> Option<Projection> {

@@ -1,6 +1,6 @@
 //! Column lineage: in Data Flows, table or file column read, columns derived by the
 //! components, table or file column written; in SQL tasks, the `INSERT … SELECT` from
-//! one table to another.
+//! one table to another, in their query or in the procedures they call.
 //! A table column is a single node for all packages (same server, same database): the
 //! lineage thus goes from one package to another.
 
@@ -9,10 +9,12 @@ use std::collections::HashMap;
 use petgraph::graph::{DiGraph, NodeIndex};
 
 use super::projection::{insert_selects, projection, InsertSelect, Projection};
+use super::sql::{same, tables, Defined, TableName};
 use super::{
-    component_datasets, database_of, sql_command, statement, table, Database, DatasetRef, Direction,
+    component_datasets, database_of, defined_in, sql_command, statement, table, Database,
+    DatasetRef, Direction,
 };
-use crate::inventory::Inventory;
+use crate::inventory::{Inventory, SqlDefinition};
 use crate::model::{Executable, Package, Role};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -89,19 +91,16 @@ pub fn column_lineage(inventory: &Inventory) -> ColumnLineage {
         .iter()
         .enumerate()
         .flat_map(|(index, package)| package.executables.iter().map(move |e| (index, package, e)))
-        .filter_map(|(index, package, task)| {
-            let (text, _) = statement(package, task, task.sql.as_ref()?).ok()?;
-            let inserts = insert_selects(text);
-            let database = database_of(package, &task.connections);
-            (!inserts.is_empty()).then_some((index, task, inserts, database))
+        .flat_map(|(index, package, task)| {
+            task_inserts(&inventory.sql_scripts, package, task)
+                .into_iter()
+                .map(move |(insert, database)| (index, task, insert, database))
         })
         .collect();
     loop {
         let before = builder.lineage.graph.node_count();
-        for (index, task, inserts, database) in &inserts {
-            for insert in inserts {
-                builder.insert(*index, task, insert, database.as_ref());
-            }
+        for (index, task, insert, database) in &inserts {
+            builder.insert(*index, task, insert, database.as_ref());
         }
         if builder.lineage.graph.node_count() == before {
             return builder.lineage;
@@ -109,13 +108,68 @@ pub fn column_lineage(inventory: &Inventory) -> ColumnLineage {
     }
 }
 
+/// `INSERT … SELECT` run by an SQL task, each with its database: those of its query,
+/// then those of the procedures it calls, directly or not, when a single `.sql` script
+/// defines them (no guessing, as in the table lineage).
+// shortcut: procedures called by a Data Flow (OLE DB Command, source `EXEC`) are not
+// followed; do it if real packages load columns that way.
+fn task_inserts(
+    scripts: &[SqlDefinition],
+    package: &Package,
+    task: &Executable,
+) -> Vec<(InsertSelect, Option<Database>)> {
+    let Some((text, _)) = task
+        .sql
+        .as_ref()
+        .and_then(|sql| statement(package, task, sql).ok())
+    else {
+        return Vec::new();
+    };
+    let database = database_of(package, &task.connections);
+    let mut found: Vec<_> = insert_selects(text)
+        .into_iter()
+        .map(|insert| (insert, database.clone()))
+        .collect();
+    let called = tables(text).map(|t| t.procedures).unwrap_or_default();
+    let mut calls: Vec<_> = called.into_iter().map(|p| (p, database.clone())).collect();
+    let mut seen: Vec<TableName> = Vec::new();
+    while let Some((procedure, caller)) = calls.pop() {
+        // A loop of calls is read once.
+        if seen.iter().any(|s| same(s, &procedure)) {
+            continue;
+        }
+        seen.push(procedure.clone());
+        let [body] = defined_in(scripts, &procedure, Defined::Procedure)[..] else {
+            continue;
+        };
+        let database = body_database(&procedure, caller.as_ref());
+        found.extend(body.inserts.iter().map(|i| (i.clone(), database.clone())));
+        let nested = body.tables.procedures.iter();
+        calls.extend(nested.map(|p| (p.clone(), database.clone())));
+    }
+    found
+}
+
+/// Database a called procedure runs in: the one of its three-part name, otherwise the
+/// caller's, on the caller's server.
+fn body_database(procedure: &TableName, caller: Option<&Database>) -> Option<Database> {
+    let name = procedure
+        .database
+        .clone()
+        .or_else(|| caller.map(|d| d.name.clone()))?;
+    Some(Database {
+        server: caller.and_then(|d| d.server.clone()),
+        name,
+    })
+}
+
 #[derive(Default)]
 struct Builder {
     lineage: ColumnLineage,
     /// (server, dataset, column) case-insensitive -> node.
     datasets: HashMap<(String, String, String), NodeIndex>,
-    /// (package, SQL task path, case-insensitive column) -> node.
-    sql_steps: HashMap<(usize, String, String), NodeIndex>,
+    /// (package, SQL task path, case-insensitive table and column written) -> node.
+    sql_steps: HashMap<(usize, String, String, String), NodeIndex>,
 }
 
 impl Builder {
@@ -220,7 +274,7 @@ impl Builder {
     ) {
         let target = table(&insert.target, database);
         for (column, sources) in self.filled(insert, database) {
-            let step = self.sql_step(package, task, &column);
+            let step = self.sql_step(package, task, &target, &column);
             for (from, how) in sources {
                 self.edge(from, step, how);
             }
@@ -286,9 +340,22 @@ impl Builder {
         found
     }
 
-    /// Column filled by an SQL task: one step per task and per column.
-    fn sql_step(&mut self, package: usize, task: &Executable, column: &str) -> NodeIndex {
-        let key = (package, task.path().to_owned(), column.to_lowercase());
+    /// Column filled by an SQL task: one step per task and per written column. Two
+    /// tables filled under the same column name (staging then target) keep two steps,
+    /// otherwise each would seem to come from the other.
+    fn sql_step(
+        &mut self,
+        package: usize,
+        task: &Executable,
+        target: &DatasetRef,
+        column: &str,
+    ) -> NodeIndex {
+        let key = (
+            package,
+            task.path().to_owned(),
+            target.label.to_lowercase(),
+            column.to_lowercase(),
+        );
         let graph = &mut self.lineage.graph;
         *self.sql_steps.entry(key).or_insert_with(|| {
             graph.add_node(ColumnNode::Step {
