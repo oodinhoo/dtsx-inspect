@@ -1,5 +1,5 @@
-// Interactive lineage: map of a project (left → right) and flow of a package
-// (top → bottom). Hold the click to pan, wheel to zoom, click a block for its upstream /
+// Interactive lineage: map of all projects, one project or one of its packages
+// (left → right) and flow of a package (top → bottom). Hold the click to pan, wheel to zoom, click a block for its upstream /
 // downstream chain and its details. Layout: ELK (CDN).
 // Driven by report.js through `window.lineage` (the graph is moved into the shown view).
 // Texts come from the packages: never inserted as HTML without `esc`.

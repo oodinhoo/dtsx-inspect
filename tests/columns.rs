@@ -263,6 +263,29 @@ fn called_procedures_carry_columns_through_their_inserts() {
 }
 
 #[test]
+fn procedures_calling_each_other_are_read_once() {
+    // dbo.Ping calls dbo.Pong, which calls dbo.Ping back.
+    let pong = trace_in("columns_procedures", "dbo.PongLog.id").expect("column found");
+    assert!(
+        pong.contains("← read: Entrepot : dbo.PingLog.id")
+            && pong.contains("← read: Entrepot : stg.Clients.id"),
+        "{pong}"
+    );
+}
+
+#[test]
+fn a_procedure_named_with_its_database_runs_there() {
+    // `EXEC Archives.dbo.Copier` from a connection to Entrepot: its tables are in Archives.
+    let copie = trace_in("columns_procedures", "dbo.Copie.id").expect("column found");
+    assert!(
+        copie.starts_with("Archives : dbo.Copie.id (srv-demo)")
+            && copie.contains("← read: Archives : dbo.Source.id"),
+        "{copie}"
+    );
+    assert_eq!(trace_in("columns_procedures", "Entrepot : dbo.Copie"), None);
+}
+
+#[test]
 fn procedures_defined_twice_carry_no_columns() {
     // dbo.Doublon is defined in two scripts: no guessing which one runs.
     assert_eq!(trace_in("procedures", "dbo.Cible"), None);

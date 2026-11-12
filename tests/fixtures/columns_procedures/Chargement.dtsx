@@ -30,5 +30,27 @@
           SQLTask:SqlStatementSource="EXEC dbo.Charger" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
       </DTS:ObjectData>
     </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\SQL Boucle"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="SQL Boucle">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{A0000000-0000-0000-0000-000000000001}"
+          SQLTask:SqlStatementSource="EXEC dbo.Ping" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\SQL Autre base"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="SQL Autre base">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{A0000000-0000-0000-0000-000000000001}"
+          SQLTask:SqlStatementSource="EXEC Archives.dbo.Copier" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
   </DTS:Executables>
 </DTS:Executable>
